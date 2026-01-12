@@ -12,10 +12,10 @@ const DashboardTabs = () => {
         <TabsTrigger value="stock" className="text-lg">Stock Barang</TabsTrigger>
         <TabsTrigger value="sales" className="text-lg">Detil Penjualan</TabsTrigger>
       </TabsList>
-      <TabsContent value="stock">
+      <TabsContent value="stock" className="min-h-[300px]">
         <StockPage />
       </TabsContent>
-      <TabsContent value="sales">
+      <TabsContent value="sales" className="min-h-[300px]">
         <SalesDetailsPage />
       </TabsContent>
     </Tabs>

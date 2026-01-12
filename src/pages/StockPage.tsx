@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input"; // Import Input component
+import { Input } from "@/components/ui/input";
 import { readExcelFile } from "@/lib/excelUtils";
 import { StockItem } from "@/types/data";
 
@@ -42,7 +42,7 @@ const StockPage = () => {
 
   if (loading) {
     return (
-      <Card className="border-none shadow-none">
+      <Card className="border shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
           <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
@@ -56,7 +56,7 @@ const StockPage = () => {
 
   if (error) {
     return (
-      <Card className="border-none shadow-none">
+      <Card className="border shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
           <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
@@ -69,7 +69,7 @@ const StockPage = () => {
   }
 
   return (
-    <Card className="border-none shadow-none">
+    <Card className="border shadow-sm">
       <CardHeader>
         <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
         <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>

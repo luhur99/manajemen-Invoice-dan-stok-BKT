@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input"; // Import Input component
+import { Input } from "@/components/ui/input";
 import { readExcelFile } from "@/lib/excelUtils";
 import { SalesItem } from "@/types/data";
 
@@ -37,14 +37,14 @@ const SalesDetailsPage = () => {
       item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item.CUSTOMER.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.TANGGAL.toLowerCase().includes(lowerCaseSearchTerm) // Also allow searching by date string
+      item.TANGGAL.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setFilteredSalesData(filtered);
   }, [searchTerm, salesData]);
 
   if (loading) {
     return (
-      <Card className="border-none shadow-none">
+      <Card className="border shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
           <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
@@ -58,7 +58,7 @@ const SalesDetailsPage = () => {
 
   if (error) {
     return (
-      <Card className="border-none shadow-none">
+      <Card className="border shadow-sm">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
           <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
@@ -71,7 +71,7 @@ const SalesDetailsPage = () => {
   }
 
   return (
-    <Card className="border-none shadow-none">
+    <Card className="border shadow-sm">
       <CardHeader>
         <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
         <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
