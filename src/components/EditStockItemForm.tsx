@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,7 +21,6 @@ import { Loader2 } from "lucide-react";
 import { StockItem } from "@/types/data";
 
 // Schema validasi menggunakan Zod
-// 'no' dihilangkan dari schema karena tidak lagi menjadi inputan form
 const formSchema = z.object({
   kode_barang: z.string().min(1, "Kode Barang wajib diisi"),
   nama_barang: z.string().min(1, "Nama Barang wajib diisi"),
@@ -44,7 +43,6 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      // 'no' dihilangkan dari defaultValues karena tidak lagi menjadi inputan form
       kode_barang: stockItem["KODE BARANG"],
       nama_barang: stockItem["NAMA BARANG"],
       satuan: stockItem.SATUAN,
@@ -56,11 +54,14 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
     },
   });
 
+  // Use useRef to store initial values for comparison
+  const initialStockMasuk = useRef(stockItem["STOCK MASUK"]);
+  const initialStockKeluar = useRef(stockItem["STOCK KELUAR"]);
+
   // Reset form with new stock item data when the dialog opens or stockItem prop changes
   useEffect(() => {
     if (isOpen && stockItem) {
       form.reset({
-        // 'no' dihilangkan dari reset karena tidak lagi menjadi inputan form
         kode_barang: stockItem["KODE BARANG"],
         nama_barang: stockItem["NAMA BARANG"],
         satuan: stockItem.SATUAN,
@@ -70,17 +71,27 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
         stock_masuk: stockItem["STOCK MASUK"],
         stock_keluar: stockItem["STOCK KELUAR"],
       });
+      // Update ref values when form resets
+      initialStockMasuk.current = stockItem["STOCK MASUK"];
+      initialStockKeluar.current = stockItem["STOCK KELUAR"];
     }
   }, [isOpen, stockItem, form]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const stock_akhir = values.stock_awal + values.stock_masuk - values.stock_keluar;
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id;
+
+    if (!userId) {
+      showError("Pengguna tidak terautentikasi.");
+      return;
+    }
 
     try {
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from("stock_items")
         .update({
-          no: stockItem.NO, // Menggunakan nilai 'no' yang asli dari stockItem
+          no: stockItem.NO,
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
           satuan: values.satuan,
@@ -91,10 +102,57 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
           stock_keluar: values.stock_keluar,
           stock_akhir: stock_akhir,
         })
-        .eq("kode_barang", stockItem["KODE BARANG"]); // Assuming kode_barang is unique for update
+        .eq("id", stockItem.id); // Use 'id' for updating
 
-      if (error) {
-        throw error;
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Record stock transactions for changes in stock_masuk and stock_keluar
+      const newStockMasuk = values.stock_masuk;
+      const newStockKeluar = values.stock_keluar;
+
+      const diffStockMasuk = newStockMasuk - initialStockMasuk.current;
+      const diffStockKeluar = newStockKeluar - initialStockKeluar.current;
+
+      const transactionsToInsert = [];
+
+      if (diffStockMasuk > 0) {
+        transactionsToInsert.push({
+          user_id: userId,
+          stock_item_id: stockItem.id,
+          transaction_type: "in",
+          quantity: diffStockMasuk,
+          notes: "Penambahan stok melalui edit form",
+        });
+      } else if (diffStockMasuk < 0) {
+        // This case implies a reduction in 'stock_masuk' which is unusual for a cumulative field
+        // For simplicity, we'll treat it as an 'out' transaction if it represents a net decrease
+        // Or, more accurately, it means the cumulative 'stock_masuk' was corrected downwards.
+        // We'll only record new 'in' or 'out' movements.
+      }
+
+      if (diffStockKeluar > 0) {
+        transactionsToInsert.push({
+          user_id: userId,
+          stock_item_id: stockItem.id,
+          transaction_type: "out",
+          quantity: diffStockKeluar,
+          notes: "Pengurangan stok melalui edit form",
+        });
+      } else if (diffStockKeluar < 0) {
+        // Similar to stock_masuk, a reduction in stock_keluar is a correction.
+      }
+
+      if (transactionsToInsert.length > 0) {
+        const { error: transactionError } = await supabase
+          .from("stock_transactions")
+          .insert(transactionsToInsert);
+
+        if (transactionError) {
+          console.error("Error recording stock transactions:", transactionError);
+          // Don't throw, just log, as the item itself was updated successfully
+        }
       }
 
       showSuccess("Item stok berhasil diperbarui!");

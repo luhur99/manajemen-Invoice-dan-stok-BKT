@@ -31,7 +31,7 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("*")
+        .select("id, user_id, no, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, created_at") // Select 'id' and 'user_id'
         .order("no", { ascending: true });
 
       if (error) {
@@ -39,6 +39,8 @@ const StockPage = () => {
       }
 
       const fetchedStock: StockItem[] = data.map(item => ({
+        id: item.id, // Map the new 'id'
+        user_id: item.user_id, // Map the new 'user_id'
         NO: item.no,
         "KODE BARANG": item.kode_barang,
         "NAMA BARANG": item.nama_barang,
@@ -49,6 +51,7 @@ const StockPage = () => {
         "STOCK MASUK": item.stock_masuk,
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
+        created_at: item.created_at,
       }));
 
       setStockData(fetchedStock);
@@ -80,7 +83,7 @@ const StockPage = () => {
     setCurrentPage(1);
   }, [searchTerm, stockData]);
 
-  const handleDeleteStockItem = async (kodeBarang: string) => {
+  const handleDeleteStockItem = async (stockItemId: string) => { // Changed parameter to stockItemId
     if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
       return;
     }
@@ -89,7 +92,7 @@ const StockPage = () => {
       const { error } = await supabase
         .from("stock_items")
         .delete()
-        .eq("kode_barang", kodeBarang);
+        .eq("id", stockItemId); // Use 'id' for deletion
 
       if (error) {
         throw error;
@@ -112,20 +115,6 @@ const StockPage = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentItems = filteredStockData.slice(startIndex, endIndex);
-
-  if (loading) {
-    return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
-          <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-gray-700 dark:text-gray-300">Memuat data stok...</p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <Card className="border shadow-sm">
@@ -166,7 +155,7 @@ const StockPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item, index) => (
-                    <TableRow key={item["KODE BARANG"] || index}>
+                    <TableRow key={item.id || index}> {/* Use item.id for key */}
                       <TableCell>{item.NO}</TableCell>
                       <TableCell>{item["KODE BARANG"]}</TableCell>
                       <TableCell>{item["NAMA BARANG"]}</TableCell>
@@ -181,7 +170,7 @@ const StockPage = () => {
                         <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(item)}>
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteStockItem(item["KODE BARANG"])}>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteStockItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>

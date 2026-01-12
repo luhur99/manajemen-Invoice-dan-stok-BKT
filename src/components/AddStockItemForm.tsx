@@ -55,9 +55,16 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const stock_akhir = values.stock_awal + values.stock_masuk - values.stock_keluar;
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id;
+
+    if (!userId) {
+      showError("Pengguna tidak terautentikasi.");
+      return;
+    }
 
     try {
-      const { data, error } = await supabase
+      const { data: stockItemData, error: stockItemError } = await supabase
         .from("stock_items")
         .insert({
           no: values.no,
@@ -70,11 +77,31 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           stock_masuk: values.stock_masuk,
           stock_keluar: values.stock_keluar,
           stock_akhir: stock_akhir,
+          user_id: userId, // Ensure user_id is saved
         })
-        .select();
+        .select("id")
+        .single();
 
-      if (error) {
-        throw error;
+      if (stockItemError) {
+        throw stockItemError;
+      }
+
+      // Record initial stock transaction
+      if (values.stock_awal > 0) {
+        const { error: transactionError } = await supabase
+          .from("stock_transactions")
+          .insert({
+            user_id: userId,
+            stock_item_id: stockItemData.id,
+            transaction_type: "initial",
+            quantity: values.stock_awal,
+            notes: "Stok awal saat penambahan item",
+          });
+
+        if (transactionError) {
+          console.error("Error recording initial stock transaction:", transactionError);
+          // Don't throw, just log, as the item itself was added successfully
+        }
       }
 
       showSuccess("Item stok berhasil ditambahkan!");

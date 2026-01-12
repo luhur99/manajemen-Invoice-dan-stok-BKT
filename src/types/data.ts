@@ -1,4 +1,6 @@
 export interface StockItem {
+  id?: string; // New: UUID from Supabase, made optional for initial data loading
+  user_id?: string; // New: User ID for RLS, made optional for initial data loading
   NO: number;
   "KODE BARANG": string;
   "NAMA BARANG": string;
@@ -9,6 +11,18 @@ export interface StockItem {
   "STOCK MASUK": number;
   "STOCK KELUAR": number;
   "STOCK AKHIR": number;
+  created_at?: string; // Add created_at for consistency
+}
+
+export interface StockTransaction {
+  id: string;
+  user_id: string;
+  stock_item_id: string;
+  transaction_type: 'initial' | 'in' | 'out';
+  quantity: number;
+  notes?: string;
+  transaction_date: string; // ISO date string
+  created_at: string;
 }
 
 export interface SalesDetailItem {
