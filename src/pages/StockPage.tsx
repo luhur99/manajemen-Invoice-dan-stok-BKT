@@ -10,10 +10,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
-import AddStockTransactionForm from "@/components/AddStockTransactionForm"; // Import AddStockTransactionForm
+import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import PaginationControls from "@/components/PaginationControls";
-import { Loader2, Edit, Trash2, PlusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCcw, MinusCircle, Settings } from "lucide-react"; // Import new icons, including Settings
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"; // Import DropdownMenu
+import { Loader2, Edit, Trash2, PlusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCcw, MinusCircle, Settings } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSub, // Import DropdownMenuSub
+  DropdownMenuSubTrigger, // Import DropdownMenuSubTrigger
+  DropdownMenuSubContent, // Import DropdownMenuSubContent
+  DropdownMenuSeparator, // Optional: for visual separation
+} from "@/components/ui/dropdown-menu";
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -24,8 +33,8 @@ const StockPage = () => {
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
 
-  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false); // State for transaction dialog
-  const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined); // State for transaction type
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -36,8 +45,8 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, created_at") // Select 'id', 'user_id', and 'safe_stock_limit'
-        .order("nama_barang", { ascending: true }); // Order by nama_barang instead of no
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, created_at")
+        .order("nama_barang", { ascending: true });
 
       if (error) {
         throw error;
@@ -46,7 +55,7 @@ const StockPage = () => {
       const fetchedStock: StockItem[] = data.map(item => ({
         id: item.id,
         user_id: item.user_id,
-        NO: 0, // No longer used, but keep for type compatibility if needed elsewhere
+        NO: 0,
         "KODE BARANG": item.kode_barang,
         "NAMA BARANG": item.nama_barang,
         SATUAN: item.satuan || "",
@@ -56,7 +65,7 @@ const StockPage = () => {
         "STOCK MASUK": item.stock_masuk,
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
-        safe_stock_limit: item.safe_stock_limit, // Include new field
+        safe_stock_limit: item.safe_stock_limit,
         created_at: item.created_at,
       }));
 
@@ -161,7 +170,7 @@ const StockPage = () => {
                     <TableHead className="text-right">Stok Masuk</TableHead>
                     <TableHead className="text-right">Stok Keluar</TableHead>
                     <TableHead className="text-right">Stok Akhir</TableHead>
-                    <TableHead className="text-right">Batas Aman</TableHead> {/* New column header */}
+                    <TableHead className="text-right">Batas Aman</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -177,30 +186,38 @@ const StockPage = () => {
                       <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
-                      <TableCell className="text-right">{item.safe_stock_limit}</TableCell> {/* Display new field */}
+                      <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
                       <TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="flex items-center gap-1">
-                              <Settings className="h-4 w-4" /> Atur Stok
+                              <Settings className="h-4 w-4" /> Atur Barang
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleEditClick(item)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Item
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "in")}>
-                              <ArrowUpCircle className="mr-2 h-4 w-4 text-green-600" /> Stok Masuk
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "out")}>
-                              <ArrowDownCircle className="mr-2 h-4 w-4 text-red-600" /> Stok Keluar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "return")}>
-                              <RefreshCcw className="mr-2 h-4 w-4 text-blue-600" /> Retur Barang
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "damage_loss")}>
-                              <MinusCircle className="mr-2 h-4 w-4 text-orange-600" /> Rusak/Hilang
-                            </DropdownMenuItem>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <Settings className="mr-2 h-4 w-4" /> Atur Stok
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent>
+                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "in")}>
+                                  <ArrowUpCircle className="mr-2 h-4 w-4 text-green-600" /> Stok Masuk
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "out")}>
+                                  <ArrowDownCircle className="mr-2 h-4 w-4 text-red-600" /> Stok Keluar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "return")}>
+                                  <RefreshCcw className="mr-2 h-4 w-4 text-blue-600" /> Retur Barang
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "damage_loss")}>
+                                  <MinusCircle className="mr-2 h-4 w-4 text-orange-600" /> Rusak/Hilang
+                                </DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator /> {/* Optional separator */}
                             <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
                               <Trash2 className="mr-2 h-4 w-4" /> Hapus Item
                             </DropdownMenuItem>
