@@ -105,6 +105,7 @@ export interface Schedule {
   created_at: string;
   phone_number?: string; // New field for phone number
   courier_service?: string; // New field for courier service
+  document_url?: string; // New field for delivery/installation document
 }
 
 export interface Profile {

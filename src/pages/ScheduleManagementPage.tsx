@@ -9,7 +9,8 @@ import { Schedule } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
-import EditScheduleForm from "@/components/EditScheduleForm"; // Import EditScheduleForm
+import EditScheduleForm from "@/components/EditScheduleForm";
+import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { Loader2, Edit, Trash2 } from "lucide-react";
@@ -20,8 +21,8 @@ const ScheduleManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // State for edit dialog
-  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null); // State for selected schedule to edit
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -102,6 +103,38 @@ const ScheduleManagementPage = () => {
     setIsEditFormOpen(true);
   };
 
+  const handleDocumentUploadSuccess = async (scheduleId: string, fileUrl: string) => {
+    // Update the schedule in the database with the new document_url
+    const { error } = await supabase
+      .from("schedules")
+      .update({ document_url: fileUrl })
+      .eq("id", scheduleId);
+
+    if (error) {
+      console.error("Error updating schedule with document URL:", error);
+      showError("Gagal menyimpan URL dokumen ke database.");
+      return;
+    }
+    showSuccess("URL dokumen jadwal berhasil diperbarui!");
+    fetchSchedules(); // Refresh data to show the updated URL
+  };
+
+  const handleDocumentRemoveSuccess = async (scheduleId: string) => {
+    // Update the schedule in the database, setting document_url to null
+    const { error } = await supabase
+      .from("schedules")
+      .update({ document_url: null })
+      .eq("id", scheduleId);
+
+    if (error) {
+      console.error("Error removing document URL from schedule:", error);
+      showError("Gagal menghapus URL dokumen dari database.");
+      return;
+    }
+    showSuccess("URL dokumen jadwal berhasil dihapus!");
+    fetchSchedules(); // Refresh data
+  };
+
   const totalPages = Math.ceil(filteredSchedules.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -158,6 +191,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Dokumen</TableHead> {/* New column for document */}
                     <TableHead>Catatan</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
@@ -182,6 +216,14 @@ const ScheduleManagementPage = () => {
                         }`}>
                           {schedule.status.charAt(0).toUpperCase() + schedule.status.slice(1)}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <ScheduleDocumentUpload
+                          scheduleId={schedule.id}
+                          currentFileUrl={schedule.document_url}
+                          onUploadSuccess={(fileUrl) => handleDocumentUploadSuccess(schedule.id, fileUrl)}
+                          onRemoveSuccess={() => handleDocumentRemoveSuccess(schedule.id)}
+                        />
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{schedule.notes || "-"}</TableCell>
                       <TableCell className="text-center">

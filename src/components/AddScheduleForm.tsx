@@ -42,6 +42,7 @@ const formSchema = z.object({
   }).default("scheduled"),
   notes: z.string().optional(),
   courier_service: z.string().optional(), // New field for courier service
+  document_url: z.string().optional(), // New field for document URL
 });
 
 interface AddScheduleFormProps {
@@ -62,7 +63,8 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
       invoice_id: "",
       status: "scheduled",
       notes: "",
-      courier_service: "", // Default value for new field
+      courier_service: "",
+      document_url: "", // Default value for new field
     },
   });
 
@@ -92,7 +94,8 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
           invoice_id: values.invoice_id || null,
           status: values.status,
           notes: values.notes || null,
-          courier_service: values.courier_service || null, // Save new field
+          courier_service: values.courier_service || null,
+          document_url: values.document_url || null, // Save new field
         })
         .select();
 
@@ -112,11 +115,6 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Buat Jadwal Baru
-        </Button>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Buat Jadwal Baru</DialogTitle>
@@ -222,7 +220,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
                   </FormItem>
                 )}
               />
-              {scheduleType === "kirim" && ( // Conditional rendering for courier service
+              {scheduleType === "kirim" && (
                 <FormField
                   control={form.control}
                   name="courier_service"

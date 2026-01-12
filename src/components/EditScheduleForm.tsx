@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Schedule } from "@/types/data";
+import { Schedule, InvoiceItem, StockItem } from "@/types/data";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -43,6 +43,7 @@ const formSchema = z.object({
   }).default("scheduled"),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
+  document_url: z.string().optional(), // New field
 });
 
 interface EditScheduleFormProps {
@@ -67,8 +68,13 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       status: schedule.status,
       notes: schedule.notes || "",
       courier_service: schedule.courier_service || "",
+      document_url: schedule.document_url || "", // Set default for new field
     },
   });
+
+  // Watch for status changes
+  const currentStatus = form.watch("status");
+  const previousStatus = schedule.status; // Get the status before editing
 
   // Reset form with new schedule data when the dialog opens or schedule prop changes
   useEffect(() => {
@@ -85,6 +91,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         status: schedule.status,
         notes: schedule.notes || "",
         courier_service: schedule.courier_service || "",
+        document_url: schedule.document_url || "",
       });
     }
   }, [isOpen, schedule, form]);
@@ -101,10 +108,11 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
     }
 
     try {
-      const { error } = await supabase
+      // Update schedule
+      const { error: scheduleUpdateError } = await supabase
         .from("schedules")
         .update({
-          user_id: userId, // Ensure user_id is maintained
+          user_id: userId,
           schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
           schedule_time: values.schedule_time || null,
           type: values.type,
@@ -116,11 +124,84 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
           status: values.status,
           notes: values.notes || null,
           courier_service: values.courier_service || null,
+          document_url: values.document_url || null, // Save new field
         })
-        .eq("id", schedule.id); // Update based on the schedule's ID
+        .eq("id", schedule.id);
 
-      if (error) {
-        throw error;
+      if (scheduleUpdateError) {
+        throw scheduleUpdateError;
+      }
+
+      // Logic for stock deduction when status changes to 'completed'
+      if (values.status === 'completed' && previousStatus !== 'completed' && values.invoice_id) {
+        const { data: invoiceItems, error: itemsError } = await supabase
+          .from("invoice_items")
+          .select("*")
+          .eq("invoice_id", values.invoice_id);
+
+        if (itemsError) {
+          console.error("Error fetching invoice items for stock deduction:", itemsError);
+          showError("Gagal mengambil item invoice untuk pengurangan stok.");
+          // Continue with schedule update, but stock deduction failed
+        } else if (invoiceItems && invoiceItems.length > 0) {
+          for (const item of invoiceItems as InvoiceItem[]) {
+            const { data: stockItemData, error: stockItemError } = await supabase
+              .from("stock_items")
+              .select("id, nama_barang, stock_keluar, stock_akhir")
+              .eq("nama_barang", item.item_name)
+              .single();
+
+            if (stockItemError) {
+              console.warn(`Stock item for "${item.item_name}" not found or error:`, stockItemError);
+              showError(`Item stok "${item.item_name}" tidak ditemukan atau gagal diperbarui.`);
+              continue; // Skip to next invoice item
+            }
+
+            if (stockItemData) {
+              const newStockKeluar = stockItemData.stock_keluar + item.quantity;
+              const newStockAkhir = stockItemData.stock_akhir - item.quantity;
+
+              if (newStockAkhir < 0) {
+                showError(`Stok akhir untuk "${item.item_name}" akan menjadi negatif. Pengurangan dibatalkan.`);
+                // Optionally, revert schedule status or mark as partially completed
+                continue;
+              }
+
+              // Update stock item
+              const { error: updateStockError } = await supabase
+                .from("stock_items")
+                .update({
+                  stock_keluar: newStockKeluar,
+                  stock_akhir: newStockAkhir,
+                })
+                .eq("id", stockItemData.id);
+
+              if (updateStockError) {
+                console.error(`Error updating stock for "${item.item_name}":`, updateStockError);
+                showError(`Gagal memperbarui stok untuk "${item.item_name}".`);
+                continue;
+              }
+
+              // Record stock transaction
+              const { error: transactionError } = await supabase
+                .from("stock_transactions")
+                .insert({
+                  user_id: userId,
+                  stock_item_id: stockItemData.id,
+                  transaction_type: "out",
+                  quantity: item.quantity,
+                  notes: `Pengurangan stok untuk jadwal ${values.type} (Invoice: ${values.invoice_id})`,
+                });
+
+              if (transactionError) {
+                console.error(`Error recording stock transaction for "${item.item_name}":`, transactionError);
+                showError(`Gagal mencatat transaksi stok untuk "${item.item_name}".`);
+                continue;
+              }
+            }
+          }
+          showSuccess("Stok barang terkait berhasil diperbarui.");
+        }
       }
 
       showSuccess("Jadwal berhasil diperbarui!");
