@@ -15,7 +15,7 @@ export interface SalesDetailItem {
   NO: number;
   "Kirim/Install": string;
   "No Transaksi": string;
-  Invoice: string;
+  Invoice: string; // This will now represent the invoice number/text
   "New/Old": string;
   Perusahaan: string;
   Tanggal: string; // Assuming date as string "yyyy-mm-dd"
@@ -37,6 +37,7 @@ export interface SalesDetailItem {
   Teknisi: string;
   Payment: string;
   Catatan: string;
+  invoice_file_url?: string; // New field for the uploaded invoice file URL
 }
 
 export interface ExcelData {

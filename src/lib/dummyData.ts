@@ -62,6 +62,7 @@ export const generateDummySalesData = (count: number = 10): SalesDetailItem[] =>
       Teknisi: technicians[Math.floor(Math.random() * technicians.length)],
       Payment: payments[Math.floor(Math.random() * payments.length)],
       Catatan: `Catatan untuk transaksi ${i}`,
+      invoice_file_url: undefined, // Add this new field, initially undefined
     });
   }
   return dummyData;

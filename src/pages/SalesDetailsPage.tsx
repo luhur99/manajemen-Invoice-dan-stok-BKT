@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { readExcelFile } from "@/lib/excelUtils";
-import { SalesDetailItem } from "@/types/data"; // Menggunakan SalesDetailItem
-import { generateDummySalesData } from "@/lib/dummyData"; // Import dummy data generator
+import { SalesDetailItem } from "@/types/data";
+import { generateDummySalesData } from "@/lib/dummyData";
+import InvoiceUpload from "@/components/InvoiceUpload"; // Import the new component
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesDetailItem[]>([]);
@@ -23,7 +24,6 @@ const SalesDetailsPage = () => {
           setSalesData(data.sales);
           setFilteredSalesData(data.sales);
         } else {
-          // Use dummy data if Excel file is empty or fails to load
           const dummy = generateDummySalesData();
           setSalesData(dummy);
           setFilteredSalesData(dummy);
@@ -32,7 +32,6 @@ const SalesDetailsPage = () => {
       } catch (err) {
         setError("Gagal memuat data penjualan dari file Excel. Menampilkan data dummy.");
         console.error(err);
-        // Fallback to dummy data on error
         const dummy = generateDummySalesData();
         setSalesData(dummy);
         setFilteredSalesData(dummy);
@@ -59,6 +58,32 @@ const SalesDetailsPage = () => {
     );
     setFilteredSalesData(filtered);
   }, [searchTerm, salesData]);
+
+  const handleInvoiceUploadSuccess = (salesId: string, fileUrl: string) => {
+    setSalesData(prevData =>
+      prevData.map(item =>
+        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
+      )
+    );
+    setFilteredSalesData(prevData =>
+      prevData.map(item =>
+        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
+      )
+    );
+  };
+
+  const handleInvoiceRemoveSuccess = (salesId: string) => {
+    setSalesData(prevData =>
+      prevData.map(item =>
+        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
+      )
+    );
+    setFilteredSalesData(prevData =>
+      prevData.map(item =>
+        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
+      )
+    );
+  };
 
   if (loading) {
     return (
@@ -97,7 +122,7 @@ const SalesDetailsPage = () => {
                   <TableHead>No</TableHead>
                   <TableHead>Kirim/Install</TableHead>
                   <TableHead>No Transaksi</TableHead>
-                  <TableHead>Invoice</TableHead>
+                  <TableHead>Invoice</TableHead> {/* This column will now contain the upload component */}
                   <TableHead>New/Old</TableHead>
                   <TableHead>Perusahaan</TableHead>
                   <TableHead>Tanggal</TableHead>
@@ -123,11 +148,18 @@ const SalesDetailsPage = () => {
               </TableHeader>
               <TableBody>
                 {filteredSalesData.map((item, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={item["No Transaksi"] || index}> {/* Use No Transaksi as key if available */}
                     <TableCell>{item.NO}</TableCell>
                     <TableCell>{item["Kirim/Install"]}</TableCell>
                     <TableCell>{item["No Transaksi"]}</TableCell>
-                    <TableCell>{item.Invoice}</TableCell>
+                    <TableCell>
+                      <InvoiceUpload
+                        salesId={item["No Transaksi"]} // Using No Transaksi as a unique ID for this demo
+                        currentFileUrl={item.invoice_file_url}
+                        onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item["No Transaksi"], fileUrl)}
+                        onRemoveSuccess={() => handleInvoiceRemoveSuccess(item["No Transaksi"])}
+                      />
+                    </TableCell>
                     <TableCell>{item["New/Old"]}</TableCell>
                     <TableCell>{item.Perusahaan}</TableCell>
                     <TableCell>{item.Tanggal}</TableCell>
