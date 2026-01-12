@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format, startOfMonth, endOfMonth, isSameDay, parseISO } from "date-fns";
@@ -20,12 +20,23 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   const [loading, setLoading] = useState(false);
   const [selectedDaySchedules, setSelectedDaySchedules] = useState<Schedule[]>([]);
 
-  // Define colors for different technicians
+  // Define colors for different technicians in the schedule list
   const technicianColors: Record<string, string> = {
     "Jubed": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
     "Daffa": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
     "Teknisi Lain": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100",
     "Belum Ditugaskan": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+  };
+
+  // Define colors for calendar day markers (using HSL for consistency with shadcn/ui)
+  // Order matters here for `modifiersStyles` if a day has multiple technician schedules.
+  // The last defined style for a property (e.g., backgroundColor) will take precedence.
+  // Priority: Jubed > Daffa > Other > Unassigned
+  const calendarModifierStyles: Record<string, React.CSSProperties> = {
+    unassigned: { backgroundColor: 'hsl(210 40% 96.1%)', color: 'hsl(210 22% 49.8%)' }, // Gray-500 equivalent
+    other: { backgroundColor: 'hsl(262.1 83.3% 57.8%)', color: 'hsl(0 0% 100%)' }, // Purple-500 equivalent
+    daffa: { backgroundColor: 'hsl(142.1 76.2% 36.3%)', color: 'hsl(0 0% 100%)' }, // Green-500 equivalent
+    jubed: { backgroundColor: 'hsl(217.2 91.2% 59.8%)', color: 'hsl(0 0% 100%)' }, // Blue-500 equivalent
   };
 
   const fetchSchedulesForMonth = useCallback(async (monthDate: Date) => {
@@ -80,18 +91,41 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     }
   }, [date, schedules]);
 
-  const daysWithSchedules = schedules.map(s => parseISO(s.schedule_date));
+  // Create modifiers for each technician for the calendar
+  const technicianDayModifiers = useMemo(() => {
+    const modifiers: Record<string, Date[]> = {
+      jubed: [],
+      daffa: [],
+      other: [], // For "Teknisi Lain"
+      unassigned: [], // For "Belum Ditugaskan"
+    };
 
-  const modifiers = {
-    hasSchedules: daysWithSchedules,
-  };
+    schedules.forEach(s => {
+      const scheduleDate = parseISO(s.schedule_date);
+      if (s.technician_name === "Jubed") {
+        modifiers.jubed.push(scheduleDate);
+      } else if (s.technician_name === "Daffa") {
+        modifiers.daffa.push(scheduleDate);
+      } else if (s.technician_name === "Belum Ditugaskan") {
+        modifiers.unassigned.push(scheduleDate);
+      } else {
+        modifiers.other.push(scheduleDate); // Any other technician name
+      }
+    });
 
-  const modifiersStyles = {
-    hasSchedules: {
-      backgroundColor: 'hsl(var(--primary))',
-      color: 'hsl(var(--primary-foreground))',
-      borderRadius: '0.375rem', // rounded-md
-    },
+    // Filter out duplicate dates within each technician's array
+    for (const key in modifiers) {
+      modifiers[key] = Array.from(new Set(modifiers[key].map(d => d.toISOString().split('T')[0])))
+        .map(dateString => parseISO(dateString));
+    }
+
+    return modifiers;
+  }, [schedules]);
+
+  // Combine all modifiers for the Calendar component
+  const allModifiers = {
+    ...technicianDayModifiers,
+    selected: date, // Keep the selected date modifier
   };
 
   const handleDaySelect = (selectedDay: Date | undefined) => {
@@ -121,8 +155,8 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
             selected={date}
             onSelect={handleDaySelect}
             className="rounded-md border shadow"
-            modifiers={modifiers}
-            modifiersStyles={modifiersStyles}
+            modifiers={allModifiers} // Use combined modifiers
+            modifiersStyles={calendarModifierStyles} // Use technician-specific styles
             locale={id} // Set locale to Indonesian
             onMonthChange={(newMonth) => setDate(newMonth)} // Update date state when month changes
           />
