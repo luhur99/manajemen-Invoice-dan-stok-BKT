@@ -8,7 +8,7 @@ import { StockItem } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
-import PaginationControls from "@/components/PaginationControls"; // Import PaginationControls
+import PaginationControls from "@/components/PaginationControls";
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -17,9 +17,8 @@ const StockPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // You can adjust this number
+  const itemsPerPage = 10;
 
   const fetchStockData = useCallback(async () => {
     setLoading(true);
@@ -49,7 +48,7 @@ const StockPage = () => {
 
       setStockData(fetchedStock);
       setFilteredStockData(fetchedStock);
-      setCurrentPage(1); // Reset to first page on new data fetch
+      setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat data stok dari database: ${err.message}`);
       console.error("Error fetching stock data:", err);
@@ -73,10 +72,9 @@ const StockPage = () => {
       item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setFilteredStockData(filtered);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   }, [searchTerm, stockData]);
 
-  // Calculate total pages for pagination
   const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -120,8 +118,8 @@ const StockPage = () => {
         />
         {filteredStockData.length > 0 ? (
           <>
-            <div className="overflow-x-auto"> {/* Ensures horizontal scrolling */}
-              <Table className="min-w-full"> {/* Ensures table takes full width for scrolling */}
+            <div className="overflow-x-auto">
+              <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
                     <TableHead>No</TableHead>

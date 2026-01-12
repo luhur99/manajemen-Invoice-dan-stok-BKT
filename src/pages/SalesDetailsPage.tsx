@@ -10,7 +10,7 @@ import { generateDummySalesData } from "@/lib/dummyData";
 import InvoiceUpload from "@/components/InvoiceUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import PaginationControls from "@/components/PaginationControls"; // Import PaginationControls
+import PaginationControls from "@/components/PaginationControls";
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesDetailItem[]>([]);
@@ -19,9 +19,8 @@ const SalesDetailsPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // You can adjust this number
+  const itemsPerPage = 10;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -57,7 +56,7 @@ const SalesDetailsPage = () => {
 
         setSalesData(mergedSalesData);
         setFilteredSalesData(mergedSalesData);
-        setCurrentPage(1); // Reset to first page on new data fetch
+        setCurrentPage(1);
       } catch (err) {
         setError("Gagal memuat data penjualan. Menampilkan data dummy.");
         console.error(err);
@@ -86,7 +85,7 @@ const SalesDetailsPage = () => {
       item.Catatan.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setFilteredSalesData(filtered);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   }, [searchTerm, salesData]);
 
   const handleInvoiceUploadSuccess = async (salesId: string, fileUrl: string) => {
@@ -137,7 +136,6 @@ const SalesDetailsPage = () => {
     }
   };
 
-  // Calculate total pages for pagination
   const totalPages = Math.ceil(filteredSalesData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -178,8 +176,8 @@ const SalesDetailsPage = () => {
         />
         {filteredSalesData.length > 0 ? (
           <>
-            <div className="overflow-x-auto"> {/* Ensures horizontal scrolling */}
-              <Table className="min-w-full"> {/* Ensures table takes full width for scrolling */}
+            <div className="overflow-x-auto">
+              <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
                     <TableHead>No</TableHead>
