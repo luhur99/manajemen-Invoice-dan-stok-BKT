@@ -89,4 +89,5 @@ export interface Schedule {
   status: 'scheduled' | 'in progress' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
+  phone_number?: string; // New field for phone number
 }

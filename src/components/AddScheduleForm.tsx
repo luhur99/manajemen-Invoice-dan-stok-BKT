@@ -33,6 +33,7 @@ const formSchema = z.object({
     required_error: "Tipe jadwal wajib dipilih",
   }),
   customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
+  phone_number: z.string().optional(), // New field for phone number
   address: z.string().optional(),
   technician_name: z.string().optional(),
   invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")), // Optional UUID or empty string
@@ -54,6 +55,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
       schedule_time: "",
       type: undefined,
       customer_name: "",
+      phone_number: "", // Default value for new field
       address: "",
       technician_name: "",
       invoice_id: "",
@@ -80,6 +82,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
           schedule_time: values.schedule_time || null,
           type: values.type,
           customer_name: values.customer_name,
+          phone_number: values.phone_number || null, // Save new field
           address: values.address || null,
           technician_name: values.technician_name || null,
           invoice_id: values.invoice_id || null,
@@ -203,9 +206,22 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
               />
               <FormField
                 control={form.control}
+                name="phone_number" // New field
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>No WA Konsumen (Opsional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., 081234567890" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="address"
                 render={({ field }) => (
-                  <FormItem className="md:col-span-2">
+                  <FormItem>
                     <FormLabel>Alamat (Opsional)</FormLabel>
                     <FormControl>
                       <Textarea placeholder="Alamat lengkap untuk instalasi/pengiriman" {...field} />

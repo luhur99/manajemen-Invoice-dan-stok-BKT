@@ -63,6 +63,7 @@ const ScheduleManagementPage = () => {
       item.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.status.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Include phone number in search
       format(new Date(item.schedule_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
     setFilteredSchedules(filtered);
@@ -124,7 +125,7 @@ const ScheduleManagementPage = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan konsumen, tipe, teknisi, alamat, atau status..."
+          placeholder="Cari berdasarkan konsumen, tipe, teknisi, alamat, status, atau No WA..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
@@ -139,6 +140,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Waktu</TableHead>
                     <TableHead>Tipe</TableHead>
                     <TableHead>Konsumen</TableHead>
+                    <TableHead>No WA</TableHead> {/* New TableHead */}
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
                     <TableHead>Status</TableHead>
@@ -153,6 +155,7 @@ const ScheduleManagementPage = () => {
                       <TableCell>{schedule.schedule_time || "-"}</TableCell>
                       <TableCell>{schedule.type}</TableCell>
                       <TableCell>{schedule.customer_name}</TableCell>
+                      <TableCell>{schedule.phone_number || "-"}</TableCell> {/* New TableCell */}
                       <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell>
                       <TableCell>{schedule.technician_name || "-"}</TableCell>
                       <TableCell>
