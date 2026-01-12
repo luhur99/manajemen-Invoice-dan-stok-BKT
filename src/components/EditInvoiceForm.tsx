@@ -105,6 +105,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         item_name: item.item_name,
         quantity: item.quantity,
         unit_price: item.unit_price,
+        subtotal: item.quantity * item.unit_price, // Added subtotal calculation
         unit_type: item.unit_type || "",
       }));
       form.reset({

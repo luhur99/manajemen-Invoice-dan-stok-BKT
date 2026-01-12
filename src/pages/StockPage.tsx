@@ -4,11 +4,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { StockItem } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
+import EditStockItemForm from "@/components/EditStockItemForm"; // Import EditStockItemForm
 import PaginationControls from "@/components/PaginationControls";
+import { Loader2, Edit, Trash2 } from "lucide-react";
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -16,6 +19,8 @@ const StockPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // State for edit dialog
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null); // State for selected stock item to edit
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -75,14 +80,38 @@ const StockPage = () => {
     setCurrentPage(1);
   }, [searchTerm, stockData]);
 
+  const handleDeleteStockItem = async (kodeBarang: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("stock_items")
+        .delete()
+        .eq("kode_barang", kodeBarang);
+
+      if (error) {
+        throw error;
+      }
+
+      showSuccess("Item stok berhasil dihapus!");
+      fetchStockData(); // Refresh the list
+    } catch (err: any) {
+      showError(`Gagal menghapus item stok: ${err.message}`);
+      console.error("Error deleting stock item:", err);
+    }
+  };
+
+  const handleEditClick = (item: StockItem) => {
+    setSelectedStockItem(item);
+    setIsEditFormOpen(true);
+  };
+
   const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentItems = filteredStockData.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
 
   if (loading) {
     return (
@@ -132,6 +161,7 @@ const StockPage = () => {
                     <TableHead className="text-right">Stok Masuk</TableHead>
                     <TableHead className="text-right">Stok Keluar</TableHead>
                     <TableHead className="text-right">Stok Akhir</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -147,6 +177,14 @@ const StockPage = () => {
                       <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
+                      <TableCell className="text-center">
+                        <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(item)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteStockItem(item["KODE BARANG"])}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -156,7 +194,7 @@ const StockPage = () => {
               <PaginationControls
                 currentPage={currentPage}
                 totalPages={totalPages}
-                onPageChange={handlePageChange}
+                onPageChange={(page) => setCurrentPage(page)}
               />
             )}
           </>
@@ -164,6 +202,15 @@ const StockPage = () => {
           <p className="text-gray-700 dark:text-gray-300">Tidak ada data stok yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
+
+      {selectedStockItem && (
+        <EditStockItemForm
+          stockItem={selectedStockItem}
+          isOpen={isEditFormOpen}
+          onOpenChange={setIsEditFormOpen}
+          onSuccess={fetchStockData}
+        />
+      )}
     </Card>
   );
 };
