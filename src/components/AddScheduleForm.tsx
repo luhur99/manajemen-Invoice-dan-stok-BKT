@@ -47,44 +47,46 @@ const formSchema = z.object({
 interface AddScheduleFormProps {
   onSuccess: () => void;
   onOpenChange: (open: boolean) => void; // New prop to control parent dialog
+  initialData?: Partial<z.infer<typeof formSchema>>; // New prop for initial data
 }
 
-const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChange }) => {
+const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChange, initialData }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      schedule_date: new Date(),
-      schedule_time: "",
-      type: undefined,
-      customer_name: "",
-      phone_number: "",
-      address: "",
-      technician_name: "",
-      invoice_id: "",
-      status: "scheduled",
-      notes: "",
-      courier_service: "",
-      document_url: "",
+      // Prioritize initialData's schedule_date, converting it to Date, otherwise use new Date()
+      schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
+      schedule_time: initialData?.schedule_time || "",
+      type: initialData?.type || undefined,
+      customer_name: initialData?.customer_name || "",
+      phone_number: initialData?.phone_number || "",
+      address: initialData?.address || "",
+      technician_name: initialData?.technician_name || "",
+      invoice_id: initialData?.invoice_id || "",
+      status: initialData?.status || "scheduled",
+      notes: initialData?.notes || "",
+      courier_service: initialData?.courier_service || "",
+      document_url: initialData?.document_url || "",
     },
   });
 
-  // Reset form when component mounts (i.e., when dialog opens)
+  // Reset form when component mounts (i.e., when dialog opens) or initialData changes
   useEffect(() => {
     form.reset({
-      schedule_date: new Date(),
-      schedule_time: "",
-      type: undefined,
-      customer_name: "",
-      phone_number: "",
-      address: "",
-      technician_name: "",
-      invoice_id: "",
-      status: "scheduled",
-      notes: "",
-      courier_service: "",
-      document_url: "",
+      schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
+      schedule_time: initialData?.schedule_time || "",
+      type: initialData?.type || undefined,
+      customer_name: initialData?.customer_name || "",
+      phone_number: initialData?.phone_number || "",
+      address: initialData?.address || "",
+      technician_name: initialData?.technician_name || "",
+      invoice_id: initialData?.invoice_id || "",
+      status: initialData?.status || "scheduled",
+      notes: initialData?.notes || "",
+      courier_service: initialData?.courier_service || "",
+      document_url: initialData?.document_url || "",
     });
-  }, [form]); // Dependency array includes form to ensure reset works with form instance
+  }, [form, initialData]); // Dependency array includes form and initialData
 
   const scheduleType = form.watch("type");
 
@@ -192,7 +194,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Tipe Jadwal</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih tipe jadwal" />
@@ -293,7 +295,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Status Jadwal</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih status jadwal" />

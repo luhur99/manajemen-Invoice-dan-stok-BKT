@@ -9,10 +9,13 @@ import { Invoice } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
-import EditInvoiceForm from "@/components/EditInvoiceForm"; // Import EditInvoiceForm
+import EditInvoiceForm from "@/components/EditInvoiceForm";
+import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog"; // Import new component
+import AddScheduleForm from "@/components/AddScheduleForm"; // Import AddScheduleForm
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Import Dialog components for AddScheduleForm
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Edit, Trash2 } from "lucide-react";
+import { Loader2, Edit, Trash2, Eye, CalendarPlus } from "lucide-react"; // Import Eye and CalendarPlus icons
 
 const InvoiceManagementPage = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -20,8 +23,14 @@ const InvoiceManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // State for edit dialog
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null); // State for selected invoice to edit
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // State for View Details dialog
+  const [invoiceToView, setInvoiceToView] = useState<Invoice | null>(null); // State for invoice to view
+
+  const [isConvertScheduleOpen, setIsConvertScheduleOpen] = useState(false); // State for Convert to Schedule dialog
+  const [invoiceToConvert, setInvoiceToConvert] = useState<Invoice | null>(null); // State for invoice to convert
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -70,7 +79,7 @@ const InvoiceManagementPage = () => {
   }, [searchTerm, invoices]);
 
   const handleDeleteInvoice = async (invoiceId: string) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus invoice ini?")) {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus invoice ini? Ini juga akan menghapus semua item invoice terkait.")) {
       return;
     }
 
@@ -95,6 +104,16 @@ const InvoiceManagementPage = () => {
   const handleEditClick = (invoice: Invoice) => {
     setSelectedInvoice(invoice);
     setIsEditFormOpen(true);
+  };
+
+  const handleViewInvoice = (invoice: Invoice) => {
+    setInvoiceToView(invoice);
+    setIsViewDetailsOpen(true);
+  };
+
+  const handleConvertToSchedule = (invoice: Invoice) => {
+    setInvoiceToConvert(invoice);
+    setIsConvertScheduleOpen(true);
   };
 
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
@@ -172,11 +191,17 @@ const InvoiceManagementPage = () => {
                           {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
                         </span>
                       </TableCell>
-                      <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(invoice)}>
+                      <TableCell className="text-center flex items-center justify-center space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleViewInvoice(invoice)} title="Lihat Detail">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleConvertToSchedule(invoice)} title="Konversi ke Jadwal">
+                          <CalendarPlus className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(invoice)} title="Edit Invoice">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteInvoice(invoice.id)}>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteInvoice(invoice.id)} title="Hapus Invoice">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </TableCell>
@@ -205,6 +230,39 @@ const InvoiceManagementPage = () => {
           onOpenChange={setIsEditFormOpen}
           onSuccess={fetchInvoices}
         />
+      )}
+
+      {invoiceToView && (
+        <ViewInvoiceDetailsDialog
+          invoice={invoiceToView}
+          isOpen={isViewDetailsOpen}
+          onOpenChange={setIsViewDetailsOpen}
+        />
+      )}
+
+      {invoiceToConvert && (
+        <Dialog open={isConvertScheduleOpen} onOpenChange={setIsConvertScheduleOpen}>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Buat Jadwal dari Invoice #{invoiceToConvert.invoice_number}</DialogTitle>
+            </DialogHeader>
+            <AddScheduleForm
+              onSuccess={() => {
+                fetchInvoices(); // Refresh invoices after schedule creation
+                setIsConvertScheduleOpen(false);
+              }}
+              onOpenChange={setIsConvertScheduleOpen}
+              initialData={{
+                customer_name: invoiceToConvert.customer_name,
+                invoice_id: invoiceToConvert.id,
+                address: invoiceToConvert.notes, // Assuming notes might contain address
+                // You might want to fetch phone number from profile or another source if available
+                // type: invoiceToConvert.type, // If invoice has a type that maps to schedule type
+                notes: `Jadwal dibuat dari Invoice #${invoiceToConvert.invoice_number}`,
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </Card>
   );
