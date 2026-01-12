@@ -211,13 +211,7 @@ const InvoiceManagementPage = () => {
                 <TableBody>
                   {currentItems.map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell>{invoice.invoice_number}</TableCell>
-                      <TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
-                      <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell>
-                      <TableCell>{invoice.customer_name}</TableCell>
-                      <TableCell>{invoice.company_name || "-"}</TableCell>
-                      <TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                      <TableCell>
+                      <TableCell>{invoice.invoice_number}</TableCell><TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell><TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell><TableCell>{invoice.customer_name}</TableCell><TableCell>{invoice.company_name || "-"}</TableCell><TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell><TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           invoice.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
                           invoice.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -225,8 +219,7 @@ const InvoiceManagementPage = () => {
                         }`}>
                           {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
                         </span>
-                      </TableCell>
-                      <TableCell>
+                      </TableCell><TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           invoice.schedule_status_display === 'completed' ? 'bg-green-100 text-green-800' :
                           invoice.schedule_status_display === 'in progress' ? 'bg-blue-100 text-blue-800' :
@@ -236,8 +229,7 @@ const InvoiceManagementPage = () => {
                         }`}>
                           {invoice.schedule_status_display === "Belum Terjadwal" ? "Belum Terjadwal" : invoice.schedule_status_display?.charAt(0).toUpperCase() + invoice.schedule_status_display?.slice(1)}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-center flex items-center justify-center space-x-1">
+                      </TableCell><TableCell className="text-center flex items-center justify-center space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleViewInvoice(invoice)} title="Lihat Detail">
                           <Eye className="h-4 w-4" />
                         </Button>

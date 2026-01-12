@@ -307,39 +307,14 @@ const SalesDetailsPage = () => {
                 <TableBody>
                   {currentItems.map((item, index) => (
                     <TableRow key={item.id || index}>
-                      <TableCell>{item.no}</TableCell>
-                      <TableCell>{item.kirim_install}</TableCell>
-                      <TableCell>{item.no_transaksi}</TableCell>
-                      <TableCell>
+                      <TableCell>{item.no}</TableCell><TableCell>{item.kirim_install}</TableCell><TableCell>{item.no_transaksi}</TableCell><TableCell>
                         <InvoiceUpload
                           salesId={item.no_transaksi}
                           currentFileUrl={item.invoice_file_url}
                           onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item.no_transaksi, fileUrl)}
                           onRemoveSuccess={() => handleInvoiceRemoveSuccess(item.no_transaksi)}
                         />
-                      </TableCell>
-                      <TableCell>{item.new_old || "-"}</TableCell>
-                      <TableCell>{item.perusahaan || "-"}</TableCell>
-                      <TableCell>{format(new Date(item.tanggal), "dd-MM-yyyy")}</TableCell>
-                      <TableCell>{item.hari || "-"}</TableCell>
-                      <TableCell>{item.jam || "-"}</TableCell>
-                      <TableCell>{item.customer}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{item.alamat_install || "-"}</TableCell>
-                      <TableCell>{item.no_hp || "-"}</TableCell>
-                      <TableCell>{item.type || "-"}</TableCell>
-                      <TableCell className="text-right">{item.qty_unit}</TableCell>
-                      <TableCell className="text-right">{item.stock}</TableCell>
-                      <TableCell className="text-right">{item.harga?.toLocaleString('id-ID')}</TableCell>
-                      <TableCell>{item.web || "-"}</TableCell>
-                      <TableCell className="text-right">{item.qty_web}</TableCell>
-                      <TableCell>{item.kartu || "-"}</TableCell>
-                      <TableCell className="text-right">{item.qty_kartu}</TableCell>
-                      <TableCell>{item.paket || "-"}</TableCell>
-                      <TableCell className="text-right">{item.pulsa?.toLocaleString('id-ID')}</TableCell>
-                      <TableCell>{item.teknisi || "-"}</TableCell>
-                      <TableCell>{item.payment || "-"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{item.catatan || "-"}</TableCell>
-                      <TableCell className="text-center">
+                      </TableCell><TableCell>{item.new_old || "-"}</TableCell><TableCell>{item.perusahaan || "-"}</TableCell><TableCell>{format(new Date(item.tanggal), "dd-MM-yyyy")}</TableCell><TableCell>{item.hari || "-"}</TableCell><TableCell>{item.jam || "-"}</TableCell><TableCell>{item.customer}</TableCell><TableCell className="max-w-[200px] truncate">{item.alamat_install || "-"}</TableCell><TableCell>{item.no_hp || "-"}</TableCell><TableCell>{item.type || "-"}</TableCell><TableCell className="text-right">{item.qty_unit}</TableCell><TableCell className="text-right">{item.stock}</TableCell><TableCell className="text-right">{item.harga?.toLocaleString('id-ID')}</TableCell><TableCell>{item.web || "-"}</TableCell><TableCell className="text-right">{item.qty_web}</TableCell><TableCell>{item.kartu || "-"}</TableCell><TableCell className="text-right">{item.qty_kartu}</TableCell><TableCell>{item.paket || "-"}</TableCell><TableCell className="text-right">{item.pulsa?.toLocaleString('id-ID')}</TableCell><TableCell>{item.teknisi || "-"}</TableCell><TableCell>{item.payment || "-"}</TableCell><TableCell className="max-w-[200px] truncate">{item.catatan || "-"}</TableCell><TableCell className="text-center">
                         <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(item)}>
                           <Edit className="h-4 w-4" />
                         </Button>
