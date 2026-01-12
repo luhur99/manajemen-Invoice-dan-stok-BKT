@@ -5,12 +5,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ReceiptText, CalendarDays, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
+
+// Define a type for combined activities
+interface LatestActivity {
+  id: string;
+  type: 'invoice' | 'schedule' | 'stock_transaction';
+  description: string;
+  date: string; // ISO date string
+}
+
+// Define interface for stock transaction data with joined stock_items
+interface StockTransactionWithItem {
+  id: string;
+  transaction_type: string;
+  quantity: number;
+  notes: string | null;
+  created_at: string;
+  stock_items: { nama_barang: string }[] | null; // Changed to array of objects or null
+}
 
 const DashboardOverviewPage = () => {
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [todaySchedules, setTodaySchedules] = useState(0);
   const [lowStockItems, setLowStockItems] = useState(0);
+  const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,6 +63,77 @@ const DashboardOverviewPage = () => {
 
         if (stockError) throw stockError;
         setLowStockItems(stockCount || 0);
+
+        // Fetch Latest Activities
+        const { data: recentInvoices, error: recentInvoicesError } = await supabase
+          .from("invoices")
+          .select("id, invoice_number, customer_name, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentInvoicesError) throw recentInvoicesError;
+
+        const { data: recentSchedules, error: recentSchedulesError } = await supabase
+          .from("schedules")
+          .select("id, customer_name, type, schedule_date, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentSchedulesError) throw recentSchedulesError;
+
+        const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
+          .from("stock_transactions")
+          .select("id, transaction_type, quantity, notes, created_at, stock_items(nama_barang)")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentStockTransactionsError) throw recentStockTransactionsError;
+
+        // Cast the data to the defined interface
+        const recentStockTransactions: StockTransactionWithItem[] = recentStockTransactionsData as StockTransactionWithItem[];
+
+        const allActivities: LatestActivity[] = [];
+
+        recentInvoices.forEach(inv => {
+          allActivities.push({
+            id: inv.id,
+            type: 'invoice',
+            description: `Invoice baru #${inv.invoice_number} untuk ${inv.customer_name}`,
+            date: inv.created_at,
+          });
+        });
+
+        recentSchedules.forEach(sch => {
+          allActivities.push({
+            id: sch.id,
+            type: 'schedule',
+            description: `Jadwal ${sch.type} untuk ${sch.customer_name} pada ${format(parseISO(sch.schedule_date), 'dd-MM-yyyy')}`,
+            date: sch.created_at,
+          });
+        });
+
+        recentStockTransactions.forEach(trans => {
+          // Access the first element of the stock_items array
+          const itemName = trans.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal";
+          let desc = "";
+          if (trans.transaction_type === 'initial') {
+            desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
+          } else if (trans.transaction_type === 'in') {
+            desc = `Stok masuk ${trans.quantity} unit untuk ${itemName}`;
+          } else if (trans.transaction_type === 'out') {
+            desc = `Stok keluar ${trans.quantity} unit dari ${itemName}`;
+          }
+          allActivities.push({
+            id: trans.id,
+            type: 'stock_transaction',
+            description: desc,
+            date: trans.created_at,
+          });
+        });
+
+        // Sort all activities by date and take the latest 5
+        allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setLatestActivities(allActivities.slice(0, 5));
 
       } catch (error: any) {
         showError(`Gagal memuat data dashboard: ${error.message}`);
@@ -115,10 +205,27 @@ const DashboardOverviewPage = () => {
       <Card>
         <CardHeader>
           <CardTitle>Aktivitas Terbaru</CardTitle>
-          <CardDescription>Lihat ringkasan aktivitas penjualan dan stok Anda.</CardDescription>
+          <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-gray-700 dark:text-gray-300">Belum ada aktivitas terbaru.</p>
+          {loading ? (
+            <div className="space-y-2">
+              <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+              <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+            </div>
+          ) : latestActivities.length > 0 ? (
+            <ul className="space-y-2">
+              {latestActivities.map((activity) => (
+                <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
+                  <span>{activity.description}</span>
+                  <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-700 dark:text-gray-300">Belum ada aktivitas terbaru.</p>
+          )}
         </CardContent>
       </Card>
     </div>
