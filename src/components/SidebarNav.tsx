@@ -3,10 +3,10 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut } from "lucide-react";
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle } from "lucide-react"; // Import UserCircle icon
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Button } from "@/components/ui/button"; // Import Button component
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   {
@@ -29,6 +29,11 @@ const navItems = [
     href: "/stock",
     icon: Package,
   },
+  {
+    title: "Profil Saya", // New nav item
+    href: "/profile",
+    icon: UserCircle, // Use UserCircle icon
+  },
 ];
 
 const SidebarNav = () => {
@@ -48,7 +53,7 @@ const SidebarNav = () => {
   return (
     <nav className="flex flex-col space-y-1 p-4 bg-sidebar dark:bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border h-full">
       <h2 className="text-xl font-bold mb-4 text-sidebar-primary-foreground">Budi Karya Teknologi</h2>
-      <div className="flex-1"> {/* This div ensures items above it are pushed to top, and items below are pushed to bottom */}
+      <div className="flex-1">
         {navItems.map((item) => (
           <NavLink
             key={item.href}

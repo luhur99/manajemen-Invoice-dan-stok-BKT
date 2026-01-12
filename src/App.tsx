@@ -9,9 +9,10 @@ import InvoiceManagementPage from "./pages/InvoiceManagementPage";
 import ScheduleManagementPage from "./pages/ScheduleManagementPage";
 import StockPage from "./pages/StockPage";
 import SalesDetailsPage from "./pages/SalesDetailsPage";
+import ProfilePage from "./pages/ProfilePage"; // Import ProfilePage
 import NotFound from "./pages/NotFound";
-import AuthPage from "./pages/AuthPage"; // Import AuthPage
-import { SessionContextProvider } from "./components/SessionContextProvider"; // Import SessionContextProvider
+import AuthPage from "./pages/AuthPage";
+import { SessionContextProvider } from "./components/SessionContextProvider";
 
 const queryClient = new QueryClient();
 
@@ -21,14 +22,15 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <SessionContextProvider> {/* Wrap with SessionContextProvider */}
+        <SessionContextProvider>
           <Routes>
-            <Route path="/auth" element={<AuthPage />} /> {/* Add AuthPage route */}
+            <Route path="/auth" element={<AuthPage />} />
             <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
             <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
             <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
             <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
             <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
+            <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} /> {/* Add ProfilePage route */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>

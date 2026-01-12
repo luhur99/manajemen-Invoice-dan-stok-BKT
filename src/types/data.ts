@@ -106,3 +106,13 @@ export interface Schedule {
   phone_number?: string; // New field for phone number
   courier_service?: string; // New field for courier service
 }
+
+export interface Profile {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
+  phone_number?: string;
+  updated_at?: string;
+  role: 'user' | 'admin';
+}
