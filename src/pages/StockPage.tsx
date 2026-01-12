@@ -9,9 +9,11 @@ import { StockItem } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
-import EditStockItemForm from "@/components/EditStockItemForm"; // Import EditStockItemForm
+import EditStockItemForm from "@/components/EditStockItemForm";
+import AddStockTransactionForm from "@/components/AddStockTransactionForm"; // Import AddStockTransactionForm
 import PaginationControls from "@/components/PaginationControls";
-import { Loader2, Edit, Trash2 } from "lucide-react";
+import { Loader2, Edit, Trash2, PlusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCcw, MinusCircle } from "lucide-react"; // Import new icons
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"; // Import DropdownMenu
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -19,8 +21,11 @@ const StockPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // State for edit dialog
-  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null); // State for selected stock item to edit
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false); // State for transaction dialog
+  const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined); // State for transaction type
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -31,17 +36,17 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, no, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, created_at") // Select 'id' and 'user_id'
-        .order("no", { ascending: true });
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, created_at") // Select 'id' and 'user_id'
+        .order("nama_barang", { ascending: true }); // Order by nama_barang instead of no
 
       if (error) {
         throw error;
       }
 
       const fetchedStock: StockItem[] = data.map(item => ({
-        id: item.id, // Map the new 'id'
-        user_id: item.user_id, // Map the new 'user_id'
-        NO: item.no,
+        id: item.id,
+        user_id: item.user_id,
+        NO: 0, // No longer used, but keep for type compatibility if needed elsewhere
         "KODE BARANG": item.kode_barang,
         "NAMA BARANG": item.nama_barang,
         SATUAN: item.satuan || "",
@@ -83,7 +88,7 @@ const StockPage = () => {
     setCurrentPage(1);
   }, [searchTerm, stockData]);
 
-  const handleDeleteStockItem = async (stockItemId: string) => { // Changed parameter to stockItemId
+  const handleDeleteStockItem = async (stockItemId: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
       return;
     }
@@ -92,14 +97,14 @@ const StockPage = () => {
       const { error } = await supabase
         .from("stock_items")
         .delete()
-        .eq("id", stockItemId); // Use 'id' for deletion
+        .eq("id", stockItemId);
 
       if (error) {
         throw error;
       }
 
       showSuccess("Item stok berhasil dihapus!");
-      fetchStockData(); // Refresh the list
+      fetchStockData();
     } catch (err: any) {
       showError(`Gagal menghapus item stok: ${err.message}`);
       console.error("Error deleting stock item:", err);
@@ -109,6 +114,12 @@ const StockPage = () => {
   const handleEditClick = (item: StockItem) => {
     setSelectedStockItem(item);
     setIsEditFormOpen(true);
+  };
+
+  const handleTransactionClick = (item: StockItem, type: "in" | "out" | "return" | "damage_loss") => {
+    setSelectedStockItem(item);
+    setTransactionType(type);
+    setIsTransactionFormOpen(true);
   };
 
   const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
@@ -140,7 +151,6 @@ const StockPage = () => {
               <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>No</TableHead>
                     <TableHead>Kode Barang</TableHead>
                     <TableHead>Nama Barang</TableHead>
                     <TableHead>Satuan</TableHead>
@@ -154,9 +164,8 @@ const StockPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentItems.map((item, index) => (
-                    <TableRow key={item.id || index}> {/* Use item.id for key */}
-                      <TableCell>{item.NO}</TableCell>
+                  {currentItems.map((item) => (
+                    <TableRow key={item.id}>
                       <TableCell>{item["KODE BARANG"]}</TableCell>
                       <TableCell>{item["NAMA BARANG"]}</TableCell>
                       <TableCell>{item.SATUAN}</TableCell>
@@ -167,12 +176,33 @@ const StockPage = () => {
                       <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
                       <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(item)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteStockItem(item.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              Aksi
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEditClick(item)}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit Item
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "in")}>
+                              <ArrowUpCircle className="mr-2 h-4 w-4 text-green-600" /> Stok Masuk
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "out")}>
+                              <ArrowDownCircle className="mr-2 h-4 w-4 text-red-600" /> Stok Keluar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "return")}>
+                              <RefreshCcw className="mr-2 h-4 w-4 text-blue-600" /> Retur Barang
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleTransactionClick(item, "damage_loss")}>
+                              <MinusCircle className="mr-2 h-4 w-4 text-orange-600" /> Rusak/Hilang
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
+                              <Trash2 className="mr-2 h-4 w-4" /> Hapus Item
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -198,6 +228,16 @@ const StockPage = () => {
           isOpen={isEditFormOpen}
           onOpenChange={setIsEditFormOpen}
           onSuccess={fetchStockData}
+        />
+      )}
+
+      {selectedStockItem && isTransactionFormOpen && (
+        <AddStockTransactionForm
+          stockItem={selectedStockItem}
+          isOpen={isTransactionFormOpen}
+          onOpenChange={setIsTransactionFormOpen}
+          onSuccess={fetchStockData}
+          initialTransactionType={transactionType}
         />
       )}
     </Card>
