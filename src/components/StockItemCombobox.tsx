@@ -55,6 +55,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           id={id} // Pass id to the button
           name={name} // Pass name to the button
         >
+          {/* Wrap children in a single span to ensure PopoverTrigger asChild receives one child */}
           <span>
             {selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]})` : placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
