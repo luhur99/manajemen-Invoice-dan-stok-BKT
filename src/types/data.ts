@@ -54,6 +54,7 @@ export interface InvoiceItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  unit_type?: string; // New field for unit type
   created_at?: string;
 }
 
@@ -67,6 +68,10 @@ export interface Invoice {
   company_name?: string;
   total_amount: number;
   payment_status: 'pending' | 'paid' | 'overdue';
+  type?: 'instalasi' | 'kirim barang'; // New field
+  customer_type?: 'lama' | 'baru'; // New field
+  payment_method?: string; // New field
+  notes?: string; // New field
   created_at: string;
   items?: InvoiceItem[]; // For displaying joined items
 }
