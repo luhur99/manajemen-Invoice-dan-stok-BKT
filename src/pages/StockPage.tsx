@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { StockItem } from "@/types/data";
-import { supabase } from "@/integrations/supabase/client"; // Import supabase client
+import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import AddStockItemForm from "@/components/AddStockItemForm"; // Import the new form component
+import AddStockItemForm from "@/components/AddStockItemForm";
+import PaginationControls from "@/components/PaginationControls"; // Import PaginationControls
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -16,6 +17,10 @@ const StockPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // You can adjust this number
+
   const fetchStockData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -23,13 +28,12 @@ const StockPage = () => {
       const { data, error } = await supabase
         .from("stock_items")
         .select("*")
-        .order("no", { ascending: true }); // Order by 'no' column
+        .order("no", { ascending: true });
 
       if (error) {
         throw error;
       }
 
-      // Map Supabase data to StockItem interface
       const fetchedStock: StockItem[] = data.map(item => ({
         NO: item.no,
         "KODE BARANG": item.kode_barang,
@@ -45,11 +49,12 @@ const StockPage = () => {
 
       setStockData(fetchedStock);
       setFilteredStockData(fetchedStock);
+      setCurrentPage(1); // Reset to first page on new data fetch
     } catch (err: any) {
       setError(`Gagal memuat data stok dari database: ${err.message}`);
       console.error("Error fetching stock data:", err);
       showError("Gagal memuat data stok.");
-      setStockData([]); // Clear data on error
+      setStockData([]);
       setFilteredStockData([]);
     } finally {
       setLoading(false);
@@ -68,7 +73,18 @@ const StockPage = () => {
       item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setFilteredStockData(filtered);
+    setCurrentPage(1); // Reset to first page on search
   }, [searchTerm, stockData]);
+
+  // Calculate total pages for pagination
+  const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredStockData.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   if (loading) {
     return (
@@ -103,40 +119,49 @@ const StockPage = () => {
           className="mb-4"
         />
         {filteredStockData.length > 0 ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No</TableHead>
-                  <TableHead>Kode Barang</TableHead>
-                  <TableHead>Nama Barang</TableHead>
-                  <TableHead>Satuan</TableHead>
-                  <TableHead className="text-right">Harga Beli</TableHead>
-                  <TableHead className="text-right">Harga Jual</TableHead>
-                  <TableHead className="text-right">Stok Awal</TableHead>
-                  <TableHead className="text-right">Stok Masuk</TableHead>
-                  <TableHead className="text-right">Stok Keluar</TableHead>
-                  <TableHead className="text-right">Stok Akhir</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStockData.map((item, index) => (
-                  <TableRow key={item["KODE BARANG"] || index}>
-                    <TableCell>{item.NO}</TableCell>
-                    <TableCell>{item["KODE BARANG"]}</TableCell>
-                    <TableCell>{item["NAMA BARANG"]}</TableCell>
-                    <TableCell>{item.SATUAN}</TableCell>
-                    <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
-                    <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
-                    <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
-                    <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
-                    <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
-                    <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
+          <>
+            <div className="overflow-x-auto"> {/* Ensures horizontal scrolling */}
+              <Table className="min-w-full"> {/* Ensures table takes full width for scrolling */}
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No</TableHead>
+                    <TableHead>Kode Barang</TableHead>
+                    <TableHead>Nama Barang</TableHead>
+                    <TableHead>Satuan</TableHead>
+                    <TableHead className="text-right">Harga Beli</TableHead>
+                    <TableHead className="text-right">Harga Jual</TableHead>
+                    <TableHead className="text-right">Stok Awal</TableHead>
+                    <TableHead className="text-right">Stok Masuk</TableHead>
+                    <TableHead className="text-right">Stok Keluar</TableHead>
+                    <TableHead className="text-right">Stok Akhir</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {currentItems.map((item, index) => (
+                    <TableRow key={item["KODE BARANG"] || index}>
+                      <TableCell>{item.NO}</TableCell>
+                      <TableCell>{item["KODE BARANG"]}</TableCell>
+                      <TableCell>{item["NAMA BARANG"]}</TableCell>
+                      <TableCell>{item.SATUAN}</TableCell>
+                      <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
+                      <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
+                      <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
+                      <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
+                      <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
+                      <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {totalPages > 1 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            )}
+          </>
         ) : (
           <p className="text-gray-700 dark:text-gray-300">Tidak ada data stok yang tersedia atau cocok dengan pencarian Anda.</p>
         )}

@@ -8,8 +8,9 @@ import { readExcelFile } from "@/lib/excelUtils";
 import { SalesDetailItem } from "@/types/data";
 import { generateDummySalesData } from "@/lib/dummyData";
 import InvoiceUpload from "@/components/InvoiceUpload";
-import { supabase } from "@/integrations/supabase/client"; // Import supabase client
+import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
+import PaginationControls from "@/components/PaginationControls"; // Import PaginationControls
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesDetailItem[]>([]);
@@ -17,6 +18,10 @@ const SalesDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // You can adjust this number
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,7 +37,6 @@ const SalesDetailsPage = () => {
           setError("File Excel kosong atau gagal dimuat. Menampilkan data dummy.");
         }
 
-        // Fetch invoice URLs from Supabase
         const { data: dbInvoices, error: dbError } = await supabase
           .from("sales_invoices")
           .select("no_transaksi, invoice_file_url");
@@ -46,7 +50,6 @@ const SalesDetailsPage = () => {
           dbInvoices?.map((inv) => [inv.no_transaksi, inv.invoice_file_url]) || []
         );
 
-        // Merge Excel data with Supabase invoice URLs
         const mergedSalesData = initialSalesData.map((item) => ({
           ...item,
           invoice_file_url: invoiceMap.get(item["No Transaksi"]) || undefined,
@@ -54,6 +57,7 @@ const SalesDetailsPage = () => {
 
         setSalesData(mergedSalesData);
         setFilteredSalesData(mergedSalesData);
+        setCurrentPage(1); // Reset to first page on new data fetch
       } catch (err) {
         setError("Gagal memuat data penjualan. Menampilkan data dummy.");
         console.error(err);
@@ -82,10 +86,10 @@ const SalesDetailsPage = () => {
       item.Catatan.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setFilteredSalesData(filtered);
+    setCurrentPage(1); // Reset to first page on search
   }, [searchTerm, salesData]);
 
   const handleInvoiceUploadSuccess = async (salesId: string, fileUrl: string) => {
-    // Update local state
     setSalesData(prevData =>
       prevData.map(item =>
         item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
@@ -97,7 +101,6 @@ const SalesDetailsPage = () => {
       )
     );
 
-    // Persist to Supabase
     const { error: upsertError } = await supabase
       .from("sales_invoices")
       .upsert(
@@ -112,7 +115,6 @@ const SalesDetailsPage = () => {
   };
 
   const handleInvoiceRemoveSuccess = async (salesId: string) => {
-    // Update local state
     setSalesData(prevData =>
       prevData.map(item =>
         item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
@@ -124,7 +126,6 @@ const SalesDetailsPage = () => {
       )
     );
 
-    // Remove from Supabase
     const { error: deleteError } = await supabase
       .from("sales_invoices")
       .delete()
@@ -134,6 +135,16 @@ const SalesDetailsPage = () => {
       console.error("Error removing invoice URL from DB:", deleteError);
       showError("Gagal menghapus URL invoice dari database.");
     }
+  };
+
+  // Calculate total pages for pagination
+  const totalPages = Math.ceil(filteredSalesData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredSalesData.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
   if (loading) {
@@ -166,77 +177,86 @@ const SalesDetailsPage = () => {
           className="mb-4"
         />
         {filteredSalesData.length > 0 ? (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No</TableHead>
-                  <TableHead>Kirim/Install</TableHead>
-                  <TableHead>No Transaksi</TableHead>
-                  <TableHead>Invoice</TableHead>
-                  <TableHead>New/Old</TableHead>
-                  <TableHead>Perusahaan</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Hari</TableHead>
-                  <TableHead>Jam</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Alamat install</TableHead>
-                  <TableHead>No HP</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Qty unit</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead className="text-right">Harga</TableHead>
-                  <TableHead>WEB</TableHead>
-                  <TableHead className="text-right">Qty Web</TableHead>
-                  <TableHead>Kartu</TableHead>
-                  <TableHead className="text-right">Qty kartu</TableHead>
-                  <TableHead>Paket</TableHead>
-                  <TableHead className="text-right">Pulsa</TableHead>
-                  <TableHead>Teknisi</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Catatan</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSalesData.map((item, index) => (
-                  <TableRow key={item["No Transaksi"] || index}>
-                    <TableCell>{item.NO}</TableCell>
-                    <TableCell>{item["Kirim/Install"]}</TableCell>
-                    <TableCell>{item["No Transaksi"]}</TableCell>
-                    <TableCell>
-                      <InvoiceUpload
-                        salesId={item["No Transaksi"]}
-                        currentFileUrl={item.invoice_file_url}
-                        onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item["No Transaksi"], fileUrl)}
-                        onRemoveSuccess={() => handleInvoiceRemoveSuccess(item["No Transaksi"])}
-                      />
-                    </TableCell>
-                    <TableCell>{item["New/Old"]}</TableCell>
-                    <TableCell>{item.Perusahaan}</TableCell>
-                    <TableCell>{item.Tanggal}</TableCell>
-                    <TableCell>{item.Hari}</TableCell>
-                    <TableCell>{item.Jam}</TableCell>
-                    <TableCell>{item.Customer}</TableCell>
-                    <TableCell>{item["Alamat install"]}</TableCell>
-                    <TableCell>{item["No HP"]}</TableCell>
-                    <TableCell>{item.Type}</TableCell>
-                    <TableCell className="text-right">{item["Qty unit"]}</TableCell>
-                    <TableCell className="text-right">{item.Stock}</TableCell>
-                    <TableCell className="text-right">{item.Harga.toLocaleString('id-ID')}</TableCell>
-                    <TableCell>{item.WEB}</TableCell>
-                    <TableCell className="text-right">{item["Qty Web"]}</TableCell>
-                    <TableCell>{item.Kartu}</TableCell>
-                    <TableCell className="text-right">{item["Qty kartu"]}</TableCell>
-                    <TableCell>{item.Paket}</TableCell>
-                    <TableCell className="text-right">{item.Pulsa.toLocaleString('id-ID')}</TableCell>
-                    <TableCell>{item.Teknisi}</TableCell>
-                    <TableCell>{item.Payment}</TableCell>
-                    <TableCell>{item.Catatan}</TableCell>
+          <>
+            <div className="overflow-x-auto"> {/* Ensures horizontal scrolling */}
+              <Table className="min-w-full"> {/* Ensures table takes full width for scrolling */}
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No</TableHead>
+                    <TableHead>Kirim/Install</TableHead>
+                    <TableHead>No Transaksi</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>New/Old</TableHead>
+                    <TableHead>Perusahaan</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Hari</TableHead>
+                    <TableHead>Jam</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Alamat install</TableHead>
+                    <TableHead>No HP</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead className="text-right">Qty unit</TableHead>
+                    <TableHead className="text-right">Stock</TableHead>
+                    <TableHead className="text-right">Harga</TableHead>
+                    <TableHead>WEB</TableHead>
+                    <TableHead className="text-right">Qty Web</TableHead>
+                    <TableHead>Kartu</TableHead>
+                    <TableHead className="text-right">Qty kartu</TableHead>
+                    <TableHead>Paket</TableHead>
+                    <TableHead className="text-right">Pulsa</TableHead>
+                    <TableHead>Teknisi</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Catatan</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {currentItems.map((item, index) => (
+                    <TableRow key={item["No Transaksi"] || index}>
+                      <TableCell>{item.NO}</TableCell>
+                      <TableCell>{item["Kirim/Install"]}</TableCell>
+                      <TableCell>{item["No Transaksi"]}</TableCell>
+                      <TableCell>
+                        <InvoiceUpload
+                          salesId={item["No Transaksi"]}
+                          currentFileUrl={item.invoice_file_url}
+                          onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item["No Transaksi"], fileUrl)}
+                          onRemoveSuccess={() => handleInvoiceRemoveSuccess(item["No Transaksi"])}
+                        />
+                      </TableCell>
+                      <TableCell>{item["New/Old"]}</TableCell>
+                      <TableCell>{item.Perusahaan}</TableCell>
+                      <TableCell>{item.Tanggal}</TableCell>
+                      <TableCell>{item.Hari}</TableCell>
+                      <TableCell>{item.Jam}</TableCell>
+                      <TableCell>{item.Customer}</TableCell>
+                      <TableCell>{item["Alamat install"]}</TableCell>
+                      <TableCell>{item["No HP"]}</TableCell>
+                      <TableCell>{item.Type}</TableCell>
+                      <TableCell className="text-right">{item["Qty unit"]}</TableCell>
+                      <TableCell className="text-right">{item.Stock}</TableCell>
+                      <TableCell className="text-right">{item.Harga.toLocaleString('id-ID')}</TableCell>
+                      <TableCell>{item.WEB}</TableCell>
+                      <TableCell className="text-right">{item["Qty Web"]}</TableCell>
+                      <TableCell>{item.Kartu}</TableCell>
+                      <TableCell className="text-right">{item["Qty kartu"]}</TableCell>
+                      <TableCell>{item.Paket}</TableCell>
+                      <TableCell className="text-right">{item.Pulsa.toLocaleString('id-ID')}</TableCell>
+                      <TableCell>{item.Teknisi}</TableCell>
+                      <TableCell>{item.Payment}</TableCell>
+                      <TableCell>{item.Catatan}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {totalPages > 1 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            )}
+          </>
         ) : (
           <p className="text-gray-700 dark:text-gray-300">Tidak ada data penjualan yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
