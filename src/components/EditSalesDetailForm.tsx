@@ -14,7 +14,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -189,6 +189,7 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Detil Penjualan</DialogTitle>
+          <DialogDescription>Perbarui detail untuk catatan penjualan #{salesDetail.no_transaksi}.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -579,7 +580,7 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
                 {form.formState.isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Simpan Perubahan"
+                  "Simpan Detil Penjualan"
                 )}
               </Button>
             </div>

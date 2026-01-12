@@ -24,6 +24,7 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Invoice } from "@/types/data"; // Import Invoice type
+import { DialogDescription } from "./ui/dialog"; // Import DialogDescription
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -157,6 +158,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
 
   return (
     <Form {...form}>
+      <DialogDescription>Isi detail untuk membuat jadwal instalasi atau pengiriman baru.</DialogDescription>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
