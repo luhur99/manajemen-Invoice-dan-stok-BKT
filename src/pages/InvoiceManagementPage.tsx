@@ -9,6 +9,7 @@ import { Invoice } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
+import EditInvoiceForm from "@/components/EditInvoiceForm"; // Import EditInvoiceForm
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { Loader2, Edit, Trash2 } from "lucide-react";
@@ -19,6 +20,8 @@ const InvoiceManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // State for edit dialog
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null); // State for selected invoice to edit
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -87,6 +90,11 @@ const InvoiceManagementPage = () => {
       showError(`Gagal menghapus invoice: ${err.message}`);
       console.error("Error deleting invoice:", err);
     }
+  };
+
+  const handleEditClick = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsEditFormOpen(true);
   };
 
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
@@ -165,7 +173,7 @@ const InvoiceManagementPage = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" className="mr-2">
+                        <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(invoice)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button variant="destructive" size="icon" onClick={() => handleDeleteInvoice(invoice.id)}>
@@ -189,6 +197,15 @@ const InvoiceManagementPage = () => {
           <p className="text-gray-700 dark:text-gray-300">Tidak ada data invoice yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
+
+      {selectedInvoice && (
+        <EditInvoiceForm
+          invoice={selectedInvoice}
+          isOpen={isEditFormOpen}
+          onOpenChange={setIsEditFormOpen}
+          onSuccess={fetchInvoices}
+        />
+      )}
     </Card>
   );
 };
