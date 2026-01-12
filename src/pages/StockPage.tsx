@@ -12,7 +12,7 @@ import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm"; // Import AddStockTransactionForm
 import PaginationControls from "@/components/PaginationControls";
-import { Loader2, Edit, Trash2, PlusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCcw, MinusCircle } from "lucide-react"; // Import new icons
+import { Loader2, Edit, Trash2, PlusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCcw, MinusCircle, Settings } from "lucide-react"; // Import new icons, including Settings
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"; // Import DropdownMenu
 
 const StockPage = () => {
@@ -181,8 +181,8 @@ const StockPage = () => {
                       <TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              Aksi
+                            <Button variant="outline" size="sm" className="flex items-center gap-1">
+                              <Settings className="h-4 w-4" /> Atur Stok
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
