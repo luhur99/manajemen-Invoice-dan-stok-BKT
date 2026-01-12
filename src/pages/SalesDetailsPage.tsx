@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { readExcelFile } from "@/lib/excelUtils";
+import { Button } from "@/components/ui/button";
 import { SalesDetailItem } from "@/types/data";
-import { generateDummySalesData } from "@/lib/dummyData";
 import InvoiceUpload from "@/components/InvoiceUpload";
 import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
+import { showError, showSuccess } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
+import { Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
+import AddSalesDetailForm from "@/components/AddSalesDetailForm"; // Import new component
+import EditSalesDetailForm from "@/components/EditSalesDetailForm"; // Import new component
+import { format } from "date-fns";
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesDetailItem[]>([]);
@@ -18,57 +21,62 @@ const SalesDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [selectedSalesDetail, setSelectedSalesDetail] = useState<SalesDetailItem | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const excelData = await readExcelFile("/SALES ST-007 2026.xlsx");
-        let initialSalesData: SalesDetailItem[];
+  const fetchSalesData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: salesDetails, error: salesError } = await supabase
+        .from("sales_details")
+        .select("*")
+        .order("tanggal", { ascending: false })
+        .order("no_transaksi", { ascending: true });
 
-        if (excelData.sales.length > 0) {
-          initialSalesData = excelData.sales;
-        } else {
-          initialSalesData = generateDummySalesData();
-          setError("File Excel kosong atau gagal dimuat. Menampilkan data dummy.");
-        }
-
-        const { data: dbInvoices, error: dbError } = await supabase
-          .from("sales_invoices")
-          .select("no_transaksi, invoice_file_url");
-
-        if (dbError) {
-          console.error("Error fetching sales invoices from DB:", dbError);
-          showError("Gagal memuat URL invoice dari database.");
-        }
-
-        const invoiceMap = new Map(
-          dbInvoices?.map((inv) => [inv.no_transaksi, inv.invoice_file_url]) || []
-        );
-
-        const mergedSalesData = initialSalesData.map((item) => ({
-          ...item,
-          invoice_file_url: invoiceMap.get(item.no_transaksi) || undefined,
-        }));
-
-        setSalesData(mergedSalesData);
-        setFilteredSalesData(mergedSalesData);
-        setCurrentPage(1);
-      } catch (err) {
-        setError("Gagal memuat data penjualan. Menampilkan data dummy.");
-        console.error(err);
-        const dummy = generateDummySalesData();
-        setSalesData(dummy);
-        setFilteredSalesData(dummy);
-      } finally {
-        setLoading(false);
+      if (salesError) {
+        throw salesError;
       }
-    };
-    fetchData();
+
+      const { data: dbInvoices, error: dbError } = await supabase
+        .from("sales_invoices")
+        .select("no_transaksi, invoice_file_url");
+
+      if (dbError) {
+        console.error("Error fetching sales invoices from DB:", dbError);
+        showError("Gagal memuat URL invoice dari database.");
+      }
+
+      const invoiceMap = new Map(
+        dbInvoices?.map((inv) => [inv.no_transaksi, inv.invoice_file_url]) || []
+      );
+
+      const mergedSalesData = salesDetails.map((item) => ({
+        ...item,
+        invoice_file_url: invoiceMap.get(item.no_transaksi) || undefined,
+      }));
+
+      setSalesData(mergedSalesData as SalesDetailItem[]);
+      setFilteredSalesData(mergedSalesData as SalesDetailItem[]);
+      setCurrentPage(1);
+    } catch (err: any) {
+      setError(`Gagal memuat data penjualan: ${err.message}`);
+      console.error("Error fetching sales data:", err);
+      showError("Gagal memuat data penjualan.");
+      setSalesData([]);
+      setFilteredSalesData([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchSalesData();
+  }, [fetchSalesData]);
 
   useEffect(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -136,6 +144,34 @@ const SalesDetailsPage = () => {
     }
   };
 
+  const handleDeleteSalesDetail = async (salesDetailId: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus detil penjualan ini?")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("sales_details")
+        .delete()
+        .eq("id", salesDetailId);
+
+      if (error) {
+        throw error;
+      }
+
+      showSuccess("Detil penjualan berhasil dihapus!");
+      fetchSalesData(); // Refresh the list
+    } catch (err: any) {
+      showError(`Gagal menghapus detil penjualan: ${err.message}`);
+      console.error("Error deleting sales detail:", err);
+    }
+  };
+
+  const handleEditClick = (item: SalesDetailItem) => {
+    setSelectedSalesDetail(item);
+    setIsEditFormOpen(true);
+  };
+
   const totalPages = Math.ceil(filteredSalesData.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -162,7 +198,12 @@ const SalesDetailsPage = () => {
   return (
     <Card className="border shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
+        <div className="flex justify-between items-center mb-4">
+          <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
+          <Button onClick={() => setIsAddFormOpen(true)} className="flex items-center gap-2">
+            <PlusCircle className="h-4 w-4" /> Tambah Detil Penjualan
+          </Button>
+        </div>
         <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -205,11 +246,12 @@ const SalesDetailsPage = () => {
                     <TableHead>Teknisi</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead>Catatan</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item, index) => (
-                    <TableRow key={item.no_transaksi || index}>
+                    <TableRow key={item.id || index}>
                       <TableCell>{item.no}</TableCell>
                       <TableCell>{item.kirim_install}</TableCell>
                       <TableCell>{item.no_transaksi}</TableCell>
@@ -221,27 +263,35 @@ const SalesDetailsPage = () => {
                           onRemoveSuccess={() => handleInvoiceRemoveSuccess(item.no_transaksi)}
                         />
                       </TableCell>
-                      <TableCell>{item.new_old}</TableCell>
-                      <TableCell>{item.perusahaan}</TableCell>
-                      <TableCell>{item.tanggal}</TableCell>
-                      <TableCell>{item.hari}</TableCell>
-                      <TableCell>{item.jam}</TableCell>
+                      <TableCell>{item.new_old || "-"}</TableCell>
+                      <TableCell>{item.perusahaan || "-"}</TableCell>
+                      <TableCell>{format(new Date(item.tanggal), "dd-MM-yyyy")}</TableCell>
+                      <TableCell>{item.hari || "-"}</TableCell>
+                      <TableCell>{item.jam || "-"}</TableCell>
                       <TableCell>{item.customer}</TableCell>
-                      <TableCell>{item.alamat_install}</TableCell>
-                      <TableCell>{item.no_hp}</TableCell>
-                      <TableCell>{item.type}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{item.alamat_install || "-"}</TableCell>
+                      <TableCell>{item.no_hp || "-"}</TableCell>
+                      <TableCell>{item.type || "-"}</TableCell>
                       <TableCell className="text-right">{item.qty_unit}</TableCell>
                       <TableCell className="text-right">{item.stock}</TableCell>
                       <TableCell className="text-right">{item.harga?.toLocaleString('id-ID')}</TableCell>
-                      <TableCell>{item.web}</TableCell>
+                      <TableCell>{item.web || "-"}</TableCell>
                       <TableCell className="text-right">{item.qty_web}</TableCell>
-                      <TableCell>{item.kartu}</TableCell>
+                      <TableCell>{item.kartu || "-"}</TableCell>
                       <TableCell className="text-right">{item.qty_kartu}</TableCell>
-                      <TableCell>{item.paket}</TableCell>
+                      <TableCell>{item.paket || "-"}</TableCell>
                       <TableCell className="text-right">{item.pulsa?.toLocaleString('id-ID')}</TableCell>
-                      <TableCell>{item.teknisi}</TableCell>
-                      <TableCell>{item.payment}</TableCell>
-                      <TableCell>{item.catatan}</TableCell>
+                      <TableCell>{item.teknisi || "-"}</TableCell>
+                      <TableCell>{item.payment || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{item.catatan || "-"}</TableCell>
+                      <TableCell className="text-center">
+                        <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(item)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteSalesDetail(item.id!)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -259,6 +309,21 @@ const SalesDetailsPage = () => {
           <p className="text-gray-700 dark:text-gray-300">Tidak ada data penjualan yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
+
+      <AddSalesDetailForm
+        isOpen={isAddFormOpen}
+        onOpenChange={setIsAddFormOpen}
+        onSuccess={fetchSalesData}
+      />
+
+      {selectedSalesDetail && (
+        <EditSalesDetailForm
+          salesDetail={selectedSalesDetail}
+          isOpen={isEditFormOpen}
+          onOpenChange={setIsEditFormOpen}
+          onSuccess={fetchSalesData}
+        />
+      )}
     </Card>
   );
 };
