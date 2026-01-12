@@ -9,6 +9,7 @@ import { Schedule } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
+import EditScheduleForm from "@/components/EditScheduleForm"; // Import EditScheduleForm
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { Loader2, Edit, Trash2 } from "lucide-react";
@@ -19,6 +20,8 @@ const ScheduleManagementPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false); // State for edit dialog
+  const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null); // State for selected schedule to edit
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -64,7 +67,7 @@ const ScheduleManagementPage = () => {
       item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.status.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) || // Include courier service in search
+      item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
       format(new Date(item.schedule_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
     setFilteredSchedules(filtered);
@@ -94,10 +97,19 @@ const ScheduleManagementPage = () => {
     }
   };
 
+  const handleEditClick = (schedule: Schedule) => {
+    setSelectedSchedule(schedule);
+    setIsEditFormOpen(true);
+  };
+
   const totalPages = Math.ceil(filteredSchedules.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentItems = filteredSchedules.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
   if (loading) {
     return (
@@ -142,7 +154,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Tipe</TableHead>
                     <TableHead>Konsumen</TableHead>
                     <TableHead>No WA</TableHead>
-                    <TableHead>Jasa Kurir</TableHead> {/* New TableHead */}
+                    <TableHead>Jasa Kurir</TableHead>
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
                     <TableHead>Status</TableHead>
@@ -158,7 +170,7 @@ const ScheduleManagementPage = () => {
                       <TableCell>{schedule.type}</TableCell>
                       <TableCell>{schedule.customer_name}</TableCell>
                       <TableCell>{schedule.phone_number || "-"}</TableCell>
-                      <TableCell>{schedule.courier_service || "-"}</TableCell> {/* New TableCell */}
+                      <TableCell>{schedule.courier_service || "-"}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell>
                       <TableCell>{schedule.technician_name || "-"}</TableCell>
                       <TableCell>
@@ -173,7 +185,7 @@ const ScheduleManagementPage = () => {
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{schedule.notes || "-"}</TableCell>
                       <TableCell className="text-center">
-                        <Button variant="ghost" size="icon" className="mr-2">
+                        <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(schedule)}>
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button variant="destructive" size="icon" onClick={() => handleDeleteSchedule(schedule.id)}>
@@ -189,7 +201,7 @@ const ScheduleManagementPage = () => {
               <PaginationControls
                 currentPage={currentPage}
                 totalPages={totalPages}
-                onPageChange={setCurrentPage}
+                onPageChange={handlePageChange}
               />
             )}
           </>
@@ -197,6 +209,15 @@ const ScheduleManagementPage = () => {
           <p className="text-gray-700 dark:text-gray-300">Tidak ada data jadwal yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
+
+      {selectedSchedule && (
+        <EditScheduleForm
+          schedule={selectedSchedule}
+          isOpen={isEditFormOpen}
+          onOpenChange={setIsEditFormOpen}
+          onSuccess={fetchSchedules}
+        />
+      )}
     </Card>
   );
 };
