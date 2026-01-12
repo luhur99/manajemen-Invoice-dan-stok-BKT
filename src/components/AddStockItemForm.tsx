@@ -21,15 +21,12 @@ import { Loader2, PlusCircle } from "lucide-react";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  no: z.coerce.number().min(1, "Nomor harus lebih besar dari 0"),
   kode_barang: z.string().min(1, "Kode Barang wajib diisi"),
   nama_barang: z.string().min(1, "Nama Barang wajib diisi"),
   satuan: z.string().optional(),
   harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
   stock_awal: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
-  stock_masuk: z.coerce.number().min(0, "Stok Masuk tidak boleh negatif").default(0),
-  stock_keluar: z.coerce.number().min(0, "Stok Keluar tidak boleh negatif").default(0),
 });
 
 interface AddStockItemFormProps {
@@ -41,20 +38,17 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      no: 0,
       kode_barang: "",
       nama_barang: "",
       satuan: "",
       harga_beli: 0,
       harga_jual: 0,
       stock_awal: 0,
-      stock_masuk: 0,
-      stock_keluar: 0,
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const stock_akhir = values.stock_awal + values.stock_masuk - values.stock_keluar;
+    const stock_akhir = values.stock_awal; // Stock akhir is initially just stock awal
     const user = await supabase.auth.getUser();
     const userId = user.data.user?.id;
 
@@ -67,17 +61,17 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
       const { data: stockItemData, error: stockItemError } = await supabase
         .from("stock_items")
         .insert({
-          no: values.no,
+          // 'no' field is removed
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
           satuan: values.satuan,
           harga_beli: values.harga_beli,
           harga_jual: values.harga_jual,
           stock_awal: values.stock_awal,
-          stock_masuk: values.stock_masuk,
-          stock_keluar: values.stock_keluar,
+          stock_masuk: 0, // Default to 0 for new item
+          stock_keluar: 0, // Default to 0 for new item
           stock_akhir: stock_akhir,
-          user_id: userId, // Ensure user_id is saved
+          user_id: userId,
         })
         .select("id")
         .single();
@@ -86,7 +80,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
         throw stockItemError;
       }
 
-      // Record initial stock transaction
+      // Record initial stock transaction if stock_awal > 0
       if (values.stock_awal > 0) {
         const { error: transactionError } = await supabase
           .from("stock_transactions")
@@ -121,25 +115,13 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           <PlusCircle className="h-4 w-4" /> Tambah Item Stok
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px]"> {/* Increased max-width for better 2-column layout */}
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Tambah Item Stok Baru</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="no"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>No</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* 'No' field removed */}
             <FormField
               control={form.control}
               name="kode_barang"
@@ -218,32 +200,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="stock_masuk"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stok Masuk</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="stock_keluar"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stok Keluar</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* 'stock_masuk' and 'stock_keluar' fields removed */}
             <div className="md:col-span-2"> {/* Button spans both columns */}
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? (
