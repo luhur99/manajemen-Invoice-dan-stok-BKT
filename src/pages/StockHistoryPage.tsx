@@ -71,8 +71,8 @@ const StockHistoryPage = () => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     const filtered = transactions.filter(item => {
       const matchesSearch =
-        item.stock_items?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.stock_items?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
         item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
         item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
@@ -183,8 +183,8 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.stock_items?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{transaction.stock_items?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}

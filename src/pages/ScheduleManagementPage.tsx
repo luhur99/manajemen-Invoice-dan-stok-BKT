@@ -39,7 +39,10 @@ const ScheduleManagementPage = () => {
     try {
       const { data, error } = await supabase
         .from("schedules")
-        .select("*")
+        .select(`
+          *,
+          invoices (invoice_number)
+        `)
         .order("schedule_date", { ascending: false })
         .order("schedule_time", { ascending: true });
 
@@ -47,8 +50,13 @@ const ScheduleManagementPage = () => {
         throw error;
       }
 
-      setSchedules(data as Schedule[]);
-      setFilteredSchedules(data as Schedule[]);
+      const schedulesWithInvoiceNumber: Schedule[] = data.map(s => ({
+        ...s,
+        invoice_number: s.invoices?.invoice_number || undefined,
+      }));
+
+      setSchedules(schedulesWithInvoiceNumber);
+      setFilteredSchedules(schedulesWithInvoiceNumber);
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat data jadwal: ${err.message}`);
@@ -75,6 +83,7 @@ const ScheduleManagementPage = () => {
       item.status.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Include invoice number in search
       format(new Date(item.schedule_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
     setFilteredSchedules(filtered);
@@ -192,7 +201,7 @@ const ScheduleManagementPage = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan konsumen, tipe, teknisi, alamat, status, No WA, atau Jasa Kurir..."
+          placeholder="Cari berdasarkan konsumen, tipe, teknisi, alamat, status, No WA, Jasa Kurir, atau Nomor Invoice..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
@@ -211,6 +220,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Jasa Kurir</TableHead>
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
+                    <TableHead>No. Invoice</TableHead> {/* New TableHead */}
                     <TableHead>Status</TableHead>
                     <TableHead>Dokumen</TableHead>
                     <TableHead>Catatan</TableHead>
@@ -219,7 +229,17 @@ const ScheduleManagementPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((schedule) => (
-                    <TableRow key={schedule.id}><TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell><TableCell>{schedule.schedule_time || "-"}</TableCell><TableCell>{schedule.type}</TableCell><TableCell>{schedule.customer_name}</TableCell><TableCell>{schedule.phone_number || "-"}</TableCell><TableCell>{schedule.courier_service || "-"}</TableCell><TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell><TableCell>{schedule.technician_name || "-"}</TableCell><TableCell>
+                    <TableRow key={schedule.id}>
+                      <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
+                      <TableCell>{schedule.schedule_time || "-"}</TableCell>
+                      <TableCell>{schedule.type}</TableCell>
+                      <TableCell>{schedule.customer_name}</TableCell>
+                      <TableCell>{schedule.phone_number || "-"}</TableCell>
+                      <TableCell>{schedule.courier_service || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell>
+                      <TableCell>{schedule.technician_name || "-"}</TableCell>
+                      <TableCell>{schedule.invoice_number || "-"}</TableCell> {/* New TableCell */}
+                      <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           schedule.status === 'completed' ? 'bg-green-100 text-green-800' :
                           schedule.status === 'in progress' ? 'bg-blue-100 text-blue-800' :
@@ -228,14 +248,17 @@ const ScheduleManagementPage = () => {
                         }`}>
                           {schedule.status.charAt(0).toUpperCase() + schedule.status.slice(1)}
                         </span>
-                      </TableCell><TableCell>
+                      </TableCell>
+                      <TableCell>
                         <ScheduleDocumentUpload
                           scheduleId={schedule.id}
                           currentFileUrl={schedule.document_url}
                           onUploadSuccess={(fileUrl) => handleDocumentUploadSuccess(schedule.id, fileUrl)}
                           onRemoveSuccess={() => handleDocumentRemoveSuccess(schedule.id)}
                         />
-                      </TableCell><TableCell className="max-w-[200px] truncate">{schedule.notes || "-"}</TableCell><TableCell className="text-center flex items-center justify-center space-x-1">
+                      </TableCell>
+                      <TableCell className="max-w-[200px] truncate">{schedule.notes || "-"}</TableCell>
+                      <TableCell className="text-center flex items-center justify-center space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleViewSchedule(schedule)} title="Lihat Detail">
                           <Eye className="h-4 w-4" />
                         </Button>

@@ -31,7 +31,7 @@ export interface StockTransactionWithItemName extends StockTransaction {
   stock_items: {
     nama_barang: string;
     kode_barang: string;
-  } | null; // Diperbaiki: sekarang objek tunggal atau null
+  }[] | null; // Diperbaiki: sekarang array objek atau null
 }
 
 export interface SalesDetailItem {
@@ -98,6 +98,7 @@ export interface Invoice {
   notes?: string; // New field
   created_at: string;
   items?: InvoiceItem[]; // For displaying joined items
+  item_names_summary?: string; // New: Summary of item names for table display
 }
 
 export interface Schedule {
@@ -110,6 +111,7 @@ export interface Schedule {
   address?: string;
   technician_name?: string;
   invoice_id?: string; // UUID of related invoice
+  invoice_number?: string; // New: Invoice number from related invoice
   status: 'scheduled' | 'in progress' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;

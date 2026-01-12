@@ -46,43 +46,42 @@ const InvoiceManagementPage = () => {
     try {
       const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
-        .select("*")
+        .select(`
+          *,
+          invoice_items (item_name),
+          schedules (status, created_at)
+        `)
         .order("invoice_date", { ascending: false });
 
       if (invoicesError) {
         throw invoicesError;
       }
 
-      const invoiceIds = invoicesData.map(inv => inv.id);
+      const processedInvoices: InvoiceWithScheduleStatus[] = invoicesData.map(invoice => {
+        // Aggregate item names
+        const itemNames = invoice.invoice_items
+          ? invoice.invoice_items.map((item: { item_name: string }) => item.item_name).join(", ")
+          : "Tidak ada item";
 
-      const { data: schedulesData, error: schedulesError } = await supabase
-        .from("schedules")
-        .select("invoice_id, status, created_at")
-        .in("invoice_id", invoiceIds)
-        .order("created_at", { ascending: false }); // Get latest schedule if multiple
+        // Determine latest schedule status
+        let scheduleStatusDisplay = "Belum Terjadwal";
+        if (invoice.schedules && invoice.schedules.length > 0) {
+          // Sort schedules by created_at to get the latest one
+          const latestSchedule = invoice.schedules.sort((a: { created_at: string }, b: { created_at: string }) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )[0];
+          scheduleStatusDisplay = latestSchedule.status;
+        }
 
-      if (schedulesError) {
-        console.error("Error fetching schedules for invoices:", schedulesError);
-        // Don't throw, just log and proceed without schedule status
-      }
+        return {
+          ...invoice,
+          item_names_summary: itemNames,
+          schedule_status_display: scheduleStatusDisplay,
+        };
+      });
 
-      const scheduleStatusMap = new Map<string, string>();
-      if (schedulesData) {
-        // Process schedules to get the latest status for each invoice_id
-        schedulesData.forEach(schedule => {
-          if (!scheduleStatusMap.has(schedule.invoice_id)) {
-            scheduleStatusMap.set(schedule.invoice_id, schedule.status);
-          }
-        });
-      }
-
-      const invoicesWithStatus: InvoiceWithScheduleStatus[] = invoicesData.map(invoice => ({
-        ...invoice,
-        schedule_status_display: scheduleStatusMap.get(invoice.id) || "Belum Terjadwal",
-      }));
-
-      setInvoices(invoicesWithStatus);
-      setFilteredInvoices(invoicesWithStatus);
+      setInvoices(processedInvoices);
+      setFilteredInvoices(processedInvoices);
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat data invoice: ${err.message}`);
@@ -106,7 +105,8 @@ const InvoiceManagementPage = () => {
       item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.payment_status.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.schedule_status_display?.toLowerCase().includes(lowerCaseSearchTerm) // Include new status in search
+      item.schedule_status_display?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.item_names_summary?.toLowerCase().includes(lowerCaseSearchTerm) // Include new summary in search
     );
     setFilteredInvoices(filtered);
     setCurrentPage(1);
@@ -186,7 +186,7 @@ const InvoiceManagementPage = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan nomor invoice, konsumen, perusahaan, status pembayaran, atau status penjadwalan..."
+          placeholder="Cari berdasarkan nomor invoice, konsumen, perusahaan, status pembayaran, status penjadwalan, atau nama barang..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
@@ -202,15 +202,24 @@ const InvoiceManagementPage = () => {
                     <TableHead>Jatuh Tempo</TableHead>
                     <TableHead>Nama Konsumen</TableHead>
                     <TableHead>Perusahaan</TableHead>
+                    <TableHead>Nama Barang</TableHead> {/* New TableHead */}
                     <TableHead className="text-right">Total Tagihan</TableHead>
                     <TableHead>Status Pembayaran</TableHead>
-                    <TableHead>Status Penjadwalan</TableHead> {/* New column */}
+                    <TableHead>Status Penjadwalan</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((invoice) => (
-                    <TableRow key={invoice.id}><TableCell>{invoice.invoice_number}</TableCell><TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell><TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell><TableCell>{invoice.customer_name}</TableCell><TableCell>{invoice.company_name || "-"}</TableCell><TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell><TableCell>
+                    <TableRow key={invoice.id}>
+                      <TableCell>{invoice.invoice_number}</TableCell>
+                      <TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
+                      <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell>
+                      <TableCell>{invoice.customer_name}</TableCell>
+                      <TableCell>{invoice.company_name || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{invoice.item_names_summary || "-"}</TableCell> {/* New TableCell */}
+                      <TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
+                      <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           invoice.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
                           invoice.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
@@ -218,7 +227,8 @@ const InvoiceManagementPage = () => {
                         }`}>
                           {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
                         </span>
-                      </TableCell><TableCell>
+                      </TableCell>
+                      <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           invoice.schedule_status_display === 'completed' ? 'bg-green-100 text-green-800' :
                           invoice.schedule_status_display === 'in progress' ? 'bg-blue-100 text-blue-800' :
@@ -228,7 +238,8 @@ const InvoiceManagementPage = () => {
                         }`}>
                           {invoice.schedule_status_display === "Belum Terjadwal" ? "Belum Terjadwal" : invoice.schedule_status_display?.charAt(0).toUpperCase() + invoice.schedule_status_display?.slice(1)}
                         </span>
-                      </TableCell><TableCell className="text-center flex items-center justify-center space-x-1">
+                      </TableCell>
+                      <TableCell className="text-center flex items-center justify-center space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleViewInvoice(invoice)} title="Lihat Detail">
                           <Eye className="h-4 w-4" />
                         </Button>
