@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react"; // Memperbaiki sintaks impor
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { readExcelFile } from "@/lib/excelUtils";
 import { SalesItem } from "@/types/data";
+import { generateDummySalesData } from "@/lib/dummyData"; // Import dummy data generator
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesItem[]>([]);
@@ -18,11 +19,23 @@ const SalesDetailsPage = () => {
     const fetchData = async () => {
       try {
         const data = await readExcelFile("/SALES ST-007 2026.xlsx");
-        setSalesData(data.sales);
-        setFilteredSalesData(data.sales);
+        if (data.sales.length > 0) {
+          setSalesData(data.sales);
+          setFilteredSalesData(data.sales);
+        } else {
+          // Use dummy data if Excel file is empty or fails to load
+          const dummy = generateDummySalesData();
+          setSalesData(dummy);
+          setFilteredSalesData(dummy);
+          setError("File Excel kosong atau gagal dimuat. Menampilkan data dummy.");
+        }
       } catch (err) {
-        setError("Gagal memuat data penjualan dari file Excel.");
+        setError("Gagal memuat data penjualan dari file Excel. Menampilkan data dummy.");
         console.error(err);
+        // Fallback to dummy data on error
+        const dummy = generateDummySalesData();
+        setSalesData(dummy);
+        setFilteredSalesData(dummy);
       } finally {
         setLoading(false);
       }
@@ -56,20 +69,6 @@ const SalesDetailsPage = () => {
     );
   }
 
-  if (error) {
-    return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
-          <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-red-500 dark:text-red-400">{error}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card className="border shadow-sm">
       <CardHeader>
@@ -77,6 +76,7 @@ const SalesDetailsPage = () => {
         <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
           placeholder="Cari berdasarkan No Invoice, kode barang, nama barang, tanggal, atau customer..."
