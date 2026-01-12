@@ -24,12 +24,16 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
+import { StockItem } from "@/types/data"; // Import StockItem type
+import StockItemCombobox from "@/components/StockItemCombobox"; // Import new combobox
 
 // Schema validasi menggunakan Zod
 const invoiceItemSchema = z.object({
   item_name: z.string().min(1, "Nama Item wajib diisi"),
+  item_code: z.string().optional(), // New field for item code
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Satuan tidak boleh negatif"),
+  unit_type: z.string().optional(), // New field for unit type
 });
 
 const formSchema = z.object({
@@ -71,6 +75,8 @@ const generateInvoiceNumber = () => {
 
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [loadingStockItems, setLoadingStockItems] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -83,14 +89,41 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
       customer_type: undefined,
       payment_method: "",
       notes: "",
-      items: [{ item_name: "", quantity: 1, unit_price: 0 }],
+      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: "items",
   });
+
+  useEffect(() => {
+    const fetchStockItems = async () => {
+      setLoadingStockItems(true);
+      const { data, error } = await supabase
+        .from("stock_items")
+        .select("id, kode_barang, nama_barang, harga_jual, satuan");
+
+      if (error) {
+        showError("Gagal memuat daftar item stok.");
+        console.error("Error fetching stock items:", error);
+      } else {
+        setStockItems(data.map(item => ({
+          id: item.id,
+          "KODE BARANG": item.kode_barang,
+          "NAMA BARANG": item.nama_barang,
+          "HARGA JUAL": item.harga_jual,
+          SATUAN: item.satuan || "", // Ensure SATUAN is always a string
+          // Default values for other StockItem fields not used here
+          NO: 0, "HARGA BELI": 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
+        })) as StockItem[]);
+      }
+      setLoadingStockItems(false);
+    };
+
+    fetchStockItems();
+  }, []);
 
   const totalAmount = useMemo(() => {
     return fields.reduce((sum, item, index) => {
@@ -142,6 +175,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.quantity * item.unit_price,
+        unit_type: item.unit_type,
       }));
 
       const { error: itemsError } = await supabase
@@ -162,7 +196,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         customer_type: undefined,
         payment_method: "",
         notes: "",
-        items: [{ item_name: "", quantity: 1, unit_price: 0 }],
+        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
       });
       setIsOpen(false);
       onSuccess();
@@ -410,15 +444,53 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
             <h3 className="text-lg font-semibold mt-6 mb-2">Detail Item Invoice</h3>
             <div className="space-y-3">
               {fields.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end border p-3 rounded-md">
+                <div key={item.id} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end border p-3 rounded-md">
                   <FormField
                     control={form.control}
                     name={`items.${index}.item_name`}
                     render={({ field }) => (
-                      <FormItem className="md:col-span-1">
+                      <FormItem className="md:col-span-2">
                         <FormLabel>Nama Item</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <StockItemCombobox
+                            name={field.name}
+                            items={stockItems}
+                            value={field.value}
+                            onValueChange={(selectedStock) => {
+                              if (selectedStock) {
+                                update(index, {
+                                  ...form.getValues().items[index],
+                                  item_name: selectedStock["NAMA BARANG"],
+                                  item_code: selectedStock["KODE BARANG"],
+                                  unit_price: selectedStock["HARGA JUAL"],
+                                  unit_type: selectedStock.SATUAN || "",
+                                });
+                              } else {
+                                update(index, {
+                                  ...form.getValues().items[index],
+                                  item_name: "",
+                                  item_code: "",
+                                  unit_price: 0,
+                                  unit_type: "",
+                                });
+                              }
+                            }}
+                            disabled={loadingStockItems}
+                            placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item..."}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`items.${index}.item_code`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kode Barang</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -450,7 +522,20 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                       </FormItem>
                     )}
                   />
-                  <div className="flex items-center gap-2">
+                  <FormField
+                    control={form.control}
+                    name={`items.${index}.unit_type`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipe Unit</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., PCS, BOX, Bulan" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex items-center gap-2 md:col-span-full lg:col-span-1">
                     <p className="text-sm font-medium">Subtotal: {(form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0)}</p>
                     <Button
                       type="button"
@@ -468,7 +553,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => append({ item_name: "", quantity: 1, unit_price: 0 })}
+              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" })}
               className="w-full flex items-center gap-2"
             >
               <PlusCircle className="h-4 w-4" /> Tambah Item

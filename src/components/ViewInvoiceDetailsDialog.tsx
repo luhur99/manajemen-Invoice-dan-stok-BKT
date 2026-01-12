@@ -93,21 +93,16 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Item</TableHead>
+                  <TableHead>Kode Barang</TableHead> {/* New column */}
                   <TableHead className="text-right">Kuantitas</TableHead>
-                  <TableHead>Tipe Unit</TableHead>
+                  <TableHead>Tipe Unit</TableHead> {/* New column */}
                   <TableHead className="text-right">Harga Satuan</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell>{item.item_name}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell>{item.unit_type || "-"}</TableCell>
-                    <TableCell className="text-right">{item.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                    <TableCell className="text-right">{item.subtotal.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                  </TableRow>
+                  <TableRow key={item.id}><TableCell>{item.item_name}</TableCell><TableCell>{item.item_code || "-"}</TableCell><TableCell className="text-right">{item.quantity}</TableCell><TableCell>{item.unit_type || "-"}</TableCell><TableCell className="text-right">{item.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell><TableCell className="text-right">{item.subtotal.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell></TableRow>
                 ))}
               </TableBody>
             </Table>
