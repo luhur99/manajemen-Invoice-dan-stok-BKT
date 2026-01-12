@@ -3,19 +3,23 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input"; // Import Input component
 import { readExcelFile } from "@/lib/excelUtils";
 import { SalesItem } from "@/types/data";
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesItem[]>([]);
+  const [filteredSalesData, setFilteredSalesData] = useState<SalesItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const data = await readExcelFile("/SALES ST-007 2026.xlsx");
         setSalesData(data.sales);
+        setFilteredSalesData(data.sales);
       } catch (err) {
         setError("Gagal memuat data penjualan dari file Excel.");
         console.error(err);
@@ -25,6 +29,18 @@ const SalesDetailsPage = () => {
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const filtered = salesData.filter(item =>
+      item["NO INVOICE"].toLowerCase().includes(lowerCaseSearchTerm) ||
+      item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
+      item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.CUSTOMER.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.TANGGAL.toLowerCase().includes(lowerCaseSearchTerm) // Also allow searching by date string
+    );
+    setFilteredSalesData(filtered);
+  }, [searchTerm, salesData]);
 
   if (loading) {
     return (
@@ -61,7 +77,14 @@ const SalesDetailsPage = () => {
         <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {salesData.length > 0 ? (
+        <Input
+          type="text"
+          placeholder="Cari berdasarkan No Invoice, kode barang, nama barang, tanggal, atau customer..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="mb-4"
+        />
+        {filteredSalesData.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -79,7 +102,7 @@ const SalesDetailsPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {salesData.map((item, index) => (
+                {filteredSalesData.map((item, index) => (
                   <TableRow key={index}>
                     <TableCell>{item.NO}</TableCell>
                     <TableCell>{item.TANGGAL}</TableCell>
@@ -97,7 +120,7 @@ const SalesDetailsPage = () => {
             </Table>
           </div>
         ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada data penjualan yang tersedia.</p>
+          <p className="text-gray-700 dark:text-gray-300">Tidak ada data penjualan yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
     </Card>

@@ -3,19 +3,23 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input"; // Import Input component
 import { readExcelFile } from "@/lib/excelUtils";
 import { StockItem } from "@/types/data";
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
+  const [filteredStockData, setFilteredStockData] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const data = await readExcelFile("/SALES ST-007 2026.xlsx");
         setStockData(data.stock);
+        setFilteredStockData(data.stock);
       } catch (err) {
         setError("Gagal memuat data stok dari file Excel.");
         console.error(err);
@@ -25,6 +29,16 @@ const StockPage = () => {
     };
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const filtered = stockData.filter(item =>
+      item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
+      item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm)
+    );
+    setFilteredStockData(filtered);
+  }, [searchTerm, stockData]);
 
   if (loading) {
     return (
@@ -61,7 +75,14 @@ const StockPage = () => {
         <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {stockData.length > 0 ? (
+        <Input
+          type="text"
+          placeholder="Cari berdasarkan kode, nama barang, atau satuan..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="mb-4"
+        />
+        {filteredStockData.length > 0 ? (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -79,7 +100,7 @@ const StockPage = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stockData.map((item, index) => (
+                {filteredStockData.map((item, index) => (
                   <TableRow key={index}>
                     <TableCell>{item.NO}</TableCell>
                     <TableCell>{item["KODE BARANG"]}</TableCell>
@@ -97,7 +118,7 @@ const StockPage = () => {
             </Table>
           </div>
         ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada data stok yang tersedia.</p>
+          <p className="text-gray-700 dark:text-gray-300">Tidak ada data stok yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
     </Card>
