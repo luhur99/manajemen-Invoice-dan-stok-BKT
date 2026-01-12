@@ -5,7 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ReceiptText, CalendarDays, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartConfig,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -25,11 +32,20 @@ interface StockTransactionWithItem {
   stock_items: { nama_barang: string }[] | null; // Changed to array of objects or null
 }
 
+// Chart configuration
+const chartConfig = {
+  invoices: {
+    label: "Invoices",
+    color: "hsl(var(--primary))",
+  },
+} satisfies ChartConfig;
+
 const DashboardOverviewPage = () => {
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [todaySchedules, setTodaySchedules] = useState(0);
   const [lowStockItems, setLowStockItems] = useState(0);
   const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
+  const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -135,6 +151,39 @@ const DashboardOverviewPage = () => {
         allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setLatestActivities(allActivities.slice(0, 5));
 
+        // Fetch data for monthly invoice chart
+        const sixMonthsAgo = subMonths(new Date(), 5); // Start 5 months ago to include current month = 6 months total
+        const startDate = startOfMonth(sixMonthsAgo);
+
+        const { data: allInvoicesForChart, error: chartInvoicesError } = await supabase
+          .from("invoices")
+          .select("created_at")
+          .gte("created_at", format(startDate, "yyyy-MM-dd"));
+
+        if (chartInvoicesError) throw chartInvoicesError;
+
+        const monthlyCounts: { [key: string]: number } = {};
+        for (let i = 0; i < 6; i++) {
+          const month = format(subMonths(new Date(), i), "MMM yyyy");
+          monthlyCounts[month] = 0;
+        }
+
+        allInvoicesForChart.forEach(invoice => {
+          const month = format(parseISO(invoice.created_at), "MMM yyyy");
+          if (monthlyCounts[month] !== undefined) {
+            monthlyCounts[month]++;
+          }
+        });
+
+        const sortedMonthlyData = Object.keys(monthlyCounts)
+          .sort((a, b) => parseISO(`01 ${a}`).getTime() - parseISO(`01 ${b}`).getTime())
+          .map(month => ({
+            month,
+            invoices: monthlyCounts[month],
+          }));
+        
+        setMonthlyInvoiceData(sortedMonthlyData);
+
       } catch (error: any) {
         showError(`Gagal memuat data dashboard: ${error.message}`);
         console.error("Error fetching dashboard data:", error);
@@ -202,32 +251,67 @@ const DashboardOverviewPage = () => {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Aktivitas Terbaru</CardTitle>
-          <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-2">
-              <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            </div>
-          ) : latestActivities.length > 0 ? (
-            <ul className="space-y-2">
-              {latestActivities.map((activity) => (
-                <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
-                  <span>{activity.description}</span>
-                  <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-700 dark:text-gray-300">Belum ada aktivitas terbaru.</p>
-          )}
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Invoice Dibuat per Bulan</CardTitle>
+            <CardDescription>Jumlah invoice yang dibuat selama 6 bulan terakhir.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-[300px] w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+            ) : (
+              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+                <BarChart accessibilityLayer data={monthlyInvoiceData}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    tickFormatter={(value) => value.slice(0, 3)}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Aktivitas Terbaru</CardTitle>
+            <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2">
+                <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+                <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+                <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+              </div>
+            ) : latestActivities.length > 0 ? (
+              <ul className="space-y-2">
+                {latestActivities.map((activity) => (
+                  <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
+                    <span>{activity.description}</span>
+                    <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-700 dark:text-gray-300">Belum ada aktivitas terbaru.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
