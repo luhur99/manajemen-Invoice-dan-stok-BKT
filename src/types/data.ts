@@ -57,10 +57,7 @@ export interface SalesDetailItem {
   created_at?: string;
 }
 
-export interface ExcelData {
-  stock: StockItem[];
-  sales: SalesDetailItem[]; // Menggunakan SalesDetailItem
-}
+// ExcelData interface is no longer needed.
 
 // New interfaces for Invoice Management
 export interface InvoiceItem {
