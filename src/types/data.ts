@@ -65,6 +65,7 @@ export interface InvoiceItem {
   invoice_id?: string; // Optional for new items
   user_id?: string; // Optional for new items, will be set by backend
   item_name: string;
+  item_code?: string; // New field for item code
   quantity: number;
   unit_price: number;
   subtotal: number;

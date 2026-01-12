@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -24,10 +24,13 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
+import { StockItem } from "@/types/data"; // Import StockItem type
+import StockItemCombobox from "@/components/StockItemCombobox"; // Import new combobox
 
 // Schema validasi menggunakan Zod
 const invoiceItemSchema = z.object({
   item_name: z.string().min(1, "Nama Item wajib diisi"),
+  item_code: z.string().optional(), // New field for item code
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Satuan tidak boleh negatif"),
   unit_type: z.string().optional(), // New field for unit type
@@ -42,14 +45,14 @@ const formSchema = z.object({
   payment_status: z.enum(["pending", "paid", "overdue"], {
     required_error: "Status Pembayaran wajib dipilih",
   }),
-  type: z.enum(["instalasi", "kirim barang"], { // New field
+  type: z.enum(["instalasi", "kirim barang"], {
     required_error: "Tipe wajib dipilih",
   }),
-  customer_type: z.enum(["lama", "baru"], { // New field
+  customer_type: z.enum(["lama", "baru"], {
     required_error: "Tipe Konsumen wajib dipilih",
   }),
-  payment_method: z.string().min(1, "Metode Pembayaran wajib diisi"), // New field
-  notes: z.string().optional(), // New field
+  payment_method: z.string().min(1, "Metode Pembayaran wajib diisi"),
+  notes: z.string().optional(),
   items: z.array(invoiceItemSchema).min(1, "Minimal satu item invoice diperlukan"),
 });
 
@@ -72,25 +75,55 @@ const generateInvoiceNumber = () => {
 
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [loadingStockItems, setLoadingStockItems] = useState(true);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      invoice_number: generateInvoiceNumber(), // Auto-generate on load
+      invoice_number: generateInvoiceNumber(),
       customer_name: "",
       company_name: "",
       payment_status: "pending",
-      type: undefined, // Set default to undefined for required enum
-      customer_type: undefined, // Set default to undefined for required enum
+      type: undefined,
+      customer_type: undefined,
       payment_method: "",
       notes: "",
-      items: [{ item_name: "", quantity: 1, unit_price: 0, unit_type: "" }],
+      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control: form.control,
     name: "items",
   });
+
+  useEffect(() => {
+    const fetchStockItems = async () => {
+      setLoadingStockItems(true);
+      const { data, error } = await supabase
+        .from("stock_items")
+        .select("id, kode_barang, nama_barang, harga_jual, satuan");
+
+      if (error) {
+        showError("Gagal memuat daftar item stok.");
+        console.error("Error fetching stock items:", error);
+      } else {
+        setStockItems(data.map(item => ({
+          id: item.id,
+          "KODE BARANG": item.kode_barang,
+          "NAMA BARANG": item.nama_barang,
+          "HARGA JUAL": item.harga_jual,
+          SATUAN: item.satuan,
+          // Default values for other StockItem fields not used here
+          NO: 0, "HARGA BELI": 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
+        })) as StockItem[]);
+      }
+      setLoadingStockItems(false);
+    };
+
+    fetchStockItems();
+  }, []);
 
   const totalAmount = useMemo(() => {
     return fields.reduce((sum, item, index) => {
@@ -122,10 +155,10 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
           company_name: values.company_name,
           total_amount: totalAmount,
           payment_status: values.payment_status,
-          type: values.type, // New field
-          customer_type: values.customer_type, // New field
-          payment_method: values.payment_method, // New field
-          notes: values.notes, // New field
+          type: values.type,
+          customer_type: values.customer_type,
+          payment_method: values.payment_method,
+          notes: values.notes,
         })
         .select("id")
         .single();
@@ -142,7 +175,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.quantity * item.unit_price,
-        unit_type: item.unit_type, // New field
+        unit_type: item.unit_type,
       }));
 
       const { error: itemsError } = await supabase
@@ -155,7 +188,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
 
       showSuccess("Invoice berhasil ditambahkan!");
       form.reset({
-        invoice_number: generateInvoiceNumber(), // Regenerate for next new invoice
+        invoice_number: generateInvoiceNumber(),
         customer_name: "",
         company_name: "",
         payment_status: "pending",
@@ -163,10 +196,10 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         customer_type: undefined,
         payment_method: "",
         notes: "",
-        items: [{ item_name: "", quantity: 1, unit_price: 0, unit_type: "" }],
+        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
       });
       setIsOpen(false);
-      onSuccess(); // Trigger refresh of invoice data
+      onSuccess();
     } catch (error: any) {
       showError(`Gagal menambahkan invoice: ${error.message}`);
       console.error("Error adding invoice:", error);
@@ -410,15 +443,52 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
             <h3 className="text-lg font-semibold mt-6 mb-2">Detail Item Invoice</h3>
             <div className="space-y-3">
               {fields.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end border p-3 rounded-md">
+                <div key={item.id} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end border p-3 rounded-md">
                   <FormField
                     control={form.control}
                     name={`items.${index}.item_name`}
                     render={({ field }) => (
-                      <FormItem>
+                      <FormItem className="md:col-span-2">
                         <FormLabel>Nama Item</FormLabel>
                         <FormControl>
-                          <Input {...field} />
+                          <StockItemCombobox
+                            items={stockItems}
+                            value={field.value}
+                            onValueChange={(selectedStock) => {
+                              if (selectedStock) {
+                                update(index, {
+                                  ...form.getValues().items[index],
+                                  item_name: selectedStock["NAMA BARANG"],
+                                  item_code: selectedStock["KODE BARANG"],
+                                  unit_price: selectedStock["HARGA JUAL"],
+                                  unit_type: selectedStock.SATUAN,
+                                });
+                              } else {
+                                update(index, {
+                                  ...form.getValues().items[index],
+                                  item_name: "",
+                                  item_code: "",
+                                  unit_price: 0,
+                                  unit_type: "",
+                                });
+                              }
+                            }}
+                            disabled={loadingStockItems}
+                            placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item..."}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`items.${index}.item_code`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Kode Barang</FormLabel>
+                        <FormControl>
+                          <Input {...field} disabled /> {/* Disabled as it's auto-populated */}
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -463,7 +533,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                       </FormItem>
                     )}
                   />
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 md:col-span-full lg:col-span-1">
                     <p className="text-sm font-medium">Subtotal: {(form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0)}</p>
                     <Button
                       type="button"
@@ -481,7 +551,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => append({ item_name: "", quantity: 1, unit_price: 0, unit_type: "" })}
+              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" })}
               className="w-full flex items-center gap-2"
             >
               <PlusCircle className="h-4 w-4" /> Tambah Item
