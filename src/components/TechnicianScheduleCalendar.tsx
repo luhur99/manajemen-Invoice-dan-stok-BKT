@@ -20,6 +20,14 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   const [loading, setLoading] = useState(false);
   const [selectedDaySchedules, setSelectedDaySchedules] = useState<Schedule[]>([]);
 
+  // Define colors for different technicians
+  const technicianColors: Record<string, string> = {
+    "Jubed": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
+    "Daffa": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
+    "Teknisi Lain": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100",
+    "Belum Ditugaskan": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+  };
+
   const fetchSchedulesForMonth = useCallback(async (monthDate: Date) => {
     setLoading(true);
     setSelectedDaySchedules([]); // Clear schedules for selected day when month changes
@@ -144,11 +152,11 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
                   </h4>
                   <ul className="space-y-2">
                     {schedules.map((schedule) => (
-                      <li key={schedule.id} className="bg-white dark:bg-gray-800 p-3 rounded-md shadow-sm text-sm">
-                        <p className="flex items-center"><Clock className="h-4 w-4 mr-2 text-muted-foreground" /> {schedule.schedule_time || "Waktu tidak ditentukan"}</p>
-                        <p className="flex items-center"><Info className="h-4 w-4 mr-2 text-muted-foreground" /> {schedule.type.charAt(0).toUpperCase() + schedule.type.slice(1)} untuk {schedule.customer_name}</p>
-                        {schedule.address && <p className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-muted-foreground" /> {schedule.address}</p>}
-                        {schedule.notes && <p className="text-xs text-muted-foreground mt-1">Catatan: {schedule.notes}</p>}
+                      <li key={schedule.id} className={`p-3 rounded-md shadow-sm text-sm ${technicianColors[schedule.technician_name || "Belum Ditugaskan"]}`}>
+                        <p className="flex items-center"><Clock className="h-4 w-4 mr-2 text-current" /> {schedule.schedule_time || "Waktu tidak ditentukan"}</p>
+                        <p className="flex items-center"><Info className="h-4 w-4 mr-2 text-current" /> {schedule.type.charAt(0).toUpperCase() + schedule.type.slice(1)} untuk {schedule.customer_name}</p>
+                        {schedule.address && <p className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-current" /> {schedule.address}</p>}
+                        {schedule.notes && <p className="text-xs text-current mt-1">Catatan: {schedule.notes}</p>}
                       </li>
                     ))}
                   </ul>
