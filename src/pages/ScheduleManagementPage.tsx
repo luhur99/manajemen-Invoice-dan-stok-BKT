@@ -13,7 +13,8 @@ import EditScheduleForm from "@/components/EditScheduleForm";
 import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Edit, Trash2 } from "lucide-react";
+import { Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog"; // Import Dialog and DialogTrigger
 
 const ScheduleManagementPage = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -23,6 +24,7 @@ const ScheduleManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false); // State for AddScheduleForm dialog
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -163,7 +165,14 @@ const ScheduleManagementPage = () => {
       <CardHeader>
         <div className="flex justify-between items-center mb-4">
           <CardTitle className="text-2xl font-semibold">Manajemen Jadwal</CardTitle>
-          <AddScheduleForm onSuccess={fetchSchedules} />
+          <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center gap-2">
+                <PlusCircle className="h-4 w-4" /> Tambah Jadwal
+              </Button>
+            </DialogTrigger>
+            <AddScheduleForm onSuccess={fetchSchedules} />
+          </Dialog>
         </div>
         <CardDescription>Kelola jadwal instalasi dan pengiriman barang.</CardDescription>
       </CardHeader>
