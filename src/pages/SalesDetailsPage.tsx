@@ -306,8 +306,7 @@ const SalesDetailsPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item, index) => (
-                    <TableRow key={item.id || index}>
-                      <TableCell>{item.no}</TableCell><TableCell>{item.kirim_install}</TableCell><TableCell>{item.no_transaksi}</TableCell><TableCell>
+                    <TableRow key={item.id || index}><TableCell>{item.no}</TableCell><TableCell>{item.kirim_install}</TableCell><TableCell>{item.no_transaksi}</TableCell><TableCell>
                         <InvoiceUpload
                           salesId={item.no_transaksi}
                           currentFileUrl={item.invoice_file_url}

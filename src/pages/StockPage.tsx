@@ -174,18 +174,7 @@ const StockPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item["KODE BARANG"]}</TableCell>
-                      <TableCell>{item["NAMA BARANG"]}</TableCell>
-                      <TableCell>{item.SATUAN}</TableCell>
-                      <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
-                      <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
-                      <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
-                      <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
-                      <TableCell className="text-center">
+                    <TableRow key={item.id}><TableCell>{item["KODE BARANG"]}</TableCell><TableCell>{item["NAMA BARANG"]}</TableCell><TableCell>{item.SATUAN}</TableCell><TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell><TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell><TableCell className="text-right">{item["STOCK AWAL"]}</TableCell><TableCell className="text-right">{item["STOCK MASUK"]}</TableCell><TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell><TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell><TableCell className="text-right">{item.safe_stock_limit}</TableCell><TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="flex items-center gap-1">
@@ -239,7 +228,7 @@ const StockPage = () => {
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
           onSuccess={fetchStockData}
-          initialTransactionType={transactionType} // This will be undefined, letting the form use its default
+          initialTransactionType={transactionType} // This will be undefined, letting the form's default
         />
       )}
     </Card>

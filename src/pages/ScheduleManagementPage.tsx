@@ -219,8 +219,7 @@ const ScheduleManagementPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((schedule) => (
-                    <TableRow key={schedule.id}>
-                      <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell><TableCell>{schedule.schedule_time || "-"}</TableCell><TableCell>{schedule.type}</TableCell><TableCell>{schedule.customer_name}</TableCell><TableCell>{schedule.phone_number || "-"}</TableCell><TableCell>{schedule.courier_service || "-"}</TableCell><TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell><TableCell>{schedule.technician_name || "-"}</TableCell><TableCell>
+                    <TableRow key={schedule.id}><TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell><TableCell>{schedule.schedule_time || "-"}</TableCell><TableCell>{schedule.type}</TableCell><TableCell>{schedule.customer_name}</TableCell><TableCell>{schedule.phone_number || "-"}</TableCell><TableCell>{schedule.courier_service || "-"}</TableCell><TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell><TableCell>{schedule.technician_name || "-"}</TableCell><TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           schedule.status === 'completed' ? 'bg-green-100 text-green-800' :
                           schedule.status === 'in progress' ? 'bg-blue-100 text-blue-800' :

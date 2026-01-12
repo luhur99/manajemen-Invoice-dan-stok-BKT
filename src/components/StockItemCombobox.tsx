@@ -48,8 +48,9 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           aria-expanded={open}
           className="w-full justify-between"
           disabled={disabled}
+          asChild={false} // Explicitly set asChild to false to ensure it renders as a native button
         >
-          {/* Wrap children in a span to ensure a single child for Slot.SlotClone */}
+          {/* Wrap children in a span to ensure a single child for Slot.SlotClone if asChild was true */}
           <span>
             {selectedItem ? selectedItem["NAMA BARANG"] : placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
