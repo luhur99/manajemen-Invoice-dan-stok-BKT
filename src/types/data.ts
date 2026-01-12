@@ -44,3 +44,44 @@ export interface ExcelData {
   stock: StockItem[];
   sales: SalesDetailItem[]; // Menggunakan SalesDetailItem
 }
+
+// New interfaces for Invoice Management
+export interface InvoiceItem {
+  id?: string; // Optional for new items
+  invoice_id?: string; // Optional for new items
+  user_id?: string; // Optional for new items, will be set by backend
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at?: string;
+}
+
+export interface Invoice {
+  id: string;
+  user_id: string;
+  invoice_number: string;
+  invoice_date: string; // YYYY-MM-DD
+  due_date?: string; // YYYY-MM-DD
+  customer_name: string;
+  company_name?: string;
+  total_amount: number;
+  payment_status: 'pending' | 'paid' | 'overdue';
+  created_at: string;
+  items?: InvoiceItem[]; // For displaying joined items
+}
+
+export interface Schedule {
+  id: string;
+  user_id: string;
+  schedule_date: string; // YYYY-MM-DD
+  schedule_time?: string;
+  type: 'instalasi' | 'kirim';
+  customer_name: string;
+  address?: string;
+  technician_name?: string;
+  invoice_id?: string; // UUID of related invoice
+  status: 'scheduled' | 'in progress' | 'completed' | 'cancelled';
+  notes?: string;
+  created_at: string;
+}
