@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { StockItem } from "@/types/data"; // Import StockItem type
+import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar"; // Import the new component
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -329,6 +330,9 @@ const DashboardOverviewPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* New Technician Schedule Calendar */}
+      <TechnicianScheduleCalendar />
     </div>
   );
 };
