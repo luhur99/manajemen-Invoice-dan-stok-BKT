@@ -57,12 +57,27 @@ interface AddInvoiceFormProps {
   onSuccess: () => void;
 }
 
+// Function to generate invoice number
+const generateInvoiceNumber = () => {
+  const now = new Date();
+  const year = format(now, "yyyy");
+  const month = format(now, "MM");
+  const day = format(now, "dd");
+  const hours = format(now, "HH");
+  const minutes = format(now, "mm");
+  const seconds = format(now, "ss");
+  const monthAbbr = format(now, "MMM"); // e.g., Jul
+
+  // Format: INV-[YYYYMMDD]-[HHMMSS]/BKT/DO/[BulanSingkat]/[Tahun]
+  return `INV-${year}${month}${day}-${hours}${minutes}${seconds}/BKT/DO/${monthAbbr}/${year}`;
+};
+
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      invoice_number: "",
+      invoice_number: generateInvoiceNumber(), // Auto-generate on load
       customer_name: "",
       company_name: "",
       payment_status: "pending",
@@ -141,7 +156,17 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
       }
 
       showSuccess("Invoice berhasil ditambahkan!");
-      form.reset();
+      form.reset({
+        invoice_number: generateInvoiceNumber(), // Regenerate for next new invoice
+        customer_name: "",
+        company_name: "",
+        payment_status: "pending",
+        type: undefined,
+        customer_type: undefined,
+        payment_method: "",
+        notes: "",
+        items: [{ item_name: "", quantity: 1, unit_price: 0, unit_type: "" }],
+      });
       setIsOpen(false);
       onSuccess(); // Trigger refresh of invoice data
     } catch (error: any) {

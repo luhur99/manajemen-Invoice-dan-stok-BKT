@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Schedule, InvoiceItem, StockItem } from "@/types/data";
+import { Schedule, InvoiceItem, StockItem, Invoice } from "@/types/data"; // Import Invoice type
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -54,6 +54,9 @@ interface EditScheduleFormProps {
 }
 
 const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, onOpenChange, onSuccess }) => {
+  const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -68,9 +71,29 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       status: schedule.status,
       notes: schedule.notes || "",
       courier_service: schedule.courier_service || "",
-      document_url: schedule.document_url || "", // Set default for new field
+      document_url: schedule.document_url || "",
     },
   });
+
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoadingInvoices(true);
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number")
+        .order("invoice_number", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat daftar invoice.");
+        console.error("Error fetching invoices:", error);
+      } else {
+        setInvoicesList(data as Invoice[]);
+      }
+      setLoadingInvoices(false);
+    };
+
+    fetchInvoices();
+  }, []);
 
   // Watch for status changes
   const currentStatus = form.watch("status");
@@ -366,10 +389,21 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                 name="invoice_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>ID Invoice Terkait (Opsional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="UUID Invoice" {...field} />
-                    </FormControl>
+                    <FormLabel>Nomor Invoice Terkait (Opsional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger disabled={loadingInvoices}>
+                          <SelectValue placeholder={loadingInvoices ? "Memuat invoices..." : "Pilih nomor invoice"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {invoicesList.map((invoice) => (
+                          <SelectItem key={invoice.id} value={invoice.id}>
+                            {invoice.invoice_number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

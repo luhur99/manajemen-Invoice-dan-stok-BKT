@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -23,6 +23,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
+import { Invoice } from "@/types/data"; // Import Invoice type
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -51,10 +52,12 @@ interface AddScheduleFormProps {
 }
 
 const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChange, initialData }) => {
+  const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(true);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      // Prioritize initialData's schedule_date, converting it to Date, otherwise use new Date()
       schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
       schedule_time: initialData?.schedule_time || "",
       type: initialData?.type || undefined,
@@ -70,7 +73,26 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
     },
   });
 
-  // Reset form when component mounts (i.e., when dialog opens) or initialData changes
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoadingInvoices(true);
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number")
+        .order("invoice_number", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat daftar invoice.");
+        console.error("Error fetching invoices:", error);
+      } else {
+        setInvoicesList(data as Invoice[]);
+      }
+      setLoadingInvoices(false);
+    };
+
+    fetchInvoices();
+  }, []);
+
   useEffect(() => {
     form.reset({
       schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
@@ -86,7 +108,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
       courier_service: initialData?.courier_service || "",
       document_url: initialData?.document_url || "",
     });
-  }, [form, initialData]); // Dependency array includes form and initialData
+  }, [form, initialData]);
 
   const scheduleType = form.watch("type");
 
@@ -125,7 +147,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
 
       showSuccess("Jadwal berhasil ditambahkan!");
       form.reset();
-      onOpenChange(false); // Close the parent dialog
+      onOpenChange(false);
       onSuccess();
     } catch (error: any) {
       showError(`Gagal menambahkan jadwal: ${error.message}`);
@@ -281,10 +303,21 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
             name="invoice_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>ID Invoice Terkait (Opsional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="UUID Invoice" {...field} />
-                </FormControl>
+                <FormLabel>Nomor Invoice Terkait (Opsional)</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <FormControl>
+                    <SelectTrigger disabled={loadingInvoices}>
+                      <SelectValue placeholder={loadingInvoices ? "Memuat invoices..." : "Pilih nomor invoice"} />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {invoicesList.map((invoice) => (
+                      <SelectItem key={invoice.id} value={invoice.id}>
+                        {invoice.invoice_number}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
