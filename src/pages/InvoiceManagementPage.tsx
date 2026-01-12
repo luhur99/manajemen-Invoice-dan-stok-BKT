@@ -210,8 +210,7 @@ const InvoiceManagementPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell>{invoice.invoice_number}</TableCell><TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell><TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell><TableCell>{invoice.customer_name}</TableCell><TableCell>{invoice.company_name || "-"}</TableCell><TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell><TableCell>
+                    <TableRow key={invoice.id}><TableCell>{invoice.invoice_number}</TableCell><TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell><TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell><TableCell>{invoice.customer_name}</TableCell><TableCell>{invoice.company_name || "-"}</TableCell><TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell><TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           invoice.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
                           invoice.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :

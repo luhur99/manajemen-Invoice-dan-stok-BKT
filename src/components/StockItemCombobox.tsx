@@ -52,7 +52,6 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           aria-expanded={open}
           className="w-full justify-between"
           disabled={disabled}
-          asChild={false} // Explicitly set asChild to false to ensure it renders as a native button
           id={id} // Pass id to the button
           name={name} // Pass name to the button
         >
