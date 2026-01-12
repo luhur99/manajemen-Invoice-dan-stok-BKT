@@ -31,7 +31,7 @@ export interface StockTransactionWithItemName extends StockTransaction {
   stock_items: {
     nama_barang: string;
     kode_barang: string;
-  }[] | null; // Changed to array of objects or null
+  } | null; // Diperbaiki: sekarang objek tunggal atau null
 }
 
 export interface SalesDetailItem {
