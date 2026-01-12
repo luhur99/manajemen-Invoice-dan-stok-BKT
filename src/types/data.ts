@@ -99,6 +99,7 @@ export interface Invoice {
   created_at: string;
   items?: InvoiceItem[]; // For displaying joined items
   item_names_summary?: string; // New: Summary of item names for table display
+  document_url?: string; // New: URL for the uploaded invoice document
 }
 
 export interface Schedule {

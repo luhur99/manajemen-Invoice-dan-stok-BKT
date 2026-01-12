@@ -16,6 +16,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from 
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { Loader2, Edit, Trash2, Eye, CalendarPlus } from "lucide-react";
+import InvoiceUpload from "@/components/InvoiceUpload"; // Import InvoiceUpload component
 
 // Extend Invoice type to include derived schedule status
 interface InvoiceWithScheduleStatus extends Invoice {
@@ -150,6 +151,36 @@ const InvoiceManagementPage = () => {
     setIsConvertScheduleOpen(true);
   };
 
+  const handleDocumentUploadSuccess = async (invoiceId: string, fileUrl: string) => {
+    const { error } = await supabase
+      .from("invoices")
+      .update({ document_url: fileUrl })
+      .eq("id", invoiceId);
+
+    if (error) {
+      console.error("Error updating invoice with document URL:", error);
+      showError("Gagal menyimpan URL dokumen ke database.");
+      return;
+    }
+    showSuccess("URL dokumen invoice berhasil diperbarui!");
+    fetchInvoices();
+  };
+
+  const handleDocumentRemoveSuccess = async (invoiceId: string) => {
+    const { error } = await supabase
+      .from("invoices")
+      .update({ document_url: null })
+      .eq("id", invoiceId);
+
+    if (error) {
+      console.error("Error removing document URL from invoice:", error);
+      showError("Gagal menghapus URL dokumen dari database.");
+      return;
+    }
+    showSuccess("URL dokumen invoice berhasil dihapus!");
+    fetchInvoices();
+  };
+
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -202,10 +233,11 @@ const InvoiceManagementPage = () => {
                     <TableHead>Jatuh Tempo</TableHead>
                     <TableHead>Nama Konsumen</TableHead>
                     <TableHead>Perusahaan</TableHead>
-                    <TableHead>Nama Barang</TableHead> {/* New TableHead */}
+                    <TableHead>Nama Barang</TableHead>
                     <TableHead className="text-right">Total Tagihan</TableHead>
                     <TableHead>Status Pembayaran</TableHead>
                     <TableHead>Status Penjadwalan</TableHead>
+                    <TableHead>File Invoice</TableHead> {/* New TableHead */}
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -217,7 +249,7 @@ const InvoiceManagementPage = () => {
                       <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell>
                       <TableCell>{invoice.customer_name}</TableCell>
                       <TableCell>{invoice.company_name || "-"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{invoice.item_names_summary || "-"}</TableCell> {/* New TableCell */}
+                      <TableCell className="max-w-[200px] truncate">{invoice.item_names_summary || "-"}</TableCell>
                       <TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -238,6 +270,14 @@ const InvoiceManagementPage = () => {
                         }`}>
                           {invoice.schedule_status_display === "Belum Terjadwal" ? "Belum Terjadwal" : invoice.schedule_status_display?.charAt(0).toUpperCase() + invoice.schedule_status_display?.slice(1)}
                         </span>
+                      </TableCell>
+                      <TableCell>
+                        <InvoiceUpload
+                          salesId={invoice.id} // Use invoice.id as salesId for the component
+                          currentFileUrl={invoice.document_url}
+                          onUploadSuccess={(fileUrl) => handleDocumentUploadSuccess(invoice.id, fileUrl)}
+                          onRemoveSuccess={() => handleDocumentRemoveSuccess(invoice.id)}
+                        />
                       </TableCell>
                       <TableCell className="text-center flex items-center justify-center space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleViewInvoice(invoice)} title="Lihat Detail">
