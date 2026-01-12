@@ -3,7 +3,10 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard } from "lucide-react";
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { showError, showSuccess } from "@/utils/toast";
+import { Button } from "@/components/ui/button"; // Import Button component
 
 const navItems = [
   {
@@ -29,26 +32,49 @@ const navItems = [
 ];
 
 const SidebarNav = () => {
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      showSuccess("Anda telah berhasil logout.");
+    } catch (error: any) {
+      showError(`Gagal logout: ${error.message}`);
+      console.error("Error logging out:", error);
+    }
+  };
+
   return (
     <nav className="flex flex-col space-y-1 p-4 bg-sidebar dark:bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border h-full">
       <h2 className="text-xl font-bold mb-4 text-sidebar-primary-foreground">Budi Karya Teknologi</h2>
-      {navItems.map((item) => (
-        <NavLink
-          key={item.href}
-          to={item.href}
-          className={({ isActive }) =>
-            cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              isActive
-                ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                : "text-sidebar-foreground"
-            )
-          }
-        >
-          <item.icon className="h-5 w-5" />
-          {item.title}
-        </NavLink>
-      ))}
+      <div className="flex-1"> {/* This div ensures items above it are pushed to top, and items below are pushed to bottom */}
+        {navItems.map((item) => (
+          <NavLink
+            key={item.href}
+            to={item.href}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                isActive
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground"
+              )
+            }
+          >
+            <item.icon className="h-5 w-5" />
+            {item.title}
+          </NavLink>
+        ))}
+      </div>
+      <Button
+        variant="ghost"
+        onClick={handleLogout}
+        className="flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground justify-start"
+      >
+        <LogOut className="h-5 w-5" />
+        Logout
+      </Button>
     </nav>
   );
 };

@@ -3,13 +3,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import MainLayout from "./components/MainLayout"; // Import MainLayout
-import DashboardOverviewPage from "./pages/DashboardOverviewPage"; // New Dashboard page
-import InvoiceManagementPage from "./pages/InvoiceManagementPage"; // New Invoice page
-import ScheduleManagementPage from "./pages/ScheduleManagementPage"; // New Schedule page
-import StockPage from "./pages/StockPage"; // Existing Stock page
-import SalesDetailsPage from "./pages/SalesDetailsPage"; // Existing Sales Details page
+import MainLayout from "./components/MainLayout";
+import DashboardOverviewPage from "./pages/DashboardOverviewPage";
+import InvoiceManagementPage from "./pages/InvoiceManagementPage";
+import ScheduleManagementPage from "./pages/ScheduleManagementPage";
+import StockPage from "./pages/StockPage";
+import SalesDetailsPage from "./pages/SalesDetailsPage";
 import NotFound from "./pages/NotFound";
+import AuthPage from "./pages/AuthPage"; // Import AuthPage
+import { SessionContextProvider } from "./components/SessionContextProvider"; // Import SessionContextProvider
 
 const queryClient = new QueryClient();
 
@@ -19,17 +21,18 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <MainLayout> {/* Wrap routes with MainLayout */}
+        <SessionContextProvider> {/* Wrap with SessionContextProvider */}
           <Routes>
-            <Route path="/" element={<DashboardOverviewPage />} />
-            <Route path="/invoices" element={<InvoiceManagementPage />} />
-            <Route path="/schedules" element={<ScheduleManagementPage />} />
-            <Route path="/stock" element={<StockPage />} />
-            <Route path="/sales-details" element={<SalesDetailsPage />} /> {/* Keep existing sales details page */}
+            <Route path="/auth" element={<AuthPage />} /> {/* Add AuthPage route */}
+            <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
+            <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
+            <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
+            <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
+            <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>
-        </MainLayout>
+        </SessionContextProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
