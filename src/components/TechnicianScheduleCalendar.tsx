@@ -24,17 +24,16 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   const technicianColors: Record<string, string> = {
     "Jubed": "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
     "Daffa": "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
-    "Teknisi Lain": "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100",
+    "Teknisi Lain": "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100",
     "Belum Ditugaskan": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
   };
 
   // Define colors for calendar day markers (using HSL for consistency with shadcn/ui)
   // Order matters here for `modifiersStyles` if a day has multiple technician schedules.
   // The last defined style for a property (e.g., backgroundColor) will take precedence.
-  // Priority: Jubed > Daffa > Other > Unassigned
+  // Priority: Jubed > Daffa > Other
   const calendarModifierStyles: Record<string, React.CSSProperties> = {
-    unassigned: { backgroundColor: 'hsl(210 40% 96.1%)', color: 'hsl(210 22% 49.8%)' }, // Gray-500 equivalent
-    other: { backgroundColor: 'hsl(262.1 83.3% 57.8%)', color: 'hsl(0 0% 100%)' }, // Purple-500 equivalent
+    other: { backgroundColor: 'hsl(27 87% 53%)', color: 'hsl(0 0% 100%)' }, // Orange-500 equivalent
     daffa: { backgroundColor: 'hsl(142.1 76.2% 36.3%)', color: 'hsl(0 0% 100%)' }, // Green-500 equivalent
     jubed: { backgroundColor: 'hsl(217.2 91.2% 59.8%)', color: 'hsl(0 0% 100%)' }, // Blue-500 equivalent
   };
@@ -97,7 +96,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
       jubed: [],
       daffa: [],
       other: [], // For "Teknisi Lain"
-      unassigned: [], // For "Belum Ditugaskan"
+      // 'unassigned' is intentionally excluded from calendar modifiers
     };
 
     schedules.forEach(s => {
@@ -106,11 +105,10 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
         modifiers.jubed.push(scheduleDate);
       } else if (s.technician_name === "Daffa") {
         modifiers.daffa.push(scheduleDate);
-      } else if (s.technician_name === "Belum Ditugaskan") {
-        modifiers.unassigned.push(scheduleDate);
-      } else {
-        modifiers.other.push(scheduleDate); // Any other technician name
+      } else if (s.technician_name === "Teknisi Lain") {
+        modifiers.other.push(scheduleDate);
       }
+      // Schedules with "Belum Ditugaskan" are intentionally not added to modifiers
     });
 
     // Filter out duplicate dates within each technician's array
