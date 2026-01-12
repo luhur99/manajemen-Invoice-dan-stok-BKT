@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { readExcelFile } from "@/lib/excelUtils";
 import { SalesDetailItem } from "@/types/data";
 import { generateDummySalesData } from "@/lib/dummyData";
-import InvoiceUpload from "@/components/InvoiceUpload"; // Import the new component
+import InvoiceUpload from "@/components/InvoiceUpload";
+import { supabase } from "@/integrations/supabase/client"; // Import supabase client
+import { showError } from "@/utils/toast";
 
 const SalesDetailsPage = () => {
   const [salesData, setSalesData] = useState<SalesDetailItem[]>([]);
@@ -18,19 +20,42 @@ const SalesDetailsPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const data = await readExcelFile("/SALES ST-007 2026.xlsx");
-        if (data.sales.length > 0) {
-          setSalesData(data.sales);
-          setFilteredSalesData(data.sales);
+        const excelData = await readExcelFile("/SALES ST-007 2026.xlsx");
+        let initialSalesData: SalesDetailItem[];
+
+        if (excelData.sales.length > 0) {
+          initialSalesData = excelData.sales;
         } else {
-          const dummy = generateDummySalesData();
-          setSalesData(dummy);
-          setFilteredSalesData(dummy);
+          initialSalesData = generateDummySalesData();
           setError("File Excel kosong atau gagal dimuat. Menampilkan data dummy.");
         }
+
+        // Fetch invoice URLs from Supabase
+        const { data: dbInvoices, error: dbError } = await supabase
+          .from("sales_invoices")
+          .select("no_transaksi, invoice_file_url");
+
+        if (dbError) {
+          console.error("Error fetching sales invoices from DB:", dbError);
+          showError("Gagal memuat URL invoice dari database.");
+        }
+
+        const invoiceMap = new Map(
+          dbInvoices?.map((inv) => [inv.no_transaksi, inv.invoice_file_url]) || []
+        );
+
+        // Merge Excel data with Supabase invoice URLs
+        const mergedSalesData = initialSalesData.map((item) => ({
+          ...item,
+          invoice_file_url: invoiceMap.get(item["No Transaksi"]) || undefined,
+        }));
+
+        setSalesData(mergedSalesData);
+        setFilteredSalesData(mergedSalesData);
       } catch (err) {
-        setError("Gagal memuat data penjualan dari file Excel. Menampilkan data dummy.");
+        setError("Gagal memuat data penjualan. Menampilkan data dummy.");
         console.error(err);
         const dummy = generateDummySalesData();
         setSalesData(dummy);
@@ -59,7 +84,8 @@ const SalesDetailsPage = () => {
     setFilteredSalesData(filtered);
   }, [searchTerm, salesData]);
 
-  const handleInvoiceUploadSuccess = (salesId: string, fileUrl: string) => {
+  const handleInvoiceUploadSuccess = async (salesId: string, fileUrl: string) => {
+    // Update local state
     setSalesData(prevData =>
       prevData.map(item =>
         item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
@@ -70,9 +96,23 @@ const SalesDetailsPage = () => {
         item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
       )
     );
+
+    // Persist to Supabase
+    const { error: upsertError } = await supabase
+      .from("sales_invoices")
+      .upsert(
+        { no_transaksi: salesId, invoice_file_url: fileUrl },
+        { onConflict: "no_transaksi" }
+      );
+
+    if (upsertError) {
+      console.error("Error saving invoice URL to DB:", upsertError);
+      showError("Gagal menyimpan URL invoice ke database.");
+    }
   };
 
-  const handleInvoiceRemoveSuccess = (salesId: string) => {
+  const handleInvoiceRemoveSuccess = async (salesId: string) => {
+    // Update local state
     setSalesData(prevData =>
       prevData.map(item =>
         item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
@@ -83,6 +123,17 @@ const SalesDetailsPage = () => {
         item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
       )
     );
+
+    // Remove from Supabase
+    const { error: deleteError } = await supabase
+      .from("sales_invoices")
+      .delete()
+      .eq("no_transaksi", salesId);
+
+    if (deleteError) {
+      console.error("Error removing invoice URL from DB:", deleteError);
+      showError("Gagal menghapus URL invoice dari database.");
+    }
   };
 
   if (loading) {
@@ -122,7 +173,7 @@ const SalesDetailsPage = () => {
                   <TableHead>No</TableHead>
                   <TableHead>Kirim/Install</TableHead>
                   <TableHead>No Transaksi</TableHead>
-                  <TableHead>Invoice</TableHead> {/* This column will now contain the upload component */}
+                  <TableHead>Invoice</TableHead>
                   <TableHead>New/Old</TableHead>
                   <TableHead>Perusahaan</TableHead>
                   <TableHead>Tanggal</TableHead>
@@ -148,13 +199,13 @@ const SalesDetailsPage = () => {
               </TableHeader>
               <TableBody>
                 {filteredSalesData.map((item, index) => (
-                  <TableRow key={item["No Transaksi"] || index}> {/* Use No Transaksi as key if available */}
+                  <TableRow key={item["No Transaksi"] || index}>
                     <TableCell>{item.NO}</TableCell>
                     <TableCell>{item["Kirim/Install"]}</TableCell>
                     <TableCell>{item["No Transaksi"]}</TableCell>
                     <TableCell>
                       <InvoiceUpload
-                        salesId={item["No Transaksi"]} // Using No Transaksi as a unique ID for this demo
+                        salesId={item["No Transaksi"]}
                         currentFileUrl={item.invoice_file_url}
                         onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item["No Transaksi"], fileUrl)}
                         onRemoveSuccess={() => handleInvoiceRemoveSuccess(item["No Transaksi"])}
