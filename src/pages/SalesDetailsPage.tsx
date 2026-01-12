@@ -51,7 +51,7 @@ const SalesDetailsPage = () => {
 
         const mergedSalesData = initialSalesData.map((item) => ({
           ...item,
-          invoice_file_url: invoiceMap.get(item["No Transaksi"]) || undefined,
+          invoice_file_url: invoiceMap.get(item.no_transaksi) || undefined,
         }));
 
         setSalesData(mergedSalesData);
@@ -73,16 +73,16 @@ const SalesDetailsPage = () => {
   useEffect(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     const filtered = salesData.filter(item =>
-      item.Invoice.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item["No Transaksi"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.Customer.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.Perusahaan.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.Type.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.Teknisi.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.Tanggal.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item["Alamat install"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item["No HP"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.Catatan.toLowerCase().includes(lowerCaseSearchTerm)
+      item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.no_transaksi.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.customer.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.perusahaan?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.type?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.teknisi?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.tanggal.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.alamat_install?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.no_hp?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.catatan?.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setFilteredSalesData(filtered);
     setCurrentPage(1);
@@ -91,12 +91,12 @@ const SalesDetailsPage = () => {
   const handleInvoiceUploadSuccess = async (salesId: string, fileUrl: string) => {
     setSalesData(prevData =>
       prevData.map(item =>
-        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
+        item.no_transaksi === salesId ? { ...item, invoice_file_url: fileUrl } : item
       )
     );
     setFilteredSalesData(prevData =>
       prevData.map(item =>
-        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: fileUrl } : item
+        item.no_transaksi === salesId ? { ...item, invoice_file_url: fileUrl } : item
       )
     );
 
@@ -116,12 +116,12 @@ const SalesDetailsPage = () => {
   const handleInvoiceRemoveSuccess = async (salesId: string) => {
     setSalesData(prevData =>
       prevData.map(item =>
-        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
+        item.no_transaksi === salesId ? { ...item, invoice_file_url: undefined } : item
       )
     );
     setFilteredSalesData(prevData =>
       prevData.map(item =>
-        item["No Transaksi"] === salesId ? { ...item, invoice_file_url: undefined } : item
+        item.no_transaksi === salesId ? { ...item, invoice_file_url: undefined } : item
       )
     );
 
@@ -209,39 +209,39 @@ const SalesDetailsPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item, index) => (
-                    <TableRow key={item["No Transaksi"] || index}>
-                      <TableCell>{item.NO}</TableCell>
-                      <TableCell>{item["Kirim/Install"]}</TableCell>
-                      <TableCell>{item["No Transaksi"]}</TableCell>
+                    <TableRow key={item.no_transaksi || index}>
+                      <TableCell>{item.no}</TableCell>
+                      <TableCell>{item.kirim_install}</TableCell>
+                      <TableCell>{item.no_transaksi}</TableCell>
                       <TableCell>
                         <InvoiceUpload
-                          salesId={item["No Transaksi"]}
+                          salesId={item.no_transaksi}
                           currentFileUrl={item.invoice_file_url}
-                          onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item["No Transaksi"], fileUrl)}
-                          onRemoveSuccess={() => handleInvoiceRemoveSuccess(item["No Transaksi"])}
+                          onUploadSuccess={(fileUrl) => handleInvoiceUploadSuccess(item.no_transaksi, fileUrl)}
+                          onRemoveSuccess={() => handleInvoiceRemoveSuccess(item.no_transaksi)}
                         />
                       </TableCell>
-                      <TableCell>{item["New/Old"]}</TableCell>
-                      <TableCell>{item.Perusahaan}</TableCell>
-                      <TableCell>{item.Tanggal}</TableCell>
-                      <TableCell>{item.Hari}</TableCell>
-                      <TableCell>{item.Jam}</TableCell>
-                      <TableCell>{item.Customer}</TableCell>
-                      <TableCell>{item["Alamat install"]}</TableCell>
-                      <TableCell>{item["No HP"]}</TableCell>
-                      <TableCell>{item.Type}</TableCell>
-                      <TableCell className="text-right">{item["Qty unit"]}</TableCell>
-                      <TableCell className="text-right">{item.Stock}</TableCell>
-                      <TableCell className="text-right">{item.Harga.toLocaleString('id-ID')}</TableCell>
-                      <TableCell>{item.WEB}</TableCell>
-                      <TableCell className="text-right">{item["Qty Web"]}</TableCell>
-                      <TableCell>{item.Kartu}</TableCell>
-                      <TableCell className="text-right">{item["Qty kartu"]}</TableCell>
-                      <TableCell>{item.Paket}</TableCell>
-                      <TableCell className="text-right">{item.Pulsa.toLocaleString('id-ID')}</TableCell>
-                      <TableCell>{item.Teknisi}</TableCell>
-                      <TableCell>{item.Payment}</TableCell>
-                      <TableCell>{item.Catatan}</TableCell>
+                      <TableCell>{item.new_old}</TableCell>
+                      <TableCell>{item.perusahaan}</TableCell>
+                      <TableCell>{item.tanggal}</TableCell>
+                      <TableCell>{item.hari}</TableCell>
+                      <TableCell>{item.jam}</TableCell>
+                      <TableCell>{item.customer}</TableCell>
+                      <TableCell>{item.alamat_install}</TableCell>
+                      <TableCell>{item.no_hp}</TableCell>
+                      <TableCell>{item.type}</TableCell>
+                      <TableCell className="text-right">{item.qty_unit}</TableCell>
+                      <TableCell className="text-right">{item.stock}</TableCell>
+                      <TableCell className="text-right">{item.harga?.toLocaleString('id-ID')}</TableCell>
+                      <TableCell>{item.web}</TableCell>
+                      <TableCell className="text-right">{item.qty_web}</TableCell>
+                      <TableCell>{item.kartu}</TableCell>
+                      <TableCell className="text-right">{item.qty_kartu}</TableCell>
+                      <TableCell>{item.paket}</TableCell>
+                      <TableCell className="text-right">{item.pulsa?.toLocaleString('id-ID')}</TableCell>
+                      <TableCell>{item.teknisi}</TableCell>
+                      <TableCell>{item.payment}</TableCell>
+                      <TableCell>{item.catatan}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

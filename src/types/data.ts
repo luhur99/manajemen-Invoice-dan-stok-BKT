@@ -12,32 +12,35 @@ export interface StockItem {
 }
 
 export interface SalesDetailItem {
-  NO: number;
-  "Kirim/Install": string;
-  "No Transaksi": string;
-  Invoice: string; // This will now represent the invoice number/text
-  "New/Old": string;
-  Perusahaan: string;
-  Tanggal: string; // Assuming date as string "yyyy-mm-dd"
-  Hari: string;
-  Jam: string;
-  Customer: string;
-  "Alamat install": string;
-  "No HP": string;
-  Type: string;
-  "Qty unit": number;
-  Stock: number;
-  Harga: number;
-  WEB: string;
-  "Qty Web": number;
-  Kartu: string;
-  "Qty kartu": number;
-  Paket: string;
-  Pulsa: number;
-  Teknisi: string;
-  Payment: string;
-  Catatan: string;
-  invoice_file_url?: string; // New field for the uploaded invoice file URL
+  id?: string; // New: UUID from Supabase
+  user_id?: string; // New: User ID for RLS
+  no: number;
+  kirim_install: string; // Changed from "Kirim/Install"
+  no_transaksi: string; // Changed from "No Transaksi"
+  invoice_number: string; // Changed from "Invoice"
+  new_old?: string; // Changed from "New/Old"
+  perusahaan?: string; // Changed from "Perusahaan"
+  tanggal: string; // Assuming date as string "yyyy-mm-dd"
+  hari?: string; // Changed from "Hari"
+  jam?: string; // Changed from "Jam"
+  customer: string; // Changed from "Customer"
+  alamat_install?: string; // Changed from "Alamat install"
+  no_hp?: string; // Changed from "No HP"
+  type?: string; // Changed from "Type"
+  qty_unit?: number; // Changed from "Qty unit"
+  stock?: number; // Changed from "Stock"
+  harga?: number; // Changed from "Harga"
+  web?: string; // Changed from "WEB"
+  qty_web?: number; // Changed from "Qty Web"
+  kartu?: string; // Changed from "Kartu"
+  qty_kartu?: number; // Changed from "Qty kartu"
+  paket?: string; // Changed from "Paket"
+  pulsa?: number; // Changed from "Pulsa"
+  teknisi?: string; // Changed from "Teknisi"
+  payment?: string; // Changed from "Payment"
+  catatan?: string; // Changed from "Catatan"
+  invoice_file_url?: string; // This will still be fetched from sales_invoices table
+  created_at?: string;
 }
 
 export interface ExcelData {
