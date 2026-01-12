@@ -54,6 +54,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      schedule_date: new Date(), // Set default to today's date
       schedule_time: "",
       type: undefined,
       customer_name: "",
