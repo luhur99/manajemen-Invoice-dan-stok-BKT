@@ -12,17 +12,14 @@ import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import PaginationControls from "@/components/PaginationControls";
-import { Loader2, Edit, Trash2, PlusCircle, ArrowDownCircle, ArrowUpCircle, RefreshCcw, MinusCircle, Settings } from "lucide-react";
+import { Loader2, Edit, Trash2, PlusCircle, Settings } from "lucide-react"; // Removed specific transaction icons as they are no longer needed in the menu
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSub, // Import DropdownMenuSub
-  DropdownMenuSubTrigger, // Import DropdownMenuSubTrigger
-  DropdownMenuSubContent, // Import DropdownMenuSubContent
-  DropdownMenuSeparator, // Optional: for visual separation
-} from "@/components/ui/dropdown-menu";
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"; // Removed DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -126,9 +123,10 @@ const StockPage = () => {
     setIsEditFormOpen(true);
   };
 
-  const handleTransactionClick = (item: StockItem, type: "in" | "out" | "return" | "damage_loss") => {
+  // Modified handleTransactionClick to open the form without a specific initial type
+  const handleOpenTransactionForm = (item: StockItem) => {
     setSelectedStockItem(item);
-    setTransactionType(type);
+    setTransactionType(undefined); // Let the form's default handle the initial type
     setIsTransactionFormOpen(true);
   };
 
@@ -198,26 +196,10 @@ const StockPage = () => {
                             <DropdownMenuItem onClick={() => handleEditClick(item)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Item
                             </DropdownMenuItem>
-                            <DropdownMenuSub>
-                              <DropdownMenuSubTrigger>
-                                <Settings className="mr-2 h-4 w-4" /> Atur Stok
-                              </DropdownMenuSubTrigger>
-                              <DropdownMenuSubContent>
-                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "in")}>
-                                  <ArrowUpCircle className="mr-2 h-4 w-4 text-green-600" /> Stok Masuk
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "out")}>
-                                  <ArrowDownCircle className="mr-2 h-4 w-4 text-red-600" /> Stok Keluar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "return")}>
-                                  <RefreshCcw className="mr-2 h-4 w-4 text-blue-600" /> Retur Barang
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleTransactionClick(item, "damage_loss")}>
-                                  <MinusCircle className="mr-2 h-4 w-4 text-orange-600" /> Rusak/Hilang
-                                </DropdownMenuItem>
-                              </DropdownMenuSubContent>
-                            </DropdownMenuSub>
-                            <DropdownMenuSeparator /> {/* Optional separator */}
+                            <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
+                              <Settings className="mr-2 h-4 w-4" /> Atur Stok
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
                               <Trash2 className="mr-2 h-4 w-4" /> Hapus Item
                             </DropdownMenuItem>
@@ -257,7 +239,7 @@ const StockPage = () => {
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
           onSuccess={fetchStockData}
-          initialTransactionType={transactionType}
+          initialTransactionType={transactionType} // This will be undefined, letting the form use its default
         />
       )}
     </Card>
