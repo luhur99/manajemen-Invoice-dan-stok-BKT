@@ -19,11 +19,19 @@ export interface StockTransaction {
   id: string;
   user_id: string;
   stock_item_id: string;
-  transaction_type: 'initial' | 'in' | 'out';
+  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss'; // Updated transaction types
   quantity: number;
   notes?: string;
   transaction_date: string; // ISO date string
   created_at: string;
+}
+
+// New interface for Stock Transaction with Item Name for display
+export interface StockTransactionWithItemName extends StockTransaction {
+  stock_items: {
+    nama_barang: string;
+    kode_barang: string;
+  }[] | null; // Changed to array of objects or null
 }
 
 export interface SalesDetailItem {

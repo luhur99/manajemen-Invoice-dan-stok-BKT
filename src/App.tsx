@@ -10,6 +10,7 @@ import ScheduleManagementPage from "./pages/ScheduleManagementPage";
 import StockPage from "./pages/StockPage";
 import SalesDetailsPage from "./pages/SalesDetailsPage";
 import ProfilePage from "./pages/ProfilePage";
+import StockHistoryPage from "./pages/StockHistoryPage"; // Import new page
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
             <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
             <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
+            <Route path="/stock-history" element={<MainLayout><StockHistoryPage /></MainLayout>} /> {/* New route */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>
