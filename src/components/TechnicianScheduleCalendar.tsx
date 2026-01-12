@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { format, startOfMonth, endOfMonth, isSameDay, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } from "date-fns"; // Import startOfDay
 import { id } from "date-fns/locale"; // Import Indonesian locale
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
@@ -85,7 +85,8 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   // Update selectedDaySchedules when schedules or selected date changes
   useEffect(() => {
     if (date) {
-      const daySchedules = schedules.filter(s => isSameDay(parseISO(s.schedule_date), date));
+      const normalizedSelectedDate = startOfDay(date); // Normalize selected date
+      const daySchedules = schedules.filter(s => isSameDay(startOfDay(parseISO(s.schedule_date)), normalizedSelectedDate));
       setSelectedDaySchedules(daySchedules);
     }
   }, [date, schedules]);
@@ -100,7 +101,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     };
 
     schedules.forEach(s => {
-      const scheduleDate = parseISO(s.schedule_date);
+      const scheduleDate = startOfDay(parseISO(s.schedule_date)); // Normalize to start of day
       if (s.technician_name === "Jubed") {
         modifiers.jubed.push(scheduleDate);
       } else if (s.technician_name === "Daffa") {
@@ -113,8 +114,8 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
 
     // Filter out duplicate dates within each technician's array
     for (const key in modifiers) {
-      modifiers[key] = Array.from(new Set(modifiers[key].map(d => d.toISOString().split('T')[0])))
-        .map(dateString => parseISO(dateString));
+      modifiers[key] = Array.from(new Set(modifiers[key].map(d => d.getTime()))) // Compare by timestamp
+        .map(timestamp => new Date(timestamp)); // Convert back to Date
     }
 
     return modifiers;
