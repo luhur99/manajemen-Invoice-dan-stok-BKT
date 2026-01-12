@@ -108,7 +108,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           "KODE BARANG": item.kode_barang,
           "NAMA BARANG": item.nama_barang,
           "HARGA JUAL": item.harga_jual,
-          SATUAN: item.satuan,
+          SATUAN: item.satuan || "", // Ensure SATUAN is always a string
           // Default values for other StockItem fields not used here
           NO: 0, "HARGA BELI": 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
         })) as StockItem[]);
@@ -492,7 +492,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                                   item_name: selectedStock["NAMA BARANG"],
                                   item_code: selectedStock["KODE BARANG"],
                                   unit_price: selectedStock["HARGA JUAL"],
-                                  unit_type: selectedStock.SATUAN,
+                                  unit_type: selectedStock.SATUAN || "", // Ensure unit_type is always a string
                                 });
                               } else {
                                 update(index, {
