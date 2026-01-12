@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import * as z from "zod"; // Fixed: Changed '*s z' to '* as z'
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -36,7 +36,7 @@ const formSchema = z.object({
   customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
   phone_number: z.string().optional(),
   address: z.string().optional(),
-  technician_name: z.string().optional(),
+  technician_name: z.enum(["Jubed", "Daffa", "Teknisi Lain"]).optional(), // Updated to enum
   invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")),
   status: z.enum(["scheduled", "in progress", "completed", "cancelled"], {
     required_error: "Status jadwal wajib dipilih",
@@ -66,7 +66,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       customer_name: schedule.customer_name,
       phone_number: schedule.phone_number || "",
       address: schedule.address || "",
-      technician_name: schedule.technician_name || "",
+      technician_name: (schedule.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined, // Cast to enum type
       invoice_id: schedule.invoice_id || "",
       status: schedule.status,
       notes: schedule.notes || "",
@@ -109,7 +109,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         customer_name: schedule.customer_name,
         phone_number: schedule.phone_number || "",
         address: schedule.address || "",
-        technician_name: schedule.technician_name || "",
+        technician_name: (schedule.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined,
         invoice_id: schedule.invoice_id || "",
         status: schedule.status,
         notes: schedule.notes || "",
@@ -377,9 +377,18 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Nama Teknisi (Opsional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih teknisi" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Jubed">Jubed</SelectItem>
+                        <SelectItem value="Daffa">Daffa</SelectItem>
+                        <SelectItem value="Teknisi Lain">Teknisi Lain</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}

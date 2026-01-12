@@ -5,32 +5,37 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Invoice } from "@/types/data";
+import { Invoice, Schedule } from "@/types/data"; // Import Schedule type
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
 import EditInvoiceForm from "@/components/EditInvoiceForm";
-import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog"; // Import new component
-import AddScheduleForm from "@/components/AddScheduleForm"; // Import AddScheduleForm
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Import Dialog components for AddScheduleForm
+import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog";
+import AddScheduleForm from "@/components/AddScheduleForm";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Edit, Trash2, Eye, CalendarPlus } from "lucide-react"; // Import Eye and CalendarPlus icons
+import { Loader2, Edit, Trash2, Eye, CalendarPlus } from "lucide-react";
+
+// Extend Invoice type to include derived schedule status
+interface InvoiceWithScheduleStatus extends Invoice {
+  schedule_status_display?: string;
+}
 
 const InvoiceManagementPage = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceWithScheduleStatus[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<InvoiceWithScheduleStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // State for View Details dialog
-  const [invoiceToView, setInvoiceToView] = useState<Invoice | null>(null); // State for invoice to view
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [invoiceToView, setInvoiceToView] = useState<Invoice | null>(null);
 
-  const [isConvertScheduleOpen, setIsConvertScheduleOpen] = useState(false); // State for Convert to Schedule dialog
-  const [invoiceToConvert, setInvoiceToConvert] = useState<Invoice | null>(null); // State for invoice to convert
+  const [isConvertScheduleOpen, setIsConvertScheduleOpen] = useState(false);
+  const [invoiceToConvert, setInvoiceToConvert] = useState<Invoice | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -39,17 +44,45 @@ const InvoiceManagementPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
         .select("*")
         .order("invoice_date", { ascending: false });
 
-      if (error) {
-        throw error;
+      if (invoicesError) {
+        throw invoicesError;
       }
 
-      setInvoices(data as Invoice[]);
-      setFilteredInvoices(data as Invoice[]);
+      const invoiceIds = invoicesData.map(inv => inv.id);
+
+      const { data: schedulesData, error: schedulesError } = await supabase
+        .from("schedules")
+        .select("invoice_id, status, created_at")
+        .in("invoice_id", invoiceIds)
+        .order("created_at", { ascending: false }); // Get latest schedule if multiple
+
+      if (schedulesError) {
+        console.error("Error fetching schedules for invoices:", schedulesError);
+        // Don't throw, just log and proceed without schedule status
+      }
+
+      const scheduleStatusMap = new Map<string, string>();
+      if (schedulesData) {
+        // Process schedules to get the latest status for each invoice_id
+        schedulesData.forEach(schedule => {
+          if (!scheduleStatusMap.has(schedule.invoice_id)) {
+            scheduleStatusMap.set(schedule.invoice_id, schedule.status);
+          }
+        });
+      }
+
+      const invoicesWithStatus: InvoiceWithScheduleStatus[] = invoicesData.map(invoice => ({
+        ...invoice,
+        schedule_status_display: scheduleStatusMap.get(invoice.id) || "Belum Terjadwal",
+      }));
+
+      setInvoices(invoicesWithStatus);
+      setFilteredInvoices(invoicesWithStatus);
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat data invoice: ${err.message}`);
@@ -72,7 +105,8 @@ const InvoiceManagementPage = () => {
       item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.payment_status.toLowerCase().includes(lowerCaseSearchTerm)
+      item.payment_status.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.schedule_status_display?.toLowerCase().includes(lowerCaseSearchTerm) // Include new status in search
     );
     setFilteredInvoices(filtered);
     setCurrentPage(1);
@@ -152,7 +186,7 @@ const InvoiceManagementPage = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan nomor invoice, konsumen, perusahaan, atau status..."
+          placeholder="Cari berdasarkan nomor invoice, konsumen, perusahaan, status pembayaran, atau status penjadwalan..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
@@ -170,6 +204,7 @@ const InvoiceManagementPage = () => {
                     <TableHead>Perusahaan</TableHead>
                     <TableHead className="text-right">Total Tagihan</TableHead>
                     <TableHead>Status Pembayaran</TableHead>
+                    <TableHead>Status Penjadwalan</TableHead> {/* New column */}
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -189,6 +224,17 @@ const InvoiceManagementPage = () => {
                           'bg-red-100 text-red-800'
                         }`}>
                           {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          invoice.schedule_status_display === 'completed' ? 'bg-green-100 text-green-800' :
+                          invoice.schedule_status_display === 'in progress' ? 'bg-blue-100 text-blue-800' :
+                          invoice.schedule_status_display === 'scheduled' ? 'bg-yellow-100 text-yellow-800' :
+                          invoice.schedule_status_display === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {invoice.schedule_status_display === "Belum Terjadwal" ? "Belum Terjadwal" : invoice.schedule_status_display?.charAt(0).toUpperCase() + invoice.schedule_status_display?.slice(1)}
                         </span>
                       </TableCell>
                       <TableCell className="text-center flex items-center justify-center space-x-1">
@@ -256,7 +302,6 @@ const InvoiceManagementPage = () => {
                 customer_name: invoiceToConvert.customer_name,
                 invoice_id: invoiceToConvert.id,
                 address: invoiceToConvert.notes, // Assuming notes might contain address
-                // You might want to fetch phone number from profile or another source if available
                 // type: invoiceToConvert.type, // If invoice has a type that maps to schedule type
                 notes: `Jadwal dibuat dari Invoice #${invoiceToConvert.invoice_number}`,
               }}

@@ -35,7 +35,7 @@ const formSchema = z.object({
   customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
   phone_number: z.string().optional(),
   address: z.string().optional(),
-  technician_name: z.string().optional(),
+  technician_name: z.enum(["Jubed", "Daffa", "Teknisi Lain"]).optional(), // Updated to enum
   invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")),
   status: z.enum(["scheduled", "in progress", "completed", "cancelled"], {
     required_error: "Status jadwal wajib dipilih",
@@ -64,7 +64,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
       customer_name: initialData?.customer_name || "",
       phone_number: initialData?.phone_number || "",
       address: initialData?.address || "",
-      technician_name: initialData?.technician_name || "",
+      technician_name: (initialData?.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined, // Cast to enum type
       invoice_id: initialData?.invoice_id || "",
       status: initialData?.status || "scheduled",
       notes: initialData?.notes || "",
@@ -101,7 +101,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
       customer_name: initialData?.customer_name || "",
       phone_number: initialData?.phone_number || "",
       address: initialData?.address || "",
-      technician_name: initialData?.technician_name || "",
+      technician_name: (initialData?.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined,
       invoice_id: initialData?.invoice_id || "",
       status: initialData?.status || "scheduled",
       notes: initialData?.notes || "",
@@ -291,9 +291,18 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChan
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Nama Teknisi (Opsional)</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih teknisi" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="Jubed">Jubed</SelectItem>
+                    <SelectItem value="Daffa">Daffa</SelectItem>
+                    <SelectItem value="Teknisi Lain">Teknisi Lain</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

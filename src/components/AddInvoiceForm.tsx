@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Textarea } from "@/components/ui/textarea"; // Import Textarea
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
@@ -60,16 +60,14 @@ interface AddInvoiceFormProps {
 // Function to generate invoice number
 const generateInvoiceNumber = () => {
   const now = new Date();
-  const year = format(now, "yyyy");
+  const year = format(now, "yy"); // Two-digit year
   const month = format(now, "MM");
   const day = format(now, "dd");
   const hours = format(now, "HH");
   const minutes = format(now, "mm");
-  const seconds = format(now, "ss");
-  const monthAbbr = format(now, "MMM"); // e.g., Jul
 
-  // Format: INV-[YYYYMMDD]-[HHMMSS]/BKT/DO/[BulanSingkat]/[Tahun]
-  return `INV-${year}${month}${day}-${hours}${minutes}${seconds}/BKT/DO/${monthAbbr}/${year}`;
+  // Format: INV-[YYMMDD][HHMM]
+  return `INV-${year}${month}${day}${hours}${minutes}`;
 };
 
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
