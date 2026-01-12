@@ -484,6 +484,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         <FormLabel>Nama Item</FormLabel>
                         <FormControl>
                           <StockItemCombobox
+                            // id={field.id} // Removed as field.id does not exist
+                            name={field.name} // Pass name
                             items={stockItems}
                             value={field.value}
                             onValueChange={(selectedStock) => {

@@ -26,6 +26,8 @@ interface StockItemComboboxProps {
   onValueChange: (item: StockItem | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
+  id?: string; // Added for accessibility
+  name?: string; // Added for accessibility
 }
 
 const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
@@ -34,6 +36,8 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   onValueChange,
   placeholder = "Pilih item...",
   disabled = false,
+  id, // Destructure id
+  name, // Destructure name
 }) => {
   const [open, setOpen] = React.useState(false);
 
@@ -49,10 +53,11 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           className="w-full justify-between"
           disabled={disabled}
           asChild={false} // Explicitly set asChild to false to ensure it renders as a native button
+          id={id} // Pass id to the button
+          name={name} // Pass name to the button
         >
-          {/* Wrap children in a span to ensure a single child for Slot.SlotClone if asChild was true */}
           <span>
-            {selectedItem ? selectedItem["NAMA BARANG"] : placeholder}
+            {selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]})` : placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </span>
         </Button>
