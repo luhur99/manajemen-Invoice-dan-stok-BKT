@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { readExcelFile } from "@/lib/excelUtils";
 import { StockItem } from "@/types/data";
-import { generateDummyStockData } from "@/lib/dummyData"; // Import dummy data generator
+import { supabase } from "@/integrations/supabase/client"; // Import supabase client
+import { showError } from "@/utils/toast";
+import AddStockItemForm from "@/components/AddStockItemForm"; // Import the new form component
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -15,33 +16,49 @@ const StockPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const data = await readExcelFile("/SALES ST-007 2026.xlsx");
-        if (data.stock.length > 0) {
-          setStockData(data.stock);
-          setFilteredStockData(data.stock);
-        } else {
-          // Use dummy data if Excel file is empty or fails to load
-          const dummy = generateDummyStockData();
-          setStockData(dummy);
-          setFilteredStockData(dummy);
-          setError("File Excel kosong atau gagal dimuat. Menampilkan data dummy.");
-        }
-      } catch (err) {
-        setError("Gagal memuat data stok dari file Excel. Menampilkan data dummy.");
-        console.error(err);
-        // Fallback to dummy data on error
-        const dummy = generateDummyStockData();
-        setStockData(dummy);
-        setFilteredStockData(dummy);
-      } finally {
-        setLoading(false);
+  const fetchStockData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from("stock_items")
+        .select("*")
+        .order("no", { ascending: true }); // Order by 'no' column
+
+      if (error) {
+        throw error;
       }
-    };
-    fetchData();
+
+      // Map Supabase data to StockItem interface
+      const fetchedStock: StockItem[] = data.map(item => ({
+        NO: item.no,
+        "KODE BARANG": item.kode_barang,
+        "NAMA BARANG": item.nama_barang,
+        SATUAN: item.satuan || "",
+        "HARGA BELI": item.harga_beli,
+        "HARGA JUAL": item.harga_jual,
+        "STOCK AWAL": item.stock_awal,
+        "STOCK MASUK": item.stock_masuk,
+        "STOCK KELUAR": item.stock_keluar,
+        "STOCK AKHIR": item.stock_akhir,
+      }));
+
+      setStockData(fetchedStock);
+      setFilteredStockData(fetchedStock);
+    } catch (err: any) {
+      setError(`Gagal memuat data stok dari database: ${err.message}`);
+      console.error("Error fetching stock data:", err);
+      showError("Gagal memuat data stok.");
+      setStockData([]); // Clear data on error
+      setFilteredStockData([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchStockData();
+  }, [fetchStockData]);
 
   useEffect(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -70,7 +87,10 @@ const StockPage = () => {
   return (
     <Card className="border shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
+        <div className="flex justify-between items-center mb-4">
+          <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
+          <AddStockItemForm onSuccess={fetchStockData} />
+        </div>
         <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -101,7 +121,7 @@ const StockPage = () => {
               </TableHeader>
               <TableBody>
                 {filteredStockData.map((item, index) => (
-                  <TableRow key={index}>
+                  <TableRow key={item["KODE BARANG"] || index}>
                     <TableCell>{item.NO}</TableCell>
                     <TableCell>{item["KODE BARANG"]}</TableCell>
                     <TableCell>{item["NAMA BARANG"]}</TableCell>
