@@ -27,6 +27,7 @@ const formSchema = z.object({
   harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
   stock_awal: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
+  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0), // New field
 });
 
 interface AddStockItemFormProps {
@@ -44,6 +45,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
       harga_beli: 0,
       harga_jual: 0,
       stock_awal: 0,
+      safe_stock_limit: 0, // Default value for new field
     },
   });
 
@@ -61,7 +63,6 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
       const { data: stockItemData, error: stockItemError } = await supabase
         .from("stock_items")
         .insert({
-          // 'no' field is removed
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
           satuan: values.satuan,
@@ -71,6 +72,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           stock_masuk: 0, // Default to 0 for new item
           stock_keluar: 0, // Default to 0 for new item
           stock_akhir: stock_akhir,
+          safe_stock_limit: values.safe_stock_limit, // Save new field
           user_id: userId,
         })
         .select("id")
@@ -121,7 +123,6 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 'No' field removed */}
             <FormField
               control={form.control}
               name="kode_barang"
@@ -200,7 +201,19 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
                 </FormItem>
               )}
             />
-            {/* 'stock_masuk' and 'stock_keluar' fields removed */}
+            <FormField
+              control={form.control}
+              name="safe_stock_limit"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Batas Stok Aman</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <div className="md:col-span-2"> {/* Button spans both columns */}
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? (

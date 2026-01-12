@@ -30,6 +30,7 @@ const formSchema = z.object({
   stock_awal: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
   stock_masuk: z.coerce.number().min(0, "Stok Masuk tidak boleh negatif").default(0),
   stock_keluar: z.coerce.number().min(0, "Stok Keluar tidak boleh negatif").default(0),
+  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0), // New field
 });
 
 interface EditStockItemFormProps {
@@ -51,6 +52,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
       stock_awal: stockItem["STOCK AWAL"],
       stock_masuk: stockItem["STOCK MASUK"],
       stock_keluar: stockItem["STOCK KELUAR"],
+      safe_stock_limit: stockItem.safe_stock_limit || 0, // Default value for new field
     },
   });
 
@@ -70,6 +72,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
         stock_awal: stockItem["STOCK AWAL"],
         stock_masuk: stockItem["STOCK MASUK"],
         stock_keluar: stockItem["STOCK KELUAR"],
+        safe_stock_limit: stockItem.safe_stock_limit || 0, // Reset new field
       });
       // Update ref values when form resets
       initialStockMasuk.current = stockItem["STOCK MASUK"];
@@ -101,6 +104,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
           stock_masuk: values.stock_masuk,
           stock_keluar: values.stock_keluar,
           stock_akhir: stock_akhir,
+          safe_stock_limit: values.safe_stock_limit, // Save new field
         })
         .eq("id", stockItem.id); // Use 'id' for updating
 
@@ -172,7 +176,6 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Input 'No' dihilangkan sesuai permintaan */}
             <FormField
               control={form.control}
               name="kode_barang"
@@ -270,6 +273,19 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Stok Keluar</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="safe_stock_limit"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Batas Stok Aman</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
                   </FormControl>

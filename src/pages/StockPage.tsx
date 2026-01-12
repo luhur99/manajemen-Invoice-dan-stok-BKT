@@ -36,7 +36,7 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, created_at") // Select 'id' and 'user_id'
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, created_at") // Select 'id', 'user_id', and 'safe_stock_limit'
         .order("nama_barang", { ascending: true }); // Order by nama_barang instead of no
 
       if (error) {
@@ -56,6 +56,7 @@ const StockPage = () => {
         "STOCK MASUK": item.stock_masuk,
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
+        safe_stock_limit: item.safe_stock_limit, // Include new field
         created_at: item.created_at,
       }));
 
@@ -160,6 +161,7 @@ const StockPage = () => {
                     <TableHead className="text-right">Stok Masuk</TableHead>
                     <TableHead className="text-right">Stok Keluar</TableHead>
                     <TableHead className="text-right">Stok Akhir</TableHead>
+                    <TableHead className="text-right">Batas Aman</TableHead> {/* New column header */}
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -175,6 +177,7 @@ const StockPage = () => {
                       <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
+                      <TableCell className="text-right">{item.safe_stock_limit}</TableCell> {/* Display new field */}
                       <TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>

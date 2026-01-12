@@ -11,6 +11,7 @@ export interface StockItem {
   "STOCK MASUK": number;
   "STOCK KELUAR": number;
   "STOCK AKHIR": number;
+  safe_stock_limit?: number; // New: Batas stok aman
   created_at?: string; // Add created_at for consistency
 }
 

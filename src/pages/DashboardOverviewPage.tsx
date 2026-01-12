@@ -13,6 +13,7 @@ import {
   ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { StockItem } from "@/types/data"; // Import StockItem type
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -39,6 +40,12 @@ const chartConfig = {
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig;
+
+// Define a specific interface for the data fetched for low stock check
+interface LowStockCheckItem {
+  stock_akhir: number;
+  safe_stock_limit: number | null;
+}
 
 const DashboardOverviewPage = () => {
   const [pendingInvoices, setPendingInvoices] = useState(0);
@@ -71,14 +78,24 @@ const DashboardOverviewPage = () => {
         if (schedulesError) throw schedulesError;
         setTodaySchedules(schedulesCount || 0);
 
-        // Fetch Low Stock Items (e.g., stock_akhir < 10)
-        const { count: stockCount, error: stockError } = await supabase
+        // Fetch Low Stock Items (using safe_stock_limit)
+        const { data: stockItemsData, error: stockError } = await supabase
           .from("stock_items")
-          .select("id", { count: "exact" })
-          .lt("stock_akhir", 10); // Assuming 'low stock' means less than 10 items
+          .select("stock_akhir, safe_stock_limit");
 
         if (stockError) throw stockError;
-        setLowStockItems(stockCount || 0);
+
+        let lowStockCount = 0;
+        if (stockItemsData) {
+          // Use the specific interface for the fetched data
+          stockItemsData.forEach((item: LowStockCheckItem) => {
+            const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10; // Default to 10 if limit not set
+            if (item.stock_akhir < limit) { // Accessing correct property name
+              lowStockCount++;
+            }
+          });
+        }
+        setLowStockItems(lowStockCount);
 
         // Fetch Latest Activities
         const { data: recentInvoices, error: recentInvoicesError } = await supabase
