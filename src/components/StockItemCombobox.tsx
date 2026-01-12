@@ -49,8 +49,11 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           className="w-full justify-between"
           disabled={disabled}
         >
-          {selectedItem ? selectedItem["NAMA BARANG"] : placeholder}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          {/* Wrap children in a span to ensure a single child for Slot.SlotClone */}
+          <span>
+            {selectedItem ? selectedItem["NAMA BARANG"] : placeholder}
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
