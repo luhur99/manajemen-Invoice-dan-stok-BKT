@@ -10,11 +10,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
 import EditScheduleForm from "@/components/EditScheduleForm";
-import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload"; // Import new component
+import ViewScheduleDetailsDialog from "@/components/ViewScheduleDetailsDialog"; // Import new component
+import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
-import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Import DialogContent, DialogHeader, DialogTitle
+import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react"; // Import Eye icon
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ScheduleManagementPage = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -24,7 +25,10 @@ const ScheduleManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
-  const [isAddFormOpen, setIsAddFormOpen] = useState(false); // State for AddScheduleForm dialog
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // State for View Details dialog
+  const [scheduleToView, setScheduleToView] = useState<Schedule | null>(null); // State for schedule to view
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -105,8 +109,12 @@ const ScheduleManagementPage = () => {
     setIsEditFormOpen(true);
   };
 
+  const handleViewSchedule = (schedule: Schedule) => {
+    setScheduleToView(schedule);
+    setIsViewDetailsOpen(true);
+  };
+
   const handleDocumentUploadSuccess = async (scheduleId: string, fileUrl: string) => {
-    // Update the schedule in the database with the new document_url
     const { error } = await supabase
       .from("schedules")
       .update({ document_url: fileUrl })
@@ -118,11 +126,10 @@ const ScheduleManagementPage = () => {
       return;
     }
     showSuccess("URL dokumen jadwal berhasil diperbarui!");
-    fetchSchedules(); // Refresh data to show the updated URL
+    fetchSchedules();
   };
 
   const handleDocumentRemoveSuccess = async (scheduleId: string) => {
-    // Update the schedule in the database, setting document_url to null
     const { error } = await supabase
       .from("schedules")
       .update({ document_url: null })
@@ -134,7 +141,7 @@ const ScheduleManagementPage = () => {
       return;
     }
     showSuccess("URL dokumen jadwal berhasil dihapus!");
-    fetchSchedules(); // Refresh data
+    fetchSchedules();
   };
 
   const totalPages = Math.ceil(filteredSchedules.length / itemsPerPage);
@@ -205,7 +212,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Dokumen</TableHead> {/* New column for document */}
+                    <TableHead>Dokumen</TableHead>
                     <TableHead>Catatan</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
@@ -240,7 +247,10 @@ const ScheduleManagementPage = () => {
                         />
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{schedule.notes || "-"}</TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center flex items-center justify-center space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleViewSchedule(schedule)} title="Lihat Detail">
+                          <Eye className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="mr-2" onClick={() => handleEditClick(schedule)}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -272,6 +282,14 @@ const ScheduleManagementPage = () => {
           isOpen={isEditFormOpen}
           onOpenChange={setIsEditFormOpen}
           onSuccess={fetchSchedules}
+        />
+      )}
+
+      {scheduleToView && (
+        <ViewScheduleDetailsDialog
+          schedule={scheduleToView}
+          isOpen={isViewDetailsOpen}
+          onOpenChange={setIsViewDetailsOpen}
         />
       )}
     </Card>
