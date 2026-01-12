@@ -149,6 +149,20 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
       </CardHeader>
       <CardContent className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1">
+          <div className="mb-4 flex flex-wrap gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-full bg-blue-500"></span>
+              <span>Jubed</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-full bg-green-500"></span>
+              <span>Daffa</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-4 w-4 rounded-full bg-orange-500"></span>
+              <span>Teknisi Lain</span>
+            </div>
+          </div>
           <Calendar
             mode="single"
             selected={date}
