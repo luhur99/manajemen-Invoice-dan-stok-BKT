@@ -21,8 +21,8 @@ import { Loader2 } from "lucide-react";
 import { StockItem } from "@/types/data";
 
 // Schema validasi menggunakan Zod
+// 'no' dihilangkan dari schema karena tidak lagi menjadi inputan form
 const formSchema = z.object({
-  no: z.coerce.number().min(1, "Nomor harus lebih besar dari 0"),
   kode_barang: z.string().min(1, "Kode Barang wajib diisi"),
   nama_barang: z.string().min(1, "Nama Barang wajib diisi"),
   satuan: z.string().optional(),
@@ -44,7 +44,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      no: stockItem.NO,
+      // 'no' dihilangkan dari defaultValues karena tidak lagi menjadi inputan form
       kode_barang: stockItem["KODE BARANG"],
       nama_barang: stockItem["NAMA BARANG"],
       satuan: stockItem.SATUAN,
@@ -60,7 +60,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
   useEffect(() => {
     if (isOpen && stockItem) {
       form.reset({
-        no: stockItem.NO,
+        // 'no' dihilangkan dari reset karena tidak lagi menjadi inputan form
         kode_barang: stockItem["KODE BARANG"],
         nama_barang: stockItem["NAMA BARANG"],
         satuan: stockItem.SATUAN,
@@ -80,7 +80,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
       const { error } = await supabase
         .from("stock_items")
         .update({
-          no: values.no,
+          no: stockItem.NO, // Menggunakan nilai 'no' yang asli dari stockItem
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
           satuan: values.satuan,
@@ -114,19 +114,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="no"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>No</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Input 'No' dihilangkan sesuai permintaan */}
             <FormField
               control={form.control}
               name="kode_barang"
