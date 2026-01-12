@@ -11,20 +11,35 @@ export interface StockItem {
   "STOCK AKHIR": number;
 }
 
-export interface SalesItem {
+export interface SalesDetailItem {
   NO: number;
-  TANGGAL: string; // Or Date if parsed
-  "NO INVOICE": string;
-  "KODE BARANG": string;
-  "NAMA BARANG": string;
-  SATUAN: string;
-  "HARGA JUAL": number;
-  QTY: number;
-  "TOTAL HARGA": number;
-  CUSTOMER: string;
+  "Kirim/Install": string;
+  "No Transaksi": string;
+  Invoice: string;
+  "New/Old": string;
+  Perusahaan: string;
+  Tanggal: string; // Assuming date as string "yyyy-mm-dd"
+  Hari: string;
+  Jam: string;
+  Customer: string;
+  "Alamat install": string;
+  "No HP": string;
+  Type: string;
+  "Qty unit": number;
+  Stock: number;
+  Harga: number;
+  WEB: string;
+  "Qty Web": number;
+  Kartu: string;
+  "Qty kartu": number;
+  Paket: string;
+  Pulsa: number;
+  Teknisi: string;
+  Payment: string;
+  Catatan: string;
 }
 
 export interface ExcelData {
   stock: StockItem[];
-  sales: SalesItem[];
+  sales: SalesDetailItem[]; // Menggunakan SalesDetailItem
 }

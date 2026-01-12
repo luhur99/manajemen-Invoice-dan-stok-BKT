@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { ExcelData, SalesItem, StockItem } from "@/types/data";
+import { ExcelData, SalesDetailItem, StockItem } from "@/types/data";
 
 export const readExcelFile = async (filePath: string): Promise<ExcelData> => {
   try {
@@ -14,7 +14,7 @@ export const readExcelFile = async (filePath: string): Promise<ExcelData> => {
     const salesSheet = workbook.Sheets[salesSheetName];
 
     let stockData: StockItem[] = [];
-    let salesData: SalesItem[] = [];
+    let salesData: SalesDetailItem[] = [];
 
     if (stockSheet) {
       stockData = XLSX.utils.sheet_to_json<StockItem>(stockSheet, {
@@ -35,20 +35,34 @@ export const readExcelFile = async (filePath: string): Promise<ExcelData> => {
     }
 
     if (salesSheet) {
-      salesData = XLSX.utils.sheet_to_json<SalesItem>(salesSheet, {
-        header: 1,
-        range: 1, // Skip header row if it's already defined in the interface
-      }).map((row: any) => ({
-        NO: row[0],
-        TANGGAL: XLSX.SSF.format("yyyy-mm-dd", row[1]), // Format date from number to string
-        "NO INVOICE": row[2],
-        "KODE BARANG": row[3],
-        "NAMA BARANG": row[4],
-        SATUAN: row[5],
-        "HARGA JUAL": row[6],
-        QTY: row[7],
-        "TOTAL HARGA": row[8],
-        CUSTOMER: row[9],
+      // Read sales data assuming the first row contains headers matching SalesDetailItem keys
+      const rawSalesData = XLSX.utils.sheet_to_json<any>(salesSheet);
+      salesData = rawSalesData.map((row: any) => ({
+        NO: row["No"],
+        "Kirim/Install": row["Kirim/Install"],
+        "No Transaksi": row["No Transaksi"],
+        Invoice: row["Invoice"],
+        "New/Old": row["New/Old"],
+        Perusahaan: row["Perusahaan"],
+        Tanggal: row["Tanggal"] ? XLSX.SSF.format("yyyy-mm-dd", row["Tanggal"]) : "", // Format date
+        Hari: row["Hari"],
+        Jam: row["Jam"],
+        Customer: row["Customer"],
+        "Alamat install": row["Alamat install"],
+        "No HP": row["No HP"],
+        Type: row["Type"],
+        "Qty unit": row["Qty unit"],
+        Stock: row["Stock"],
+        Harga: row["Harga"],
+        WEB: row["WEB"],
+        "Qty Web": row["Qty Web"],
+        Kartu: row["Kartu"],
+        "Qty kartu": row["Qty kartu"],
+        Paket: row["Paket"],
+        Pulsa: row["Pulsa"],
+        Teknisi: row["Teknisi"],
+        Payment: row["Payment"],
+        Catatan: row["Catatan"],
       }));
     }
 

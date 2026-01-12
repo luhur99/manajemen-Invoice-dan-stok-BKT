@@ -1,4 +1,4 @@
-import { StockItem, SalesItem } from "@/types/data";
+import { StockItem, SalesDetailItem } from "@/types/data";
 
 export const generateDummyStockData = (count: number = 10): StockItem[] => {
   const dummyData: StockItem[] = [];
@@ -19,27 +19,49 @@ export const generateDummyStockData = (count: number = 10): StockItem[] => {
   return dummyData;
 };
 
-export const generateDummySalesData = (count: number = 10): SalesItem[] => {
-  const dummyData: SalesItem[] = [];
+export const generateDummySalesData = (count: number = 10): SalesDetailItem[] => {
+  const dummyData: SalesDetailItem[] = [];
   const customers = ["Customer A", "Customer B", "Customer C", "Customer D"];
-  const productCodes = ["KB-001", "KB-002", "KB-003", "KB-004", "KB-005"];
-  const productNames = ["Produk Dummy 1", "Produk Dummy 2", "Produk Dummy 3", "Produk Dummy 4", "Produk Dummy 5"];
-  const units = ["PCS", "BOX"];
+  const companies = ["PT ABC", "CV Jaya", "UD Makmur"];
+  const types = ["Type X", "Type Y", "Type Z"];
+  const technicians = ["Budi", "Andi", "Citra"];
+  const payments = ["Cash", "Transfer"];
+  const webOptions = ["Ya", "Tidak"];
+  const cardOptions = ["Ada", "Tidak"];
 
   for (let i = 1; i <= count; i++) {
-    const qty = Math.floor(Math.random() * 10) + 1;
-    const hargaJual = Math.floor(Math.random() * 75000) + 20000;
+    const qtyUnit = Math.floor(Math.random() * 10) + 1;
+    const harga = Math.floor(Math.random() * 100000) + 50000;
+    const qtyWeb = Math.floor(Math.random() * 5);
+    const qtyKartu = Math.floor(Math.random() * 5);
+    const pulsa = Math.floor(Math.random() * 50000) + 10000;
+
     dummyData.push({
       NO: i,
-      TANGGAL: `2024-0${Math.floor(Math.random() * 9) + 1}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
-      "NO INVOICE": `INV-${String(i).padStart(4, '0')}`,
-      "KODE BARANG": productCodes[Math.floor(Math.random() * productCodes.length)],
-      "NAMA BARANG": productNames[Math.floor(Math.random() * productNames.length)],
-      SATUAN: units[Math.floor(Math.random() * units.length)],
-      "HARGA JUAL": hargaJual,
-      QTY: qty,
-      "TOTAL HARGA": hargaJual * qty,
-      CUSTOMER: customers[Math.floor(Math.random() * customers.length)],
+      "Kirim/Install": i % 2 === 0 ? "Kirim" : "Install",
+      "No Transaksi": `TRX-${String(i).padStart(4, '0')}`,
+      Invoice: `INV-${String(i).padStart(4, '0')}`,
+      "New/Old": i % 3 === 0 ? "New" : "Old",
+      Perusahaan: companies[Math.floor(Math.random() * companies.length)],
+      Tanggal: `2024-0${Math.floor(Math.random() * 9) + 1}-${String(Math.floor(Math.random() * 28) + 1).padStart(2, '0')}`,
+      Hari: ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"][Math.floor(Math.random() * 5)],
+      Jam: `${String(Math.floor(Math.random() * 12) + 8).padStart(2, '0')}:00`,
+      Customer: customers[Math.floor(Math.random() * customers.length)],
+      "Alamat install": `Jl. Dummy No. ${i}, Kota Contoh`,
+      "No HP": `0812${String(Math.floor(Math.random() * 99999999)).padStart(8, '0')}`,
+      Type: types[Math.floor(Math.random() * types.length)],
+      "Qty unit": qtyUnit,
+      Stock: Math.floor(Math.random() * 50) + 10,
+      Harga: harga,
+      WEB: webOptions[Math.floor(Math.random() * webOptions.length)],
+      "Qty Web": qtyWeb,
+      Kartu: cardOptions[Math.floor(Math.random() * cardOptions.length)],
+      "Qty kartu": qtyKartu,
+      Paket: `Paket ${Math.floor(Math.random() * 3) + 1}`,
+      Pulsa: pulsa,
+      Teknisi: technicians[Math.floor(Math.random() * technicians.length)],
+      Payment: payments[Math.floor(Math.random() * payments.length)],
+      Catatan: `Catatan untuk transaksi ${i}`,
     });
   }
   return dummyData;
