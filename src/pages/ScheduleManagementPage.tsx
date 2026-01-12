@@ -175,7 +175,7 @@ const ScheduleManagementPage = () => {
               <DialogHeader>
                 <DialogTitle>Buat Jadwal Baru</DialogTitle>
               </DialogHeader>
-              <AddScheduleForm onSuccess={fetchSchedules} />
+              <AddScheduleForm onSuccess={fetchSchedules} onOpenChange={setIsAddFormOpen} />
             </DialogContent>
           </Dialog>
         </div>
