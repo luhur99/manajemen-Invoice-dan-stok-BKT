@@ -33,14 +33,15 @@ const formSchema = z.object({
     required_error: "Tipe jadwal wajib dipilih",
   }),
   customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
-  phone_number: z.string().optional(), // New field for phone number
+  phone_number: z.string().optional(),
   address: z.string().optional(),
   technician_name: z.string().optional(),
-  invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")), // Optional UUID or empty string
+  invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")),
   status: z.enum(["scheduled", "in progress", "completed", "cancelled"], {
     required_error: "Status jadwal wajib dipilih",
   }).default("scheduled"),
   notes: z.string().optional(),
+  courier_service: z.string().optional(), // New field for courier service
 });
 
 interface AddScheduleFormProps {
@@ -55,14 +56,17 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
       schedule_time: "",
       type: undefined,
       customer_name: "",
-      phone_number: "", // Default value for new field
+      phone_number: "",
       address: "",
       technician_name: "",
       invoice_id: "",
       status: "scheduled",
       notes: "",
+      courier_service: "", // Default value for new field
     },
   });
+
+  const scheduleType = form.watch("type"); // Watch the type field for conditional rendering
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -82,12 +86,13 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
           schedule_time: values.schedule_time || null,
           type: values.type,
           customer_name: values.customer_name,
-          phone_number: values.phone_number || null, // Save new field
+          phone_number: values.phone_number || null,
           address: values.address || null,
           technician_name: values.technician_name || null,
           invoice_id: values.invoice_id || null,
           status: values.status,
           notes: values.notes || null,
+          courier_service: values.courier_service || null, // Save new field
         })
         .select();
 
@@ -206,7 +211,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
               />
               <FormField
                 control={form.control}
-                name="phone_number" // New field
+                name="phone_number"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>No WA Konsumen (Opsional)</FormLabel>
@@ -217,6 +222,21 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess }) => {
                   </FormItem>
                 )}
               />
+              {scheduleType === "kirim" && ( // Conditional rendering for courier service
+                <FormField
+                  control={form.control}
+                  name="courier_service"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jasa Kurir (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., JNE, SiCepat, GoSend" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="address"

@@ -90,4 +90,5 @@ export interface Schedule {
   notes?: string;
   created_at: string;
   phone_number?: string; // New field for phone number
+  courier_service?: string; // New field for courier service
 }
