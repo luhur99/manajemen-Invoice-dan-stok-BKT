@@ -14,7 +14,7 @@ import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload"; // Imp
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
-import { Dialog, DialogTrigger } from "@/components/ui/dialog"; // Import Dialog and DialogTrigger
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"; // Import DialogContent, DialogHeader, DialogTitle
 
 const ScheduleManagementPage = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -171,7 +171,12 @@ const ScheduleManagementPage = () => {
                 <PlusCircle className="h-4 w-4" /> Tambah Jadwal
               </Button>
             </DialogTrigger>
-            <AddScheduleForm onSuccess={fetchSchedules} />
+            <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Buat Jadwal Baru</DialogTitle>
+              </DialogHeader>
+              <AddScheduleForm onSuccess={fetchSchedules} />
+            </DialogContent>
           </Dialog>
         </div>
         <CardDescription>Kelola jadwal instalasi dan pengiriman barang.</CardDescription>
