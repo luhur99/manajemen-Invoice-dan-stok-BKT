@@ -11,8 +11,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
 import { Loader2, Edit, Trash2, PlusCircle } from "lucide-react";
-import AddSalesDetailForm from "@/components/AddSalesDetailForm"; // Import new component
-import EditSalesDetailForm from "@/components/EditSalesDetailForm"; // Import new component
+import AddSalesDetailForm from "@/components/AddSalesDetailForm";
+import EditSalesDetailForm from "@/components/EditSalesDetailForm";
+import ExportDataButton from "@/components/ExportDataButton"; // Import new component
 import { format } from "date-fns";
 
 const SalesDetailsPage = () => {
@@ -66,13 +67,60 @@ const SalesDetailsPage = () => {
     } catch (err: any) {
       setError(`Gagal memuat data penjualan: ${err.message}`);
       console.error("Error fetching sales data:", err);
-      showError("Gagal memuat data penjualan.");
-      setSalesData([]);
+      setSalesData([]); // Fixed typo: showSalesData -> setSalesData
       setFilteredSalesData([]);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const fetchAllSalesDataForExport = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("sales_details")
+        .select("*")
+        .order("tanggal", { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+      return data as SalesDetailItem[];
+    } catch (err: any) {
+      console.error("Error fetching all sales data for export:", err);
+      showError("Gagal memuat semua data penjualan untuk ekspor.");
+      return null;
+    }
+  }, []);
+
+  const salesDetailHeaders: { key: keyof SalesDetailItem; label: string }[] = [ // Explicitly typed headers
+    { key: "no", label: "No" },
+    { key: "kirim_install", label: "Kirim/Install" },
+    { key: "no_transaksi", label: "No Transaksi" },
+    { key: "invoice_number", label: "Nomor Invoice" },
+    { key: "new_old", label: "New/Old" },
+    { key: "perusahaan", label: "Perusahaan" },
+    { key: "tanggal", label: "Tanggal" },
+    { key: "hari", label: "Hari" },
+    { key: "jam", label: "Jam" },
+    { key: "customer", label: "Customer" },
+    { key: "alamat_install", label: "Alamat Install" },
+    { key: "no_hp", label: "No HP" },
+    { key: "type", label: "Type" },
+    { key: "qty_unit", label: "Qty Unit" },
+    { key: "stock", label: "Stock" },
+    { key: "harga", label: "Harga" },
+    { key: "web", label: "WEB" },
+    { key: "qty_web", label: "Qty Web" },
+    { key: "kartu", label: "Kartu" },
+    { key: "qty_kartu", label: "Qty Kartu" },
+    { key: "paket", label: "Paket" },
+    { key: "pulsa", label: "Pulsa" },
+    { key: "teknisi", label: "Teknisi" },
+    { key: "payment", label: "Payment" },
+    { key: "catatan", label: "Catatan" },
+    { key: "created_at", label: "Created At" },
+    { key: "invoice_file_url", label: "URL File Invoice" }, // Include invoice_file_url
+  ];
 
   useEffect(() => {
     fetchSalesData();
@@ -200,9 +248,16 @@ const SalesDetailsPage = () => {
       <CardHeader>
         <div className="flex justify-between items-center mb-4">
           <CardTitle className="text-2xl font-semibold">Detil List Invoice Penjualan</CardTitle>
-          <Button onClick={() => setIsAddFormOpen(true)} className="flex items-center gap-2">
-            <PlusCircle className="h-4 w-4" /> Tambah Detil Penjualan
-          </Button>
+          <div className="flex gap-2"> {/* Group buttons */}
+            <Button onClick={() => setIsAddFormOpen(true)} className="flex items-center gap-2">
+              <PlusCircle className="h-4 w-4" /> Tambah Detil Penjualan
+            </Button>
+            <ExportDataButton
+              fetchDataFunction={fetchAllSalesDataForExport}
+              fileName="sales_details.csv"
+              headers={salesDetailHeaders}
+            />
+          </div>
         </div>
         <CardDescription>Daftar lengkap invoice penjualan Anda.</CardDescription>
       </CardHeader>
