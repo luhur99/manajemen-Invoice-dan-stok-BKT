@@ -66,8 +66,6 @@ export interface SalesDetailItem {
   created_at?: string;
 }
 
-// ExcelData interface is no longer needed.
-
 // New interfaces for Invoice Management
 export interface InvoiceItem {
   id?: string; // Optional for new items
@@ -101,6 +99,7 @@ export interface Invoice {
   item_names_summary?: string; // New: Summary of item names for table display
   document_url?: string; // New: URL for the uploaded invoice document
   no?: number; // New: Sequential number for display
+  courier_service?: string; // New: Jasa Kurir field
 }
 
 export interface Schedule {
@@ -130,5 +129,5 @@ export interface Profile {
   avatar_url?: string;
   phone_number?: string;
   updated_at?: string;
-  role: 'user' | 'admin';
+  role?: string;
 }

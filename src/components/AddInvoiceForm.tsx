@@ -53,6 +53,7 @@ const formSchema = z.object({
   }),
   payment_method: z.string().min(1, "Metode Pembayaran wajib diisi"),
   notes: z.string().optional(),
+  courier_service: z.string().optional(), // New field for courier service
   items: z.array(invoiceItemSchema).min(1, "Minimal satu item invoice diperlukan"),
 });
 
@@ -89,6 +90,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
       customer_type: undefined,
       payment_method: "",
       notes: "",
+      courier_service: "", // Initialize new field
       items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
     },
   });
@@ -133,6 +135,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
     }, 0);
   }, [fields, form.watch]);
 
+  const invoiceType = form.watch("type"); // Watch the type field for conditional rendering
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
     const userId = user.data.user?.id;
@@ -159,6 +163,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
           customer_type: values.customer_type,
           payment_method: values.payment_method,
           notes: values.notes,
+          courier_service: values.courier_service || null, // Save new field
         })
         .select("id")
         .single();
@@ -196,6 +201,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         customer_type: undefined,
         payment_method: "",
         notes: "",
+        courier_service: "", // Reset new field
         items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
       });
       setIsOpen(false);
@@ -303,6 +309,21 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                   </FormItem>
                 )}
               />
+              {invoiceType === "kirim barang" && (
+                <FormField
+                  control={form.control}
+                  name="courier_service"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jasa Kurir (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., JNE, SiCepat, GoSend" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="customer_type"
