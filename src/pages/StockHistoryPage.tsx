@@ -189,14 +189,39 @@ const StockHistoryPage = () => {
       }
 
       // Flatten the data for CSV export
-      const flattenedData: FlattenedStockTransactionForExport[] = data.map((item: any) => ({
-        transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
-        created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-        item_name: item.stock_items?.[0]?.nama_barang || "N/A",
-        item_code: item.stock_items?.[0]?.kode_barang || "N/A",
-        transaction_type: getTransactionTypeDisplay(item.transaction_type),
-        quantity: item.quantity,
-        notes: item.notes || "",
+      const flattenedData: FlattenedStockTransactionForExport[] = await Promise.all(data.map(async (item: any) => {
+        let processedNotes = item.notes || "";
+        const invoiceIdRegex = /(Invoice: )([0-9a-fA-F-]+)/;
+        const match = processedNotes.match(invoiceIdRegex);
+
+        if (match && match[2]) {
+          const invoiceId = match[2];
+          try {
+            const { data: invoiceData, error: invoiceError } = await supabase
+              .from("invoices")
+              .select("invoice_number")
+              .eq("id", invoiceId)
+              .single();
+
+            if (!invoiceError && invoiceData) {
+              processedNotes = processedNotes.replace(invoiceIdRegex, `Invoice: ${invoiceData.invoice_number}`);
+            } else {
+              console.warn(`Could not fetch invoice number for ID ${invoiceId}:`, invoiceError);
+            }
+          } catch (err) {
+            console.error(`Error fetching invoice number for ID ${invoiceId}:`, err);
+          }
+        }
+
+        return {
+          transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
+          created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
+          item_name: item.stock_items?.[0]?.nama_barang || "N/A",
+          item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+          transaction_type: getTransactionTypeDisplay(item.transaction_type),
+          quantity: item.quantity,
+          notes: processedNotes,
+        };
       }));
       return flattenedData;
     } catch (err: any) {
