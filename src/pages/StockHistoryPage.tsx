@@ -49,11 +49,10 @@ const StockHistoryPage = () => {
         throw error;
       }
 
-      // Map the data to ensure stock_items is an array of objects or null,
-      // and then cast to the correct type.
+      // Ensure stock_items is always an array or null, then cast
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items || null, // Ensure it's an array or null
+        stock_items: item.stock_items ? [item.stock_items] : null, // Wrap single object in an array if it exists
       }));
 
       setTransactions(processedData);
