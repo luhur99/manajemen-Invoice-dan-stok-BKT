@@ -100,6 +100,7 @@ export interface Invoice {
   items?: InvoiceItem[]; // For displaying joined items
   item_names_summary?: string; // New: Summary of item names for table display
   document_url?: string; // New: URL for the uploaded invoice document
+  no?: number; // New: Sequential number for display
 }
 
 export interface Schedule {
@@ -119,6 +120,7 @@ export interface Schedule {
   phone_number?: string; // New field for phone number
   courier_service?: string; // New field for courier service
   document_url?: string; // New field for delivery/installation document
+  no?: number; // New: Sequential number for display
 }
 
 export interface Profile {

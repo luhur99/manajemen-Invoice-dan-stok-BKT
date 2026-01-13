@@ -43,15 +43,16 @@ const ScheduleManagementPage = () => {
           *,
           invoices (invoice_number)
         `)
-        .order("schedule_date", { ascending: false })
-        .order("schedule_time", { ascending: true });
+        .order("schedule_date", { ascending: false }) // Sort by schedule_date descending (newest first)
+        .order("schedule_time", { ascending: true }); // Secondary sort by schedule_time ascending
 
       if (error) {
         throw error;
       }
 
-      const schedulesWithInvoiceNumber: Schedule[] = data.map(s => ({
+      const schedulesWithInvoiceNumber: Schedule[] = data.map((s, index) => ({
         ...s,
+        no: index + 1, // Assign sequential number
         invoice_number: s.invoices?.invoice_number || undefined,
       }));
 
@@ -212,6 +213,7 @@ const ScheduleManagementPage = () => {
               <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
+                    <TableHead>No</TableHead> {/* New TableHead */}
                     <TableHead>Tanggal</TableHead>
                     <TableHead>Waktu</TableHead>
                     <TableHead>Tipe</TableHead>
@@ -220,7 +222,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Jasa Kurir</TableHead>
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
-                    <TableHead>No. Invoice</TableHead> {/* New TableHead */}
+                    <TableHead>No. Invoice</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Dokumen</TableHead>
                     <TableHead>Catatan</TableHead>
@@ -230,6 +232,7 @@ const ScheduleManagementPage = () => {
                 <TableBody>
                   {currentItems.map((schedule) => (
                     <TableRow key={schedule.id}>
+                      <TableCell>{schedule.no}</TableCell> {/* New TableCell */}
                       <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{schedule.schedule_time || "-"}</TableCell>
                       <TableCell>{schedule.type}</TableCell>
@@ -238,7 +241,7 @@ const ScheduleManagementPage = () => {
                       <TableCell>{schedule.courier_service || "-"}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell>
                       <TableCell>{schedule.technician_name || "-"}</TableCell>
-                      <TableCell>{schedule.invoice_number || "-"}</TableCell> {/* New TableCell */}
+                      <TableCell>{schedule.invoice_number || "-"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           schedule.status === 'completed' ? 'bg-green-100 text-green-800' :

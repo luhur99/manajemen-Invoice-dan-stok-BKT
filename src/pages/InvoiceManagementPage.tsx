@@ -52,13 +52,14 @@ const InvoiceManagementPage = () => {
           invoice_items (item_name),
           schedules (status, created_at)
         `)
-        .order("invoice_date", { ascending: false });
+        .order("invoice_date", { ascending: false }) // Sort by invoice_date descending (newest first)
+        .order("created_at", { ascending: false }); // Secondary sort by created_at descending
 
       if (invoicesError) {
         throw invoicesError;
       }
 
-      const processedInvoices: InvoiceWithScheduleStatus[] = invoicesData.map(invoice => {
+      const processedInvoices: InvoiceWithScheduleStatus[] = invoicesData.map((invoice, index) => {
         // Aggregate item names
         const itemNames = invoice.invoice_items
           ? invoice.invoice_items.map((item: { item_name: string }) => item.item_name).join(", ")
@@ -76,6 +77,7 @@ const InvoiceManagementPage = () => {
 
         return {
           ...invoice,
+          no: index + 1, // Assign sequential number
           item_names_summary: itemNames,
           schedule_status_display: scheduleStatusDisplay,
         };
@@ -228,6 +230,7 @@ const InvoiceManagementPage = () => {
               <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
+                    <TableHead>No</TableHead> {/* New TableHead */}
                     <TableHead>Nomor Invoice</TableHead>
                     <TableHead>Tanggal Invoice</TableHead>
                     <TableHead>Jatuh Tempo</TableHead>
@@ -237,13 +240,14 @@ const InvoiceManagementPage = () => {
                     <TableHead className="text-right">Total Tagihan</TableHead>
                     <TableHead>Status Pembayaran</TableHead>
                     <TableHead>Status Penjadwalan</TableHead>
-                    <TableHead>File Invoice</TableHead> {/* New TableHead */}
+                    <TableHead>File Invoice</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((invoice) => (
                     <TableRow key={invoice.id}>
+                      <TableCell>{invoice.no}</TableCell> {/* New TableCell */}
                       <TableCell>{invoice.invoice_number}</TableCell>
                       <TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell>
