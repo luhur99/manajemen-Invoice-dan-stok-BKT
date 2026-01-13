@@ -49,8 +49,15 @@ const StockHistoryPage = () => {
         throw error;
       }
 
-      setTransactions(data as StockTransactionWithItemName[]);
-      setFilteredTransactions(data as StockTransactionWithItemName[]);
+      // Map the data to ensure stock_items is an array of objects or null,
+      // and then cast to the correct type.
+      const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
+        ...item,
+        stock_items: item.stock_items || null, // Ensure it's an array or null
+      }));
+
+      setTransactions(processedData);
+      setFilteredTransactions(processedData);
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat riwayat transaksi stok: ${err.message}`);
@@ -71,8 +78,8 @@ const StockHistoryPage = () => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     const filtered = transactions.filter(item => {
       const matchesSearch =
-        item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Corrected access
+        item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Corrected access
         item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
         item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
@@ -183,8 +190,8 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell> {/* Corrected access */}
+                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell> {/* Corrected access */}
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}
