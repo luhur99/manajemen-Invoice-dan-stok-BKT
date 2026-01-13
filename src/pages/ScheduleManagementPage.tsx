@@ -43,8 +43,9 @@ const ScheduleManagementPage = () => {
           *,
           invoices (invoice_number)
         `)
-        .order("schedule_date", { ascending: false }) // Sort by schedule_date descending (newest first)
-        .order("schedule_time", { ascending: true }); // Secondary sort by schedule_time ascending
+        .order("created_at", { ascending: false }) // Sort by created_at descending (newest transaction first)
+        .order("schedule_date", { ascending: false }) // Secondary sort by schedule_date descending
+        .order("schedule_time", { ascending: true }); // Tertiary sort by schedule_time ascending
 
       if (error) {
         throw error;
