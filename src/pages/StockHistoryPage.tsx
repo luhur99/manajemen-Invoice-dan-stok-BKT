@@ -118,6 +118,8 @@ const StockHistoryPage = () => {
         throw error;
       }
 
+      // Correctly map stock_items to be an array for consistency with the type,
+      // even if it's a single object from the join.
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
         stock_items: item.stock_items ? [item.stock_items] : null,
@@ -216,8 +218,9 @@ const StockHistoryPage = () => {
         return {
           transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
           created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-          item_name: item.stock_items?.[0]?.nama_barang || "N/A",
-          item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+          // Corrected access for item_name and item_code
+          item_name: item.stock_items?.nama_barang || "N/A",
+          item_code: item.stock_items?.kode_barang || "N/A",
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           notes: processedNotes,
