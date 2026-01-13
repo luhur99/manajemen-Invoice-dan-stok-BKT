@@ -214,8 +214,8 @@ const ScheduleManagementPage = () => {
               <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>No</TableHead> {/* New TableHead */}
-                    <TableHead>Tanggal</TableHead>
+                    <TableHead>No</TableHead>
+                    <TableHead>Tanggal Penjadwalan</TableHead> {/* Changed from "Tanggal" */}
                     <TableHead>Waktu</TableHead>
                     <TableHead>Tipe</TableHead>
                     <TableHead>Konsumen</TableHead>
@@ -233,7 +233,7 @@ const ScheduleManagementPage = () => {
                 <TableBody>
                   {currentItems.map((schedule) => (
                     <TableRow key={schedule.id}>
-                      <TableCell>{schedule.no}</TableCell> {/* New TableCell */}
+                      <TableCell>{schedule.no}</TableCell>
                       <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{schedule.schedule_time || "-"}</TableCell>
                       <TableCell>{schedule.type}</TableCell>
