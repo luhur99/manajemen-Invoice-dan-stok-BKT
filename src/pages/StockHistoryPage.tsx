@@ -10,11 +10,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
 import { format, startOfMonth, endOfMonth, subMonths, addDays } from "date-fns";
-import { Loader2, History, CalendarIcon } from "lucide-react";
+import { Loader2, History, CalendarIcon, Eye } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import ExportDataButton from "@/components/ExportDataButton"; // Import ExportDataButton
+import ViewNotesDialog from "@/components/ViewNotesDialog"; // Import ViewNotesDialog
+
+// Define a flattened type for export
+interface FlattenedStockTransactionForExport {
+  transaction_date: string;
+  created_at: string;
+  item_name: string;
+  item_code: string;
+  transaction_type: string;
+  quantity: number;
+  notes: string;
+}
 
 const StockHistoryPage = () => {
   const [transactions, setTransactions] = useState<StockTransactionWithItemName[]>([]);
@@ -27,6 +40,9 @@ const StockHistoryPage = () => {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [selectedDatePreset, setSelectedDatePreset] = useState<string>("all"); // "all", "current_month", "last_3_months", "custom"
+
+  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false); // State for ViewNotesDialog
+  const [notesToView, setNotesToView] = useState<string>(""); // State for notes content
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -132,6 +148,74 @@ const StockHistoryPage = () => {
     }
   }, [startDate, endDate, filterType, searchTerm]); // Dependencies for useCallback
 
+  // Function to fetch all stock transactions for export
+  const fetchAllStockTransactionsForExport = useCallback(async () => {
+    try {
+      let query = supabase
+        .from("stock_transactions")
+        .select(`
+          id,
+          transaction_type,
+          quantity,
+          notes,
+          transaction_date,
+          created_at,
+          stock_items (
+            nama_barang,
+            kode_barang
+          )
+        `);
+
+      // Apply date filters for export as well
+      if (startDate) {
+        query = query.gte("transaction_date", format(startDate, "yyyy-MM-dd"));
+      }
+      if (endDate) {
+        const adjustedEndDate = addDays(endDate, 1);
+        query = query.lte("transaction_date", format(adjustedEndDate, "yyyy-MM-dd"));
+      }
+
+      // Apply type filter for export
+      if (filterType !== "all") {
+        query = query.eq("transaction_type", filterType);
+      }
+
+      query = query.order("created_at", { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      // Flatten the data for CSV export
+      const flattenedData: FlattenedStockTransactionForExport[] = data.map((item: any) => ({
+        transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
+        created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
+        item_name: item.stock_items?.[0]?.nama_barang || "N/A",
+        item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+        transaction_type: getTransactionTypeDisplay(item.transaction_type),
+        quantity: item.quantity,
+        notes: item.notes || "",
+      }));
+      return flattenedData;
+    } catch (err: any) {
+      console.error("Error fetching all stock transactions for export:", err);
+      showError("Gagal memuat semua data riwayat stok untuk ekspor.");
+      return null;
+    }
+  }, [startDate, endDate, filterType]); // Dependencies for export function
+
+  const stockTransactionHeaders: { key: keyof FlattenedStockTransactionForExport; label: string }[] = [
+    { key: "transaction_date", label: "Tanggal Transaksi" },
+    { key: "created_at", label: "Waktu Dibuat" },
+    { key: "item_name", label: "Nama Barang" },
+    { key: "item_code", label: "Kode Barang" },
+    { key: "transaction_type", label: "Tipe Transaksi" },
+    { key: "quantity", label: "Kuantitas" },
+    { key: "notes", label: "Catatan" },
+  ];
+
   // Initial fetch and refetch on filter changes
   useEffect(() => {
     fetchStockTransactions();
@@ -144,6 +228,11 @@ const StockHistoryPage = () => {
     setStartDate(undefined);
     setEndDate(undefined);
     // fetchStockTransactions will be called via useEffect due to state changes
+  };
+
+  const handleViewNotes = (notes: string) => {
+    setNotesToView(notes);
+    setIsViewNotesOpen(true);
   };
 
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
@@ -197,7 +286,14 @@ const StockHistoryPage = () => {
   return (
     <Card className="border shadow-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-semibold">Riwayat Transaksi Stok</CardTitle>
+        <div className="flex justify-between items-center mb-4">
+          <CardTitle className="text-2xl font-semibold">Riwayat Transaksi Stok</CardTitle>
+          <ExportDataButton
+            fetchDataFunction={fetchAllStockTransactionsForExport}
+            fileName="stock_transactions_history.csv"
+            headers={stockTransactionHeaders}
+          />
+        </div>
         <CardDescription>Lihat semua transaksi keluar dan masuk stok untuk keperluan audit.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -315,7 +411,15 @@ const StockHistoryPage = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
-                      <TableCell className="max-w-[300px] truncate">{transaction.notes || "-"}</TableCell>
+                      <TableCell>
+                        {transaction.notes ? (
+                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">
+                            <Eye className="h-3 w-3 mr-1" /> Lihat
+                          </Button>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -333,6 +437,12 @@ const StockHistoryPage = () => {
           <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat transaksi stok yang tersedia atau cocok dengan pencarian Anda.</p>
         )}
       </CardContent>
+
+      <ViewNotesDialog
+        notes={notesToView}
+        isOpen={isViewNotesOpen}
+        onOpenChange={setIsViewNotesOpen}
+      />
     </Card>
   );
 };
