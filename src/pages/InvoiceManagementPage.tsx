@@ -348,8 +348,9 @@ const InvoiceManagementPage = () => {
                 customer_name: invoiceToConvert.customer_name,
                 invoice_id: invoiceToConvert.id,
                 address: invoiceToConvert.notes, // Assuming notes might contain address
-                // type: invoiceToConvert.type, // If invoice has a type that maps to schedule type
+                type: invoiceToConvert.type === 'kirim barang' ? 'kirim' : 'instalasi', // Map invoice type to schedule type
                 notes: `Jadwal dibuat dari Invoice #${invoiceToConvert.invoice_number}`,
+                courier_service: invoiceToConvert.courier_service || "", // Pass courier_service
               }}
             />
           </DialogContent>
