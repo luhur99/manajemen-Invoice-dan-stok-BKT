@@ -9,8 +9,12 @@ import { StockTransactionWithItemName } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
-import { format } from "date-fns";
-import { Loader2, History } from "lucide-react";
+import { format, startOfMonth, endOfMonth, subMonths, addDays } from "date-fns";
+import { Loader2, History, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const StockHistoryPage = () => {
   const [transactions, setTransactions] = useState<StockTransactionWithItemName[]>([]);
@@ -20,14 +24,45 @@ const StockHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
 
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [selectedDatePreset, setSelectedDatePreset] = useState<string>("all"); // "all", "current_month", "last_3_months", "custom"
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Helper to calculate dates based on preset
+  const calculateDateRange = useCallback((preset: string) => {
+    const now = new Date();
+    let newStartDate: Date | undefined;
+    let newEndDate: Date | undefined;
+
+    if (preset === "current_month") {
+      newStartDate = startOfMonth(now);
+      newEndDate = endOfMonth(now);
+    } else if (preset === "last_3_months") {
+      newStartDate = startOfMonth(subMonths(now, 2)); // Start of 3 months ago
+      newEndDate = endOfMonth(now);
+    } else if (preset === "all") {
+      newStartDate = undefined;
+      newEndDate = undefined;
+    }
+    // For "custom", startDate and endDate are managed by calendar pickers directly
+
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+  }, []);
+
+  // Effect to react to preset changes
+  useEffect(() => {
+    calculateDateRange(selectedDatePreset);
+  }, [selectedDatePreset, calculateDateRange]);
 
   const fetchStockTransactions = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("stock_transactions")
         .select(`
           id,
@@ -42,21 +77,49 @@ const StockHistoryPage = () => {
             nama_barang,
             kode_barang
           )
-        `)
-        .order("created_at", { ascending: false });
+        `);
+
+      // Apply date filters
+      if (startDate) {
+        query = query.gte("transaction_date", format(startDate, "yyyy-MM-dd"));
+      }
+      if (endDate) {
+        // Add one day to endDate to include the entire selected day
+        const adjustedEndDate = addDays(endDate, 1);
+        query = query.lte("transaction_date", format(adjustedEndDate, "yyyy-MM-dd"));
+      }
+
+      // Apply type filter
+      if (filterType !== "all") {
+        query = query.eq("transaction_type", filterType);
+      }
+
+      query = query.order("created_at", { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) {
         throw error;
       }
 
-      // Ensure stock_items is always an array or null, then cast
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null, // Wrap single object in an array if it exists
+        stock_items: item.stock_items ? [item.stock_items] : null,
       }));
 
-      setTransactions(processedData);
-      setFilteredTransactions(processedData);
+      // Client-side search filtering
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
+      const filteredBySearch = processedData.filter(item => {
+        return (
+          item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
+        );
+      });
+
+      setTransactions(processedData); // Keep all fetched data (date & type filtered)
+      setFilteredTransactions(filteredBySearch); // Apply search filter on top
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat riwayat transaksi stok: ${err.message}`);
@@ -67,28 +130,21 @@ const StockHistoryPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [startDate, endDate, filterType, searchTerm]); // Dependencies for useCallback
 
+  // Initial fetch and refetch on filter changes
   useEffect(() => {
     fetchStockTransactions();
-  }, [fetchStockTransactions]);
+  }, [fetchStockTransactions]); // This useEffect will trigger fetchStockTransactions when its dependencies change.
 
-  useEffect(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const filtered = transactions.filter(item => {
-      const matchesSearch =
-        item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Corrected access
-        item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Corrected access
-        item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
-
-      const matchesType = filterType === "all" || item.transaction_type === filterType;
-
-      return matchesSearch && matchesType;
-    });
-    setFilteredTransactions(filtered);
-    setCurrentPage(1);
-  }, [searchTerm, filterType, transactions]);
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setFilterType("all");
+    setSelectedDatePreset("all");
+    setStartDate(undefined);
+    setEndDate(undefined);
+    // fetchStockTransactions will be called via useEffect due to state changes
+  };
 
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -146,7 +202,7 @@ const StockHistoryPage = () => {
       </CardHeader>
       <CardContent className="space-y-4">
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col md:flex-row gap-4 mb-4 flex-wrap">
           <Input
             type="text"
             placeholder="Cari berdasarkan nama/kode barang, tipe transaksi, atau catatan..."
@@ -167,6 +223,68 @@ const StockHistoryPage = () => {
               <SelectItem value="damage_loss">Rusak/Hilang</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter Tanggal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Waktu</SelectItem>
+              <SelectItem value="current_month">Bulan Ini</SelectItem>
+              <SelectItem value="last_3_months">3 Bulan Terakhir</SelectItem>
+              <SelectItem value="custom">Rentang Kustom</SelectItem>
+            </SelectContent>
+          </Select>
+          {selectedDatePreset === "custom" && (
+            <>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-[180px] justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate ? format(startDate, "PPP") : <span>Tanggal Mulai</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-[180px] justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate ? format(endDate, "PPP") : <span>Tanggal Akhir</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </>
+          )}
+          <Button onClick={handleResetFilters} variant="outline">
+            Reset Filter
+          </Button>
         </div>
 
         {filteredTransactions.length > 0 ? (
@@ -189,8 +307,8 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell> {/* Corrected access */}
-                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell> {/* Corrected access */}
+                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}
