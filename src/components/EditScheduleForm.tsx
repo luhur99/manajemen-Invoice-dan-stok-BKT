@@ -157,6 +157,22 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
 
       // Logic for stock deduction when status changes to 'completed'
       if (values.status === 'completed' && previousStatus !== 'completed' && values.invoice_id) {
+        let relatedInvoiceNumber: string | null = null;
+        if (values.invoice_id) {
+          const { data: invoiceData, error: invoiceNumError } = await supabase
+            .from("invoices")
+            .select("invoice_number")
+            .eq("id", values.invoice_id)
+            .single();
+
+          if (invoiceNumError) {
+            console.error("Error fetching invoice number for stock deduction notes:", invoiceNumError);
+            // Proceed with UUID if invoice number can't be fetched
+          } else if (invoiceData) {
+            relatedInvoiceNumber = invoiceData.invoice_number;
+          }
+        }
+
         const { data: invoiceItems, error: itemsError } = await supabase
           .from("invoice_items")
           .select("*")
@@ -213,7 +229,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                   stock_item_id: stockItemData.id,
                   transaction_type: "out",
                   quantity: item.quantity,
-                  notes: `Pengurangan stok untuk jadwal ${values.type} (Invoice: ${values.invoice_id})`,
+                  notes: `Pengurangan stok untuk jadwal ${values.type} (Invoice: ${relatedInvoiceNumber || values.invoice_id})`, // Use relatedInvoiceNumber
                 });
 
               if (transactionError) {
