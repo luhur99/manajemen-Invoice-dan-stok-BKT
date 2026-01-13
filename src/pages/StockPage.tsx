@@ -12,14 +12,15 @@ import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import PaginationControls from "@/components/PaginationControls";
-import { Loader2, Edit, Trash2, PlusCircle, Settings } from "lucide-react"; // Removed specific transaction icons as they are no longer needed in the menu
+import ExportDataButton from "@/components/ExportDataButton"; // Import new component
+import { Loader2, Edit, Trash2, PlusCircle, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"; // Removed DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent
+} from "@/components/ui/dropdown-menu";
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -52,7 +53,7 @@ const StockPage = () => {
       const fetchedStock: StockItem[] = data.map(item => ({
         id: item.id,
         user_id: item.user_id,
-        NO: 0,
+        NO: 0, // This will be assigned sequentially for display if needed, but not stored in DB
         "KODE BARANG": item.kode_barang,
         "NAMA BARANG": item.nama_barang,
         SATUAN: item.satuan || "",
@@ -79,6 +80,53 @@ const StockPage = () => {
       setLoading(false);
     }
   }, []);
+
+  const fetchAllStockDataForExport = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("stock_items")
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, created_at")
+        .order("nama_barang", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+      return data.map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        NO: 0, // Placeholder, actual NO might be assigned during export if needed
+        "KODE BARANG": item.kode_barang,
+        "NAMA BARANG": item.nama_barang,
+        SATUAN: item.satuan || "",
+        "HARGA BELI": item.harga_beli,
+        "HARGA JUAL": item.harga_jual,
+        "STOCK AWAL": item.stock_awal,
+        "STOCK MASUK": item.stock_masuk,
+        "STOCK KELUAR": item.stock_keluar,
+        "STOCK AKHIR": item.stock_akhir,
+        safe_stock_limit: item.safe_stock_limit,
+        created_at: item.created_at,
+      })) as StockItem[];
+    } catch (err: any) {
+      console.error("Error fetching all stock data for export:", err);
+      showError("Gagal memuat semua data stok untuk ekspor.");
+      return null;
+    }
+  }, []);
+
+  const stockItemHeaders: { key: keyof StockItem; label: string }[] = [
+    { key: "KODE BARANG", label: "Kode Barang" },
+    { key: "NAMA BARANG", label: "Nama Barang" },
+    { key: "SATUAN", label: "Satuan" },
+    { key: "HARGA BELI", label: "Harga Beli" },
+    { key: "HARGA JUAL", label: "Harga Jual" },
+    { key: "STOCK AWAL", label: "Stok Awal" },
+    { key: "STOCK MASUK", label: "Stok Masuk" },
+    { key: "STOCK KELUAR", label: "Stok Keluar" },
+    { key: "STOCK AKHIR", label: "Stok Akhir" },
+    { key: "safe_stock_limit", label: "Batas Aman" },
+    { key: "created_at", label: "Created At" },
+  ];
 
   useEffect(() => {
     fetchStockData();
@@ -140,7 +188,14 @@ const StockPage = () => {
       <CardHeader>
         <div className="flex justify-between items-center mb-4">
           <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
-          <AddStockItemForm onSuccess={fetchStockData} />
+          <div className="flex gap-2"> {/* Group buttons */}
+            <AddStockItemForm onSuccess={fetchStockData} />
+            <ExportDataButton
+              fetchDataFunction={fetchAllStockDataForExport}
+              fileName="stock_items.csv"
+              headers={stockItemHeaders}
+            />
+          </div>
         </div>
         <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
       </CardHeader>
