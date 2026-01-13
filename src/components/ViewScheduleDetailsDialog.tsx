@@ -40,7 +40,7 @@ const ViewScheduleDetailsDialog: React.FC<ViewScheduleDetailsDialogProps> = ({
           <div>
             <p><strong>Alamat:</strong> {schedule.address || "-"}</p>
             <p><strong>Nama Teknisi:</strong> {schedule.technician_name || "-"}</p>
-            <p><strong>ID Invoice Terkait:</strong> {schedule.invoice_id || "-"}</p>
+            <p><strong>Nomor Invoice Terkait:</strong> {schedule.invoice_number || "-"}</p>
             <p><strong>Status:</strong> 
               <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
                 schedule.status === 'completed' ? 'bg-green-100 text-green-800' :
