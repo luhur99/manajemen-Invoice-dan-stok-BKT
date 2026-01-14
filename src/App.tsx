@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import SchedulesPage from "./pages/SchedulesPage"; // Import SchedulesPage
+import SchedulingRequestPage from "./pages/SchedulingRequestPage"; // Import SchedulingRequestPage
+import DashboardOverviewPage from "./pages/DashboardOverviewPage"; // Import DashboardOverviewPage
+import { SessionContextProvider } from "./components/SessionContextProvider"; // Import SessionContextProvider
 
 const queryClient = new QueryClient();
 
@@ -14,11 +18,16 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <SessionContextProvider> {/* Wrap routes with SessionContextProvider */}
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<DashboardOverviewPage />} /> {/* Add Dashboard route */}
+            <Route path="/scheduling-requests" element={<SchedulingRequestPage />} /> {/* Add SchedulingRequest route */}
+            <Route path="/schedules" element={<SchedulesPage />} /> {/* Add SchedulesPage route */}
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </SessionContextProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
