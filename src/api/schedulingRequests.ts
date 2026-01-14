@@ -50,6 +50,7 @@ export async function addSchedulingRequest(
   return data;
 }
 
+// FIX: Menambahkan tipe kembalian eksplisit Promise<SchedulingRequest>
 export async function updateSchedulingRequest(
   id: string,
   updates: Partial<Omit<SchedulingRequest, 'id' | 'user_id' | 'created_at'>>,
