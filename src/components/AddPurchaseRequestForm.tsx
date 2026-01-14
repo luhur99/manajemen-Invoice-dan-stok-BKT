@@ -69,11 +69,11 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
         // Map data to match Product interface property names
         setProducts(data.map(item => ({
           id: item.id,
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          SATUAN: item.satuan,
-          "HARGA BELI": item.harga_beli,
-          "HARGA JUAL": item.harga_jual,
+          kode_barang: item.kode_barang, // Corrected access
+          nama_barang: item.nama_barang, // Corrected access
+          satuan: item.satuan,
+          harga_beli: item.harga_beli,
+          harga_jual: item.harga_jual,
         })) as Product[]);
       }
       setLoadingProducts(false); // Changed from setLoadingStockItems
@@ -150,10 +150,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                       value={field.value}
                       onValueChange={(selectedProduct) => {
                         if (selectedProduct) {
-                          form.setValue("item_name", selectedProduct["NAMA BARANG"]);
-                          form.setValue("item_code", selectedProduct["KODE BARANG"]);
-                          form.setValue("unit_price", selectedProduct["HARGA BELI"]);
-                          form.setValue("suggested_selling_price", selectedProduct["HARGA JUAL"]);
+                          form.setValue("item_name", selectedProduct.nama_barang); // Corrected access
+                          form.setValue("item_code", selectedProduct.kode_barang); // Corrected access
+                          form.setValue("unit_price", selectedProduct.harga_beli); // Corrected access
+                          form.setValue("suggested_selling_price", selectedProduct.harga_jual); // Corrected access
                         } else {
                           form.setValue("item_name", "");
                           form.setValue("item_code", "");

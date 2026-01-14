@@ -77,8 +77,8 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
           transaction_date,
           created_at,
           products (
-            "NAMA BARANG",
-            "KODE BARANG",
+            nama_barang,
+            kode_barang,
             safe_stock_limit
           ),
           warehouse_category
@@ -175,20 +175,20 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Produk: {product["NAMA BARANG"]}</DialogTitle>
+          <DialogTitle>Detail Produk: {product.nama_barang}</DialogTitle> {/* Corrected access */}
           <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
-            <p><strong>Kode Barang:</strong> {product["KODE BARANG"]}</p>
-            <p><strong>Nama Barang:</strong> {product["NAMA BARANG"]}</p>
-            <p><strong>Satuan:</strong> {product.SATUAN || "-"}</p>
+            <p><strong>Kode Barang:</strong> {product.kode_barang}</p> {/* Corrected access */}
+            <p><strong>Nama Barang:</strong> {product.nama_barang}</p> {/* Corrected access */}
+            <p><strong>Satuan:</strong> {product.satuan || "-"}</p>
             <p><strong>Batas Stok Aman:</strong> {product.safe_stock_limit || 0}</p>
           </div>
           <div>
-            <p><strong>Harga Beli:</strong> {product["HARGA BELI"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Harga Jual:</strong> {product["HARGA JUAL"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+            <p><strong>Harga Beli:</strong> {product.harga_beli.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p> {/* Corrected access */}
+            <p><strong>Harga Jual:</strong> {product.harga_jual.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p> {/* Corrected access */}
           </div>
         </div>
 

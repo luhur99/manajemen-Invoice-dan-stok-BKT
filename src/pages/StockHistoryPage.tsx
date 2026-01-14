@@ -92,8 +92,8 @@ const StockHistoryPage = () => {
           transaction_date,
           created_at,
           products (
-            "NAMA BARANG",
-            "KODE BARANG",
+            nama_barang,
+            kode_barang,
             safe_stock_limit
           ),
           warehouse_category
@@ -132,8 +132,8 @@ const StockHistoryPage = () => {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         const matchesSearch = (
-          item.products?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.products?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
         );
@@ -171,8 +171,8 @@ const StockHistoryPage = () => {
           transaction_date,
           created_at,
           products (
-            "NAMA BARANG",
-            "KODE BARANG"
+            nama_barang,
+            kode_barang
           ),
           warehouse_category
         `);
@@ -228,8 +228,8 @@ const StockHistoryPage = () => {
           transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
           created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
           // Corrected access for item_name and item_code
-          item_name: item.products?.["NAMA BARANG"] || "N/A",
-          item_code: item.products?.["KODE BARANG"] || "N/A",
+          item_name: item.products?.nama_barang || "N/A",
+          item_code: item.products?.kode_barang || "N/A",
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           notes: processedNotes,
@@ -468,8 +468,8 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.products?.["NAMA BARANG"] || "N/A"}</TableCell>
-                      <TableCell>{transaction.products?.["KODE BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.nama_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.kode_barang || "N/A"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}

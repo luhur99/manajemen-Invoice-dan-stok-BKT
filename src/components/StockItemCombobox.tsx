@@ -10,8 +10,8 @@ import {
   CommandEmpty,
   CommandGroup,
   CommandInput,
-  CommandItem,
   CommandList,
+  CommandItem, // Ditambahkan: Mengimpor CommandItem
 } from "@/components/ui/command";
 import {
   Popover,
@@ -41,7 +41,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
 }) => {
   const [open, setOpen] = React.useState(false);
 
-  const selectedItem = items.find((item) => item["NAMA BARANG"] === value);
+  const selectedItem = items.find((item) => item.nama_barang === value); // Corrected access
 
   // Removed getCategoryDisplay as warehouse_category is no longer on Product
 
@@ -60,7 +60,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           {/* Wrap children in a single span to ensure PopoverTrigger asChild receives one child */}
           <span>
             {selectedItem
-              ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]})` // Removed category display
+              ? `${selectedItem.nama_barang} (${selectedItem.kode_barang})` // Corrected access
               : placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </span>
@@ -75,10 +75,10 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
               {items.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item["NAMA BARANG"]}
+                  value={item.nama_barang} // Corrected access
                   onSelect={(currentValue) => {
                     onValueChange(
-                      currentValue === selectedItem?.["NAMA BARANG"] ? undefined : item
+                      currentValue === selectedItem?.nama_barang ? undefined : item // Corrected access
                     );
                     setOpen(false);
                   }}
@@ -86,10 +86,10 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedItem?.["NAMA BARANG"] === item["NAMA BARANG"] ? "opacity-100" : "opacity-0"
+                      selectedItem?.nama_barang === item.nama_barang ? "opacity-100" : "opacity-0" // Corrected access
                     )}
                   />
-                  {item["NAMA BARANG"]} ({item["KODE BARANG"]})
+                  {item.nama_barang} ({item.kode_barang}) {/* Corrected access */}
                 </CommandItem>
               ))}
             </CommandGroup>

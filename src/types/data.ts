@@ -1,11 +1,11 @@
 export interface Product {
   id?: string; // UUID from Supabase
   user_id?: string; // User ID for RLS
-  "KODE BARANG": string;
-  "NAMA BARANG": string;
-  SATUAN: string;
-  "HARGA BELI": number;
-  "HARGA JUAL": number;
+  kode_barang: string; // Corrected: use actual database column name
+  nama_barang: string; // Corrected: use actual database column name
+  satuan: string;
+  harga_beli: number;
+  harga_jual: number;
   safe_stock_limit?: number; // Batas stok aman
   created_at?: string;
 }
@@ -20,19 +20,19 @@ export interface WarehouseInventory {
   updated_at: string;
   // Joined product details for display
   products?: {
-    "KODE BARANG"?: string; // Make optional as it might not be selected in all joins
-    "NAMA BARANG"?: string; // Make optional
-    SATUAN?: string; // Make optional
-    "HARGA BELI"?: number; // Make optional
-    "HARGA JUAL"?: number; // Make optional
+    kode_barang?: string; // Corrected
+    nama_barang?: string; // Corrected
+    satuan?: string;
+    harga_beli?: number;
+    harga_jual?: number;
     safe_stock_limit?: number;
-  } | null; // Diperbaiki: sekarang objek tunggal atau null
+  } | null;
 }
 
 export interface StockTransaction {
   id: string;
   user_id: string;
-  product_id: string; // Changed from stock_item_id
+  product_id: string;
   transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment';
   quantity: number;
   notes?: string;
@@ -43,18 +43,18 @@ export interface StockTransaction {
 
 // New interface for Stock Transaction with Product Name for display
 export interface StockTransactionWithItemName extends StockTransaction {
-  products: { // Changed from stock_items
-    "NAMA BARANG": string;
-    "KODE BARANG": string;
+  products: {
+    nama_barang: string; // Corrected
+    kode_barang: string; // Corrected
     safe_stock_limit?: number;
-  } | null; // Diperbaiki: sekarang objek tunggal atau null
+  } | null;
 }
 
 // New interface for Stock Movement
 export interface StockMovement {
   id: string;
   user_id: string;
-  product_id: string; // Changed from stock_item_id
+  product_id: string;
   from_category: 'siap_jual' | 'riset' | 'retur';
   to_category: 'siap_jual' | 'riset' | 'retur';
   quantity: number;
@@ -65,10 +65,10 @@ export interface StockMovement {
 
 // New interface for Stock Movement with Product Name for display
 export interface StockMovementWithItemName extends StockMovement {
-  products: { // Changed from stock_items
-    "NAMA BARANG": string;
-    "KODE BARANG": string;
-  } | null; // Diperbarui: sekarang objek tunggal atau null
+  products: {
+    nama_barang: string; // Corrected
+    kode_barang: string; // Corrected
+  } | null;
 }
 
 // New interface for Product combined with its warehouse inventories for display

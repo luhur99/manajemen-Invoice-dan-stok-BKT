@@ -28,11 +28,11 @@ import { Toggle } from "@/components/ui/toggle";
 
 // Define a flattened type for export
 interface FlattenedStockItemForExport {
-  "KODE BARANG": string;
-  "NAMA BARANG": string;
-  SATUAN: string;
-  "HARGA BELI": number;
-  "HARGA JUAL": number;
+  kode_barang: string; // Corrected
+  nama_barang: string; // Corrected
+  satuan: string;
+  harga_beli: number;
+  harga_jual: number;
   "KATEGORI GUDANG": string;
   "KUANTITAS": number;
   "BATAS AMAN": number;
@@ -94,11 +94,11 @@ const StockPage = () => {
         return {
           id: product.id,
           user_id: product.user_id,
-          "KODE BARANG": product.kode_barang,
-          "NAMA BARANG": product.nama_barang,
-          SATUAN: product.satuan || "",
-          "HARGA BELI": product.harga_beli,
-          "HARGA JUAL": product.harga_jual,
+          kode_barang: product.kode_barang, // Corrected access
+          nama_barang: product.nama_barang, // Corrected access
+          satuan: product.satuan || "",
+          harga_beli: product.harga_beli,
+          harga_jual: product.harga_jual,
           safe_stock_limit: product.safe_stock_limit,
           created_at: product.created_at,
           total_stock_akhir: totalStockAkhir,
@@ -149,11 +149,11 @@ const StockPage = () => {
       const flattenedData: FlattenedStockItemForExport[] = productsData.flatMap((product: any) => {
         if (product.warehouse_inventories.length === 0) {
           return [{
-            "KODE BARANG": product.kode_barang,
-            "NAMA BARANG": product.nama_barang,
-            SATUAN: product.satuan || "",
-                        "HARGA BELI": product.harga_beli,
-            "HARGA JUAL": product.harga_jual,
+            kode_barang: product.kode_barang, // Corrected
+            nama_barang: product.nama_barang, // Corrected
+            satuan: product.satuan || "",
+            harga_beli: product.harga_beli,
+            harga_jual: product.harga_jual,
             "KATEGORI GUDANG": "Tidak Ada",
             "KUANTITAS": 0,
             "BATAS AMAN": product.safe_stock_limit || 0,
@@ -161,11 +161,11 @@ const StockPage = () => {
           }];
         }
         return product.warehouse_inventories.map((inventory: any) => ({
-          "KODE BARANG": product.kode_barang,
-          "NAMA BARANG": product.nama_barang,
-          SATUAN: product.satuan || "",
-          "HARGA BELI": product.harga_beli,
-          "HARGA JUAL": product.harga_jual,
+          kode_barang: product.kode_barang, // Corrected
+          nama_barang: product.nama_barang, // Corrected
+          satuan: product.satuan || "",
+          harga_beli: product.harga_beli,
+          harga_jual: product.harga_jual,
           "KATEGORI GUDANG": getCategoryDisplay(inventory.warehouse_category),
           "KUANTITAS": inventory.quantity,
           "BATAS AMAN": product.safe_stock_limit || 0,
@@ -181,11 +181,11 @@ const StockPage = () => {
   }, []);
 
   const stockItemHeaders: { key: keyof FlattenedStockItemForExport; label: string }[] = [ // Explicitly typed headers
-    { key: "KODE BARANG", label: "Kode Barang" },
-    { key: "NAMA BARANG", label: "Nama Barang" },
-    { key: "SATUAN", label: "Satuan" },
-    { key: "HARGA BELI", label: "Harga Beli" },
-    { key: "HARGA JUAL", label: "Harga Jual" },
+    { key: "kode_barang", label: "Kode Barang" }, // Corrected
+    { key: "nama_barang", label: "Nama Barang" }, // Corrected
+    { key: "satuan", label: "Satuan" },
+    { key: "harga_beli", label: "Harga Beli" },
+    { key: "harga_jual", label: "Harga Jual" },
     { key: "KATEGORI GUDANG", label: "Kategori Gudang" },
     { key: "KUANTITAS", label: "Kuantitas" },
     { key: "BATAS AMAN", label: "Batas Aman" },
@@ -199,9 +199,9 @@ const StockPage = () => {
   useEffect(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     let filtered = stockData.filter(item =>
-      item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.kode_barang.toLowerCase().includes(lowerCaseSearchTerm) || // Corrected access
+      item.nama_barang.toLowerCase().includes(lowerCaseSearchTerm) || // Corrected access
+      item.satuan.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.warehouse_inventories.some(inv => inv.warehouse_category.toLowerCase().includes(lowerCaseSearchTerm))
     );
 
@@ -334,11 +334,11 @@ const StockPage = () => {
                 <TableBody>
                   {currentItems.map((item) => (
                     <TableRow key={item.id} className={item.total_stock_akhir < (item.safe_stock_limit || 10) ? "bg-red-50 dark:bg-red-950" : ""}>
-                      <TableCell>{item["KODE BARANG"]}</TableCell>
-                      <TableCell>{item["NAMA BARANG"]}</TableCell>
-                      <TableCell>{item.SATUAN}</TableCell>
-                      <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
-                      <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
+                      <TableCell>{item.kode_barang}</TableCell> {/* Corrected access */}
+                      <TableCell>{item.nama_barang}</TableCell> {/* Corrected access */}
+                      <TableCell>{item.satuan}</TableCell>
+                      <TableCell className="text-right">{item.harga_beli.toLocaleString('id-ID')}</TableCell> {/* Corrected access */}
+                      <TableCell className="text-right">{item.harga_jual.toLocaleString('id-ID')}</TableCell> {/* Corrected access */}
                       <TableCell className="text-right">
                         <span className={item.total_stock_akhir < (item.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
                           {item.total_stock_akhir}

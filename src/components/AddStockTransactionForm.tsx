@@ -185,7 +185,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     damage_loss: "Catat Stok Rusak/Hilang",
   }[form.watch("transaction_type")];
 
-  const dialogDescription = `Catat transaksi stok untuk item "${product["NAMA BARANG"]}".`;
+  const dialogDescription = `Catat transaksi stok untuk item "${product.nama_barang}".`; // Corrected access
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

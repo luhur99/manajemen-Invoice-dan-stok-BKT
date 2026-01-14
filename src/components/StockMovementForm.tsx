@@ -129,7 +129,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         .single();
 
       if (fetchFromError && fetchFromError.code === 'PGRST116') {
-        showError(`Tidak ada stok item "${product["NAMA BARANG"]}" di kategori "${getCategoryDisplay(values.from_category)}".`);
+        showError(`Tidak ada stok item "${product.nama_barang}" di kategori "${getCategoryDisplay(values.from_category)}".`); // Corrected access
         return;
       } else if (fetchFromError) {
         throw fetchFromError;
@@ -199,7 +199,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         throw movementError;
       }
 
-      showSuccess(`Stok item "${product["NAMA BARANG"]}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`);
+      showSuccess(`Stok item "${product.nama_barang}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`); // Corrected access
       onOpenChange(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
@@ -222,7 +222,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Pindahkan Stok Barang</DialogTitle>
-          <DialogDescription>Pindahkan item stok "{product["NAMA BARANG"]}" antar kategori gudang.</DialogDescription>
+          <DialogDescription>Pindahkan item stok "{product.nama_barang}" antar kategori gudang.</DialogDescription> {/* Corrected access */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

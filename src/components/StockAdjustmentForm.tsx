@@ -199,7 +199,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Penyesuaian Stok Barang</DialogTitle>
-          <DialogDescription>Sesuaikan kuantitas stok untuk produk "{product["NAMA BARANG"]}" di kategori gudang tertentu.</DialogDescription>
+          <DialogDescription>Sesuaikan kuantitas stok untuk produk "{product.nama_barang}" di kategori gudang tertentu.</DialogDescription> {/* Corrected access */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -260,7 +260,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
+                ) : (
                 "Simpan Penyesuaian"
               )}
             </Button>

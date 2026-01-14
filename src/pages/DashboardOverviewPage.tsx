@@ -154,7 +154,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
           .from("stock_transactions")
-          .select(`id, transaction_type, quantity, notes, created_at, products("NAMA BARANG")`) // Changed to products("NAMA BARANG")
+          .select(`id, transaction_type, quantity, notes, created_at, products(nama_barang)`) // Corrected: use nama_barang
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -162,7 +162,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockMovementsData, error: recentStockMovementsError } = await supabase
           .from("stock_movements")
-          .select(`id, from_category, to_category, quantity, reason, created_at, products("NAMA BARANG")`) // Changed to products("NAMA BARANG")
+          .select(`id, from_category, to_category, quantity, reason, created_at, products(nama_barang)`) // Corrected: use nama_barang
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -208,7 +208,7 @@ const DashboardOverviewPage = () => {
 
         recentStockTransactions.forEach(trans => {
           // Access the products object directly
-          const itemName = trans.products?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access directly
+          const itemName = trans.products?.nama_barang || "Item Tidak Dikenal"; // Corrected access
           let desc = "";
           if (trans.transaction_type === 'initial') {
             desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
@@ -232,7 +232,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.products?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access directly
+          const itemName = mov.products?.nama_barang || "Item Tidak Dikenal"; // Corrected access
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({

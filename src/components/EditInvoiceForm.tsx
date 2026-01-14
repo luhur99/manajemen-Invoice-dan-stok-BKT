@@ -107,11 +107,11 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         // Map data to match Product interface property names
         setProducts(data.map(item => ({
           id: item.id,
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          SATUAN: item.satuan,
-          "HARGA BELI": item.harga_beli,
-          "HARGA JUAL": item.harga_jual,
+          kode_barang: item.kode_barang, // Corrected access
+          nama_barang: item.nama_barang, // Corrected access
+          satuan: item.satuan,
+          harga_beli: item.harga_beli,
+          harga_jual: item.harga_jual,
         })) as Product[]);
       }
       setLoadingProducts(false); // Changed from setLoadingStockItems
@@ -120,7 +120,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     const fetchInvoiceItems = async () => {
       const { data, error } = await supabase
         .from("invoice_items")
-        .select(`*, products("KODE BARANG")`) // Select product_id and join products for "KODE BARANG"
+        .select(`*, products(kode_barang)`) // Corrected: select kode_barang
         .eq("invoice_id", invoice.id);
 
       if (error) {
@@ -132,7 +132,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       const items = data.map(item => ({
         id: item.id,
         item_name: item.item_name,
-        item_code: item.products?.["KODE BARANG"] || "", // Populate item_code from joined products
+        item_code: item.products?.kode_barang || "", // Corrected: Populate item_code from joined products
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.quantity * item.unit_price,
@@ -494,10 +494,10 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                               if (selectedProduct) {
                                 update(index, {
                                   ...form.getValues().items[index],
-                                  item_name: selectedProduct["NAMA BARANG"],
-                                  item_code: selectedProduct["KODE BARANG"],
-                                  unit_price: selectedProduct["HARGA JUAL"],
-                                  unit_type: selectedProduct.SATUAN || "",
+                                  item_name: selectedProduct.nama_barang, // Corrected access
+                                  item_code: selectedProduct.kode_barang, // Corrected access
+                                  unit_price: selectedProduct.harga_jual, // Corrected access
+                                  unit_type: selectedProduct.satuan || "",
                                   product_id: selectedProduct.id, // Set product_id
                                 });
                               } else {
