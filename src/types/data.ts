@@ -12,6 +12,7 @@ export interface StockItem {
   "STOCK KELUAR": number;
   "STOCK AKHIR": number;
   safe_stock_limit?: number; // New: Batas stok aman
+  warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Kategori gudang stok
   created_at?: string; // Add created_at for consistency
 }
 
@@ -32,6 +33,19 @@ export interface StockTransactionWithItemName extends StockTransaction {
     nama_barang: string;
     kode_barang: string;
   }[] | null; // Diperbaiki: sekarang array objek atau null
+}
+
+// New interface for Stock Movement
+export interface StockMovement {
+  id: string;
+  user_id: string;
+  stock_item_id: string;
+  from_category: 'siap_jual' | 'riset' | 'retur';
+  to_category: 'siap_jual' | 'riset' | 'retur';
+  quantity: number;
+  reason?: string;
+  movement_date: string; // YYYY-MM-DD
+  created_at: string;
 }
 
 export interface SalesDetailItem {
