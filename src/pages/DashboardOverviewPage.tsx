@@ -104,22 +104,22 @@ const DashboardOverviewPage = () => {
         if (schedulesError) throw schedulesError;
         setTodaySchedules(schedulesCount || 0);
 
-        // Fetch Low Stock Items (using safe_stock_limit from products and quantity from warehouse_inventories)
-        const { data: warehouseInventoriesData, error: stockError } = await supabase
-          .from("warehouse_inventories")
+        // Fetch Low Stock Items (using safe_stock_limit from products and total quantity from warehouse_inventories)
+        const { data: productsWithInventories, error: stockError } = await supabase
+          .from("products")
           .select(`
-            quantity,
-            products ("safe_stock_limit")
+            safe_stock_limit,
+            warehouse_inventories (quantity)
           `);
 
         if (stockError) throw stockError;
 
         let lowStockCount = 0;
-        if (warehouseInventoriesData) {
-          warehouseInventoriesData.forEach((item) => {
-            // Access safe_stock_limit from the first element of the products array
-            const limit = item.products?.[0]?.safe_stock_limit !== undefined && item.products?.[0]?.safe_stock_limit !== null ? item.products[0].safe_stock_limit : 10; // Default to 10 if limit not set
-            if (item.quantity < limit) {
+        if (productsWithInventories) {
+          productsWithInventories.forEach((product) => {
+            const totalQuantity = product.warehouse_inventories.reduce((sum: number, inv: WarehouseInventory) => sum + inv.quantity, 0);
+            const limit = product.safe_stock_limit !== undefined && product.safe_stock_limit !== null ? product.safe_stock_limit : 10; // Default to 10 if limit not set
+            if (totalQuantity < limit) {
               lowStockCount++;
             }
           });
