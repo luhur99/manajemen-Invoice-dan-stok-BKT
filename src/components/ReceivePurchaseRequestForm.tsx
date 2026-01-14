@@ -114,77 +114,66 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
         throw updateReqError;
       }
 
-      // 2. Add received quantity to stock_items
+      // 2. Add received quantity to warehouse_inventories and record transaction
       if (values.received_quantity > 0) {
-        const { data: existingStockItem, error: fetchStockError } = await supabase
-          .from("stock_items")
-          .select("id, stock_masuk, stock_akhir, harga_beli, harga_jual, satuan, warehouse_category")
-          .eq("kode_barang", purchaseRequest.item_code)
-          .single();
-
-        let stockItemId: string;
-        let newStockMasuk: number;
-        let newStockAkhir: number;
-
-        if (fetchStockError && fetchStockError.code === 'PGRST116') { // No rows found
-          // Create new stock item
-          const { data: newStockData, error: createStockError } = await supabase
-            .from("stock_items")
-            .insert({
-              user_id: userId,
-              kode_barang: purchaseRequest.item_code,
-              nama_barang: purchaseRequest.item_name,
-              satuan: "PCS", // Default to PCS if not specified in request, or add to form
-              harga_beli: purchaseRequest.unit_price,
-              harga_jual: purchaseRequest.suggested_selling_price,
-              stock_awal: 0,
-              stock_masuk: values.received_quantity,
-              stock_keluar: 0,
-              stock_akhir: values.received_quantity,
-              safe_stock_limit: 10, // Default safe stock limit
-              warehouse_category: values.target_warehouse_category,
-            })
-            .select("id, stock_masuk, stock_akhir")
-            .single();
-
-          if (createStockError) throw createStockError;
-          stockItemId = newStockData.id;
-          newStockMasuk = newStockData.stock_masuk;
-          newStockAkhir = newStockData.stock_akhir;
-
-        } else if (existingStockItem) {
-          // Update existing stock item
-          newStockMasuk = existingStockItem.stock_masuk + values.received_quantity;
-          newStockAkhir = existingStockItem.stock_akhir + values.received_quantity;
-
-          const { error: updateStockError } = await supabase
-            .from("stock_items")
-            .update({
-              stock_masuk: newStockMasuk,
-              stock_akhir: newStockAkhir,
-              harga_beli: purchaseRequest.unit_price,
-              harga_jual: purchaseRequest.suggested_selling_price,
-              warehouse_category: values.target_warehouse_category, // Update category on receipt
-            })
-            .eq("id", existingStockItem.id);
-
-          if (updateStockError) throw updateStockError;
-          stockItemId = existingStockItem.id;
-
-        } else {
-          throw new Error("Gagal memproses item stok.");
+        if (!purchaseRequest.product_id) {
+          throw new Error("Product ID tidak ditemukan untuk pengajuan pembelian ini.");
         }
 
-        // 3. Record transaction in stock_transactions for received items
+        const { data: existingInventory, error: fetchInventoryError } = await supabase
+          .from("warehouse_inventories")
+          .select("id, quantity")
+          .eq("product_id", purchaseRequest.product_id)
+          .eq("warehouse_category", values.target_warehouse_category)
+          .single();
+
+        let inventoryId: string;
+        let newQuantityInInventory: number;
+
+        if (fetchInventoryError && fetchInventoryError.code === 'PGRST116') { // No rows found
+          // Create new inventory entry
+          const { data: newInventory, error: createInventoryError } = await supabase
+            .from("warehouse_inventories")
+            .insert({
+              product_id: purchaseRequest.product_id,
+              warehouse_category: values.target_warehouse_category,
+              quantity: values.received_quantity,
+              user_id: userId,
+            })
+            .select("id, quantity")
+            .single();
+
+          if (createInventoryError) throw createInventoryError;
+          inventoryId = newInventory.id;
+          newQuantityInInventory = newInventory.quantity;
+
+        } else if (existingInventory) {
+          // Update existing inventory entry
+          newQuantityInInventory = existingInventory.quantity + values.received_quantity;
+
+          const { error: updateInventoryError } = await supabase
+            .from("warehouse_inventories")
+            .update({ quantity: newQuantityInInventory, updated_at: new Date().toISOString() })
+            .eq("id", existingInventory.id);
+
+          if (updateInventoryError) throw updateInventoryError;
+          inventoryId = existingInventory.id;
+
+        } else {
+          throw new Error("Gagal memproses inventaris gudang.");
+        }
+
+        // Record transaction in stock_transactions for received items
         const { error: transactionError } = await supabase
           .from("stock_transactions")
           .insert({
             user_id: userId,
-            stock_item_id: stockItemId,
+            product_id: purchaseRequest.product_id,
             transaction_type: "in",
             quantity: values.received_quantity,
             notes: `Stok masuk dari pengajuan pembelian #${purchaseRequest.no || 'N/A'} (${purchaseRequest.item_name}). Kategori: ${getCategoryDisplay(values.target_warehouse_category)}. Catatan Penerimaan: ${values.received_notes || '-'}`,
             transaction_date: format(new Date(), "yyyy-MM-dd"),
+            warehouse_category: values.target_warehouse_category,
           });
 
         if (transactionError) {
@@ -192,29 +181,42 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
         }
       }
 
-      // Optionally, record transactions for returned or damaged items if they go to specific categories
-      if (values.damaged_quantity > 0) {
-        // Logic to handle damaged items, e.g., move to 'retur' category or record as 'damage_loss' transaction
-        // For simplicity, we'll just record a 'damage_loss' transaction here.
-        const { data: stockItemForDamage, error: fetchDamageStockError } = await supabase
-          .from("stock_items")
-          .select("id")
-          .eq("kode_barang", purchaseRequest.item_code)
-          .single();
-
-        if (stockItemForDamage) {
-          const { error: damageTransactionError } = await supabase
-            .from("stock_transactions")
-            .insert({
-              user_id: userId,
-              stock_item_id: stockItemForDamage.id,
-              transaction_type: "damage_loss",
-              quantity: values.damaged_quantity,
-              notes: `Stok rusak/cacat dari pengajuan pembelian #${purchaseRequest.no || 'N/A'} (${purchaseRequest.item_name}). Catatan Penerimaan: ${values.received_notes || '-'}`,
-              transaction_date: format(new Date(), "yyyy-MM-dd"),
-            });
-          if (damageTransactionError) console.error("Error recording damage transaction:", damageTransactionError);
+      // 3. Record transaction for returned items
+      if (values.returned_quantity > 0) {
+        if (!purchaseRequest.product_id) {
+          throw new Error("Product ID tidak ditemukan untuk pengajuan pembelian ini.");
         }
+        const { error: returnTransactionError } = await supabase
+          .from("stock_transactions")
+          .insert({
+            user_id: userId,
+            product_id: purchaseRequest.product_id,
+            transaction_type: "return",
+            quantity: values.returned_quantity,
+            notes: `Barang dikembalikan ke pemasok dari pengajuan pembelian #${purchaseRequest.no || 'N/A'} (${purchaseRequest.item_name}). Catatan Penerimaan: ${values.received_notes || '-'}`,
+            transaction_date: format(new Date(), "yyyy-MM-dd"),
+            warehouse_category: values.target_warehouse_category, // Log the intended category
+          });
+        if (returnTransactionError) console.error("Error recording return transaction:", returnTransactionError);
+      }
+
+      // 4. Record transaction for damaged items
+      if (values.damaged_quantity > 0) {
+        if (!purchaseRequest.product_id) {
+          throw new Error("Product ID tidak ditemukan untuk pengajuan pembelian ini.");
+        }
+        const { error: damageTransactionError } = await supabase
+          .from("stock_transactions")
+          .insert({
+            user_id: userId,
+            product_id: purchaseRequest.product_id,
+            transaction_type: "damage_loss",
+            quantity: values.damaged_quantity,
+            notes: `Stok rusak/cacat dari pengajuan pembelian #${purchaseRequest.no || 'N/A'} (${purchaseRequest.item_name}). Catatan Penerimaan: ${values.received_notes || '-'}`,
+            transaction_date: format(new Date(), "yyyy-MM-dd"),
+            warehouse_category: values.target_warehouse_category, // Log the intended category
+          });
+        if (damageTransactionError) console.error("Error recording damage transaction:", damageTransactionError);
       }
 
       showSuccess(`Pengajuan pembelian untuk "${purchaseRequest.item_name}" berhasil diterima dan stok diperbarui!`);
