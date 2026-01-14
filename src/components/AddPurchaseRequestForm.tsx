@@ -12,6 +12,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
@@ -43,6 +44,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
   const [isOpen, setIsOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  const [selectedComboboxValue, setSelectedComboboxValue] = useState<string>(""); // State to control combobox display value
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -54,7 +56,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       suggested_selling_price: 0,
       supplier: "",
       notes: "",
-      product_id_internal: "", // Initialize internal field
+      product_id_internal: "",
     },
   });
 
@@ -76,6 +78,50 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
 
     fetchProducts();
   }, []);
+
+  // Reset form and combobox value when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        item_name: "",
+        item_code: "",
+        quantity: 1,
+        unit_price: 0,
+        suggested_selling_price: 0,
+        supplier: "",
+        notes: "",
+        product_id_internal: "",
+      });
+      setSelectedComboboxValue(""); // Clear combobox selection
+    }
+  }, [isOpen, form]);
+
+  const handleComboboxChange = (selectedProduct: Product | undefined) => {
+    if (selectedProduct) {
+      form.setValue("item_name", selectedProduct.nama_barang);
+      form.setValue("item_code", selectedProduct.kode_barang);
+      form.setValue("unit_price", selectedProduct.harga_beli);
+      form.setValue("suggested_selling_price", selectedProduct.harga_jual);
+      form.setValue("product_id_internal", selectedProduct.id);
+      setSelectedComboboxValue(selectedProduct.nama_barang); // Update combobox display
+    } else {
+      // If selection is cleared, clear all related fields
+      form.setValue("item_name", "");
+      form.setValue("item_code", "");
+      form.setValue("unit_price", 0);
+      form.setValue("suggested_selling_price", 0);
+      form.setValue("product_id_internal", "");
+      setSelectedComboboxValue("");
+    }
+  };
+
+  // Handler for manual input changes to item_name or item_code
+  const handleManualInputChange = (fieldName: "item_name" | "item_code", value: string) => {
+    form.setValue(fieldName, value);
+    // If user manually types, clear the product_id_internal to indicate it's no longer linked to a pre-selected product
+    form.setValue("product_id_internal", "");
+    setSelectedComboboxValue(""); // Clear combobox display if manual input
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -182,34 +228,33 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormItem className="md:col-span-2">
+              <FormLabel>Pilih Produk yang Sudah Ada (Opsional)</FormLabel>
+              <FormControl>
+                <StockItemCombobox
+                  name="product_selector"
+                  items={products}
+                  value={selectedComboboxValue} // Control combobox value
+                  onValueChange={handleComboboxChange}
+                  disabled={loadingProducts}
+                  placeholder={loadingProducts ? "Memuat item produk..." : "Pilih item yang sudah ada..."}
+                />
+              </FormControl>
+              <FormDescription>
+                Pilih produk yang sudah ada untuk mengisi otomatis detailnya, atau isi manual di bawah.
+              </FormDescription>
+            </FormItem>
+
             <FormField
               control={form.control}
               name="item_name"
               render={({ field }) => (
-                <FormItem className="md:col-span-2">
+                <FormItem>
                   <FormLabel>Nama Item</FormLabel>
                   <FormControl>
-                    <StockItemCombobox
-                      name={field.name}
-                      items={products}
-                      value={field.value}
-                      onValueChange={(selectedProduct) => {
-                        if (selectedProduct) {
-                          form.setValue("item_name", selectedProduct.nama_barang);
-                          form.setValue("item_code", selectedProduct.kode_barang);
-                          form.setValue("unit_price", selectedProduct.harga_beli);
-                          form.setValue("suggested_selling_price", selectedProduct.harga_jual);
-                          form.setValue("product_id_internal", selectedProduct.id); // Set internal product_id
-                        } else {
-                          form.setValue("item_name", "");
-                          form.setValue("item_code", "");
-                          form.setValue("unit_price", 0);
-                          form.setValue("suggested_selling_price", 0);
-                          form.setValue("product_id_internal", ""); // Clear internal product_id
-                        }
-                      }}
-                      disabled={loadingProducts}
-                      placeholder={loadingProducts ? "Memuat item produk..." : "Pilih item yang sudah ada atau ketik baru..."}
+                    <Input
+                      {...field}
+                      onChange={(e) => handleManualInputChange("item_name", e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
@@ -223,7 +268,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                 <FormItem>
                   <FormLabel>Kode Item</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input
+                      {...field}
+                      onChange={(e) => handleManualInputChange("item_code", e.target.value)}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
