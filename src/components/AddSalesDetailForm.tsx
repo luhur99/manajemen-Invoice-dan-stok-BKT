@@ -28,6 +28,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
+import { SalesDetail } from '@/api/salesDetails'; // Import SalesDetail type
 
 const formSchema = z.object({
   no: z.coerce.number().min(1, { message: 'Nomor wajib diisi.' }),
@@ -60,9 +61,11 @@ const formSchema = z.object({
 interface AddSalesDetailFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingSalesDetail?: SalesDetail | null; // New prop for existing sales detail
+  onCancelEdit?: () => void; // New prop to cancel edit
 }
 
-const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ onSubmit, isLoading }) => {
+const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ onSubmit, isLoading, existingSalesDetail, onCancelEdit }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -93,6 +96,66 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ onSubmit, isLoa
       catatan: '',
     },
   });
+
+  React.useEffect(() => {
+    if (existingSalesDetail) {
+      form.reset({
+        no: existingSalesDetail.no,
+        kirim_install: existingSalesDetail.kirim_install,
+        no_transaksi: existingSalesDetail.no_transaksi,
+        invoice_number: existingSalesDetail.invoice_number,
+        new_old: existingSalesDetail.new_old || '',
+        perusahaan: existingSalesDetail.perusahaan || '',
+        tanggal: new Date(existingSalesDetail.tanggal),
+        hari: existingSalesDetail.hari || '',
+        jam: existingSalesDetail.jam || '',
+        customer: existingSalesDetail.customer,
+        alamat_install: existingSalesDetail.alamat_install || '',
+        no_hp: existingSalesDetail.no_hp || '',
+        type: existingSalesDetail.type || '',
+        qty_unit: existingSalesDetail.qty_unit || 0,
+        stock: existingSalesDetail.stock || 0,
+        harga: existingSalesDetail.harga || 0,
+        web: existingSalesDetail.web || '',
+        qty_web: existingSalesDetail.qty_web || 0,
+        kartu: existingSalesDetail.kartu || '',
+        qty_kartu: existingSalesDetail.qty_kartu || 0,
+        paket: existingSalesDetail.paket || '',
+        pulsa: existingSalesDetail.pulsa || 0,
+        teknisi: existingSalesDetail.teknisi || '',
+        payment: existingSalesDetail.payment || '',
+        catatan: existingSalesDetail.catatan || '',
+      });
+    } else {
+      form.reset({
+        no: 1,
+        kirim_install: '',
+        no_transaksi: '',
+        invoice_number: '',
+        new_old: '',
+        perusahaan: '',
+        tanggal: undefined,
+        hari: '',
+        jam: '',
+        customer: '',
+        alamat_install: '',
+        no_hp: '',
+        type: '',
+        qty_unit: 0,
+        stock: 0,
+        harga: 0,
+        web: '',
+        qty_web: 0,
+        kartu: '',
+        qty_kartu: 0,
+        paket: '',
+        pulsa: 0,
+        teknisi: '',
+        payment: '',
+        catatan: '',
+      });
+    }
+  }, [existingSalesDetail, form]);
 
   return (
     <Form {...form}>
@@ -482,7 +545,7 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ onSubmit, isLoa
             name="catatan"
             render={({ field }) => (
               <FormItem className="md:col-span-2">
-                <FormLabel>Catatan</FormLabel>
+                <FormLabel>Catatan (Opsional)</FormLabel>
                 <FormControl>
                   <Textarea placeholder="Catatan tambahan" {...field} />
                 </FormControl>
@@ -492,9 +555,16 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ onSubmit, isLoa
           />
         </div>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Menyimpan...' : 'Simpan Detail Penjualan'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Menyimpan...' : (existingSalesDetail ? 'Update Detail Penjualan' : 'Simpan Detail Penjualan')}
+          </Button>
+          {existingSalesDetail && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );

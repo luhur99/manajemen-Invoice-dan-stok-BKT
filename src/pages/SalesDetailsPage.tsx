@@ -13,6 +13,7 @@ import {
 } from '@/api/salesDetails';
 import AddSalesDetailForm from '@/components/AddSalesDetailForm';
 import SalesDetailTable from '@/components/SalesDetailTable';
+import SalesDetailDetailDialog from '@/components/SalesDetailDetailDialog'; // Import the new dialog component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
@@ -23,6 +24,8 @@ const SalesDetailsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingSalesDetail, setEditingSalesDetail] = React.useState<SalesDetail | null>(null); // State for editing sales detail
+  const [viewingSalesDetail, setViewingSalesDetail] = React.useState<SalesDetail | null>(null); // State for viewing sales detail
 
   const { data: salesDetails, isLoading, error } = useQuery({
     queryKey: ['salesDetails', userId],
@@ -43,6 +46,20 @@ const SalesDetailsPage: React.FC = () => {
     },
   });
 
+  const updateSalesDetailMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<SalesDetail> }) =>
+      updateSalesDetail(id, updates, userId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salesDetails', userId] });
+      showSuccess('Detail penjualan berhasil diperbarui!');
+      setEditingSalesDetail(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui detail penjualan: ${err.message}`);
+    },
+  });
+
   const deleteSalesDetailMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deleteSalesDetail(id, userId!),
     onSuccess: () => {
@@ -57,13 +74,22 @@ const SalesDetailsPage: React.FC = () => {
     },
   });
 
-  const handleAddSalesDetail = (values: any) => {
+  const handleAddOrUpdateSalesDetail = (values: any) => {
     if (!userId) {
-      showError('Anda harus login untuk menambahkan detail penjualan.');
+      showError('Anda harus login untuk menambahkan/memperbarui detail penjualan.');
       return;
     }
 
-    addSalesDetailMutation.mutate(values);
+    const salesDetailData = {
+      ...values,
+      tanggal: values.tanggal.toISOString().split('T')[0], // Format date to YYYY-MM-DD
+    };
+
+    if (editingSalesDetail) {
+      updateSalesDetailMutation.mutate({ id: editingSalesDetail.id, updates: salesDetailData });
+    } else {
+      addSalesDetailMutation.mutate(salesDetailData);
+    }
   };
 
   const handleDeleteSalesDetail = (id: string) => {
@@ -77,15 +103,17 @@ const SalesDetailsPage: React.FC = () => {
   };
 
   const handleViewSalesDetail = (salesDetail: SalesDetail) => {
-    // Implementasi untuk melihat detail penjualan
-    console.log('View sales detail:', salesDetail);
-    // Di sini Anda bisa membuka modal atau navigasi ke halaman detail
+    setViewingSalesDetail(salesDetail);
   };
 
   const handleEditSalesDetail = (salesDetail: SalesDetail) => {
-    // Implementasi untuk mengedit detail penjualan
-    console.log('Edit sales detail:', salesDetail);
-    // Di sini Anda bisa membuka modal edit atau navigasi ke halaman edit
+    setEditingSalesDetail(salesDetail);
+    setActiveTab('add'); // Switch to the add/edit tab
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSalesDetail(null);
+    setActiveTab('view');
   };
 
   if (isLoading) {
@@ -109,18 +137,20 @@ const SalesDetailsPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="view">Lihat Detail</TabsTrigger>
-          <TabsTrigger value="add">Tambah Detail Baru</TabsTrigger>
+          <TabsTrigger value="add">{editingSalesDetail ? 'Edit Detail' : 'Tambah Detail Baru'}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="add">
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Detail Penjualan Baru</CardTitle>
+              <CardTitle>{editingSalesDetail ? 'Edit Detail Penjualan' : 'Tambah Detail Penjualan Baru'}</CardTitle>
             </CardHeader>
             <CardContent>
               <AddSalesDetailForm 
-                onSubmit={handleAddSalesDetail} 
-                isLoading={addSalesDetailMutation.isPending} 
+                onSubmit={handleAddOrUpdateSalesDetail} 
+                isLoading={addSalesDetailMutation.isPending || updateSalesDetailMutation.isPending} 
+                existingSalesDetail={editingSalesDetail}
+                onCancelEdit={handleCancelEdit}
               />
             </CardContent>
           </Card>
@@ -138,6 +168,11 @@ const SalesDetailsPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      <SalesDetailDetailDialog
+        salesDetail={viewingSalesDetail}
+        onOpenChange={(open) => !open && setViewingSalesDetail(null)}
+      />
     </div>
   );
 };
