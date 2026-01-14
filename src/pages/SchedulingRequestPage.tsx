@@ -9,7 +9,8 @@ import {
   addSchedulingRequest, 
   updateSchedulingRequest, 
   deleteSchedulingRequest,
-  SchedulingRequest
+  SchedulingRequest,
+  SchedulingRequestStatus // Import SchedulingRequestStatus
 } from '@/api/schedulingRequests';
 import AddSchedulingRequestForm from '@/components/AddSchedulingRequestForm';
 import SchedulingRequestTable from '@/components/SchedulingRequestTable';
@@ -49,10 +50,11 @@ const SchedulingRequestPage: React.FC = () => {
   const updateSchedulingRequestMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<SchedulingRequest> }) =>
       updateSchedulingRequest(id, updates, userId!),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['schedulingRequests', userId] });
-      showSuccess('Permintaan penjadwalan berhasil diperbarui!');
+      showSuccess(`Permintaan penjadwalan berhasil diperbarui menjadi ${data.status}!`);
       setEditingRequest(null);
+      setViewingRequest(null); // Close dialog after update
       setActiveTab('view');
     },
     onError: (err) => {
@@ -116,6 +118,24 @@ const SchedulingRequestPage: React.FC = () => {
     setActiveTab('view');
   };
 
+  const handleApproveRequest = (id: string) => {
+    if (!userId) {
+      showError('Anda harus login untuk menyetujui permintaan penjadwalan.');
+      return;
+    }
+    updateSchedulingRequestMutation.mutate({ id, updates: { status: 'approved' as SchedulingRequestStatus } });
+  };
+
+  const handleRejectRequest = (id: string) => {
+    if (!userId) {
+      showError('Anda harus login untuk menolak permintaan penjadwalan.');
+      return;
+    }
+    updateSchedulingRequestMutation.mutate({ id, updates: { status: 'rejected' as SchedulingRequestStatus } });
+  };
+
+  const isApprovingOrRejecting = updateSchedulingRequestMutation.isPending;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full min-h-[calc(100vh-100px)]">
@@ -172,6 +192,9 @@ const SchedulingRequestPage: React.FC = () => {
       <SchedulingRequestDetailDialog
         request={viewingRequest}
         onOpenChange={(open) => !open && setViewingRequest(null)}
+        onApprove={handleApproveRequest}
+        onReject={handleRejectRequest}
+        isApprovingOrRejecting={isApprovingOrRejecting}
       />
     </div>
   );

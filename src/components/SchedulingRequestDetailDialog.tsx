@@ -7,19 +7,29 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter, // Import DialogFooter
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SchedulingRequest } from '@/api/schedulingRequests';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button'; // Import Button
+import { useSession } from '@/components/SessionContextProvider'; // Import useSession
+import { Loader2 } from 'lucide-react'; // Import Loader2
 
 interface SchedulingRequestDetailDialogProps {
   request: SchedulingRequest | null;
   onOpenChange: (open: boolean) => void;
+  onApprove: (id: string) => void; // New prop for approve action
+  onReject: (id: string) => void; // New prop for reject action
+  isApprovingOrRejecting: boolean; // New prop to indicate loading state for actions
 }
 
-const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps> = ({ request, onOpenChange }) => {
+const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps> = ({ request, onOpenChange, onApprove, onReject, isApprovingOrRejecting }) => {
+  const { session } = useSession();
+  const isAdmin = session?.user?.user_metadata?.role === 'admin';
+
   if (!request) {
     return null;
   }
@@ -147,6 +157,26 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
             <p className="text-sm">{format(new Date(request.created_at), 'dd MMMM yyyy HH:mm', { locale: id })}</p>
           </div>
         </div>
+
+        {isAdmin && request.status === 'pending' && (
+          <DialogFooter className="mt-4 flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => onReject(request.id)}
+              disabled={isApprovingOrRejecting}
+            >
+              {isApprovingOrRejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Tolak
+            </Button>
+            <Button
+              onClick={() => onApprove(request.id)}
+              disabled={isApprovingOrRejecting}
+            >
+              {isApprovingOrRejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Setujui
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
