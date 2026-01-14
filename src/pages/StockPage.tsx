@@ -4,9 +4,9 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
-import ProductForm from '@/components/ProductForm';
+import AddProductForm from '@/components/AddProductForm'; // Mengganti ProductForm dengan AddProductForm
 import ProductTable from '@/components/ProductTable';
-import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, WarehouseCategory, fetchProductByCodeOrName, Product } from '@/api/stock';
+import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, WarehouseCategory, Product } from '@/api/stock';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -16,31 +16,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 
-// Helper hook for debouncing values
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
+// Helper hook for debouncing values (tidak lagi digunakan di sini, dipindahkan ke AddProductForm)
+// function useDebounce<T>(value: T, delay: number): T {
+//   const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
 
-  React.useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
+//   React.useEffect(() => {
+//     const handler = setTimeout(() => {
+//       setDebouncedValue(value);
+//     }, delay);
 
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
+//     return () => {
+//       clearTimeout(handler);
+//     };
+//   }, [value, delay]);
 
-  return debouncedValue;
-}
+//   return debouncedValue;
+// }
 
 const StockPage: React.FC = () => {
   const { session } = useSession();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
 
-  // State untuk memaksa ProductForm mereset
-  const [productFormKey, setProductFormKey] = React.useState(0);
-  // State baru untuk mengontrol tab yang aktif
+  // State untuk mengontrol tab yang aktif
   const [activeTab, setActiveTab] = React.useState<string>('add');
 
   const { data: products, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
@@ -55,36 +53,31 @@ const StockPage: React.FC = () => {
     enabled: !!userId,
   });
 
-  // State for pre-populating product form
-  const [currentProductCode, setCurrentProductCode] = React.useState<string>('');
-  const [currentProductName, setCurrentProductName] = React.useState<string>('');
-  const debouncedProductCode = useDebounce(currentProductCode, 500);
-  const debouncedProductName = useDebounce(currentProductName, 500);
+  // Hapus semua state dan logika terkait pemeriksaan duplikat dari StockPage
+  // const [currentProductCode, setCurrentProductCode] = React.useState<string>('');
+  // const [currentProductName, setCurrentProductName] = React.useState<string>('');
+  // const debouncedProductCode = useDebounce(currentProductCode, 500);
+  // const debouncedProductName = useDebounce(currentProductName, 500);
 
-  const { data: prepopulatedProduct, isLoading: isLoadingPrepopulatedProduct } = useQuery<Product | null>({
-    queryKey: ['prepopulatedProduct', userId, debouncedProductCode, debouncedProductName],
-    queryFn: () => {
-      if (!userId || (!debouncedProductCode && !debouncedProductName)) return Promise.resolve(null);
-      return fetchProductByCodeOrName(userId, debouncedProductCode, debouncedProductName);
-    },
-    enabled: !!userId && (!!debouncedProductCode || !!debouncedProductName),
-  });
+  // const { data: prepopulatedProduct, isLoading: isLoadingPrepopulatedProduct } = useQuery<Product | null>({
+  //   queryKey: ['prepopulatedProduct', userId, debouncedProductCode, debouncedProductName],
+  //   queryFn: () => {
+  //     if (!userId || (!debouncedProductCode && !debouncedProductName)) return Promise.resolve(null);
+  //     return fetchProductByCodeOrName(userId, debouncedProductCode, debouncedProductName);
+  //   },
+  //   enabled: !!userId && (!!debouncedProductCode || !!debouncedProductName),
+  // });
 
-  // Hitung isDuplicate di StockPage
-  const isDuplicate = React.useMemo(() => {
-    return !!prepopulatedProduct;
-  }, [prepopulatedProduct]);
+  // const isDuplicate = React.useMemo(() => {
+  //   return !!prepopulatedProduct;
+  // }, [prepopulatedProduct]);
 
   const addProductMutation = useMutation({
-    mutationFn: (newProductData: Parameters<typeof addProduct>[0]) => addProduct(newProductData, userId!),
+    mutationFn: (newProductData: Omit<Product, 'id' | 'created_at' | 'user_id'>) => addProduct(newProductData, userId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', userId] });
       queryClient.invalidateQueries({ queryKey: ['warehouseInventories', userId] });
       showSuccess('Produk berhasil ditambahkan!');
-      // Clear input fields after successful addition by incrementing key
-      setProductFormKey(prevKey => prevKey + 1);
-      setCurrentProductCode(''); // Clear the search state as well
-      setCurrentProductName(''); // Clear the search state as well
       setActiveTab('view'); // Pindah ke tab 'Lihat Stok' setelah berhasil menambahkan produk
     },
     onError: (err) => {
@@ -116,21 +109,17 @@ const StockPage: React.FC = () => {
       showError('Anda harus login untuk menambahkan produk.');
       return;
     }
-    // Gunakan isDuplicate yang dihitung di StockPage
-    if (isDuplicate) {
-      showError('Produk dengan kode atau nama ini sudah ada. Tidak dapat menambahkan duplikat.');
-      return;
-    }
     addProductMutation.mutate(values);
   };
 
-  const handleProductInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
-    if (field === 'kode_barang') {
-      setCurrentProductCode(value);
-    } else { // field === 'nama_barang'
-      setCurrentProductName(value);
-    }
-  };
+  // Hapus handleProductInputChange karena tidak lagi diperlukan di sini
+  // const handleProductInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
+  //   if (field === 'kode_barang') {
+  //     setCurrentProductCode(value);
+  //   } else { // field === 'nama_barang'
+  //     setCurrentProductName(value);
+  //   }
+  // };
 
   const [selectedProductForMovement, setSelectedProductForMovement] = React.useState<string>('');
   const [fromWarehouse, setFromWarehouse] = React.useState<WarehouseCategory | ''>('');
@@ -176,7 +165,8 @@ const StockPage: React.FC = () => {
     }));
   }, [products, inventories]);
 
-  const isLoadingAny = isLoadingProducts || isLoadingInventories || isLoadingPrepopulatedProduct;
+  // isLoadingPrepopulatedProduct dihapus dari sini
+  const isLoadingAny = isLoadingProducts || isLoadingInventories;
 
   if (isLoadingAny) {
     return (
@@ -201,18 +191,15 @@ const StockPage: React.FC = () => {
           <TabsTrigger value="add">Tambah Produk Baru</TabsTrigger>
           <TabsTrigger value="move">Pindahkan Stok</TabsTrigger>
         </TabsList>
-        <TabsContent value="add"> {/* Pindahkan ProductForm ke sini */}
+        <TabsContent value="add">
           <Card>
             <CardHeader>
               <CardTitle>Tambah Produk Baru</CardTitle>
             </CardHeader>
             <CardContent>
-              <ProductForm
-                key={productFormKey} // Tambahkan key di sini
+              <AddProductForm
                 onSubmit={handleAddProduct}
                 isLoading={addProductMutation.isPending}
-                isDuplicate={isDuplicate} // Teruskan isDuplicate sebagai boolean
-                onInputChange={handleProductInputChange}
               />
             </CardContent>
           </Card>
