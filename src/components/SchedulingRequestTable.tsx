@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Eye, Edit, Trash } from 'lucide-react';
+import { Loader2, Eye, Edit, Trash, CheckCircle2, XCircle } from 'lucide-react'; // Import new icons
 import { SchedulingRequest } from '@/api/schedulingRequests';
 
 interface SchedulingRequestTableProps {
@@ -18,6 +18,10 @@ interface SchedulingRequestTableProps {
   onEdit: (request: SchedulingRequest) => void;
   onDelete: (id: string) => void;
   deletingId: string | null;
+  isAdmin: boolean; // New prop
+  onApprove: (id: string) => void; // New prop
+  onReject: (id: string) => void; // New prop
+  isApprovingOrRejecting: boolean; // New prop
 }
 
 const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
@@ -28,6 +32,10 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
   onEdit,
   onDelete,
   deletingId,
+  isAdmin, // Destructure new prop
+  onApprove, // Destructure new prop
+  onReject, // Destructure new prop
+  isApprovingOrRejecting, // Destructure new prop
 }) => {
   if (isLoading) {
     return (
@@ -137,26 +145,51 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onEdit(request)}
-                        disabled={request.status !== 'pending'}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onDelete(request.id)}
-                        disabled={deletingId === request.id || request.status !== 'pending'}
-                      >
-                        {deletingId === request.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash className="h-4 w-4" />
-                        )}
-                      </Button>
+                      {isAdmin && request.status === 'pending' ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onApprove(request.id)}
+                            disabled={isApprovingOrRejecting}
+                            className="bg-green-500 hover:bg-green-600 text-white"
+                          >
+                            {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onReject(request.id)}
+                            disabled={isApprovingOrRejecting}
+                            className="bg-red-500 hover:bg-red-600 text-white"
+                          >
+                            {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onEdit(request)}
+                            disabled={request.status !== 'pending'}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onDelete(request.id)}
+                            disabled={deletingId === request.id || request.status !== 'pending'}
+                          >
+                            {deletingId === request.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

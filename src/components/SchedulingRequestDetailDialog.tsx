@@ -7,28 +7,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SchedulingRequest } from '@/api/schedulingRequests';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { useSession } from '@/components/SessionContextProvider';
-import { Loader2 } from 'lucide-react';
 
 interface SchedulingRequestDetailDialogProps {
   request: SchedulingRequest | null;
   onOpenChange: (open: boolean) => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  isApprovingOrRejecting: boolean;
+  // onApprove dan onReject tidak lagi diperlukan di sini
+  // isApprovingOrRejecting tidak lagi diperlukan di sini
 }
 
-const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps> = ({ request, onOpenChange, onApprove, onReject, isApprovingOrRejecting }) => {
-  const { session } = useSession();
-  const isAdmin = session?.user?.user_metadata?.role === 'admin';
+const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps> = ({ request, onOpenChange }) => {
+  // const { session } = useSession(); // Tidak lagi diperlukan
+  // const isAdmin = session?.user?.user_metadata?.role === 'admin'; // Tidak lagi diperlukan
 
   if (!request) {
     return null;
@@ -70,13 +65,7 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
-          {/* Debug Info */}
-          <div className="text-sm text-muted-foreground border-t pt-4 mt-4">
-            <p>Informasi Debug (Hanya untuk pengembangan):</p>
-            <p>Anda Admin: {isAdmin ? 'Ya' : 'Tidak'}</p>
-            <p>Status Permintaan: {request.status}</p>
-          </div>
-          {/* End Debug Info */}
+          {/* Debug Info dihapus */}
 
           <div className="grid grid-cols-2 items-center gap-4">
             <p className="text-sm font-medium text-muted-foreground">Nama Pelanggan</p>
@@ -166,25 +155,7 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
           </div>
         </div>
 
-        {isAdmin && request.status === 'pending' && (
-          <DialogFooter className="mt-4 flex justify-end space-x-2">
-            <Button
-              variant="outline"
-              onClick={() => onReject(request.id)}
-              disabled={isApprovingOrRejecting}
-            >
-              {isApprovingOrRejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Tolak
-            </Button>
-            <Button
-              onClick={() => onApprove(request.id)}
-              disabled={isApprovingOrRejecting}
-            >
-              {isApprovingOrRejecting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Setujui
-            </Button>
-          </DialogFooter>
-        )}
+        {/* DialogFooter dengan tombol aksi dihapus */}
       </DialogContent>
     </Dialog>
   );

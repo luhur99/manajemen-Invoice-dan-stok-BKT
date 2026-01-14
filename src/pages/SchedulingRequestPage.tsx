@@ -22,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 const SchedulingRequestPage: React.FC = () => {
   const { session } = useSession();
   const userId = session?.user?.id;
+  const isAdmin = session?.user?.user_metadata?.role === 'admin'; // Get isAdmin status
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -185,6 +186,10 @@ const SchedulingRequestPage: React.FC = () => {
             onEdit={handleEditSchedulingRequest}
             onDelete={handleDeleteSchedulingRequest}
             deletingId={deletingId}
+            isAdmin={isAdmin}
+            onApprove={handleApproveRequest}
+            onReject={handleRejectRequest}
+            isApprovingOrRejecting={isApprovingOrRejecting}
           />
         </TabsContent>
       </Tabs>
@@ -192,9 +197,6 @@ const SchedulingRequestPage: React.FC = () => {
       <SchedulingRequestDetailDialog
         request={viewingRequest}
         onOpenChange={(open) => !open && setViewingRequest(null)}
-        onApprove={handleApproveRequest}
-        onReject={handleRejectRequest}
-        isApprovingOrRejecting={isApprovingOrRejecting}
       />
     </div>
   );
