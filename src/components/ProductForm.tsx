@@ -48,14 +48,13 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
 
   React.useEffect(() => {
     if (existingProduct) {
-      form.reset({
-        kode_barang: existingProduct.kode_barang,
-        nama_barang: existingProduct.nama_barang,
-        satuan: existingProduct.satuan,
-        harga_beli: existingProduct.harga_beli,
-        harga_jual: existingProduct.harga_jual,
-        safe_stock_limit: existingProduct.safe_stock_limit,
-      });
+      // Use setValue for more reliable pre-population
+      form.setValue('kode_barang', existingProduct.kode_barang);
+      form.setValue('nama_barang', existingProduct.nama_barang);
+      form.setValue('satuan', existingProduct.satuan);
+      form.setValue('harga_beli', existingProduct.harga_beli);
+      form.setValue('harga_jual', existingProduct.harga_jual);
+      form.setValue('safe_stock_limit', existingProduct.safe_stock_limit);
     } else {
       // Reset form to default values if no existing product is found
       form.reset({
