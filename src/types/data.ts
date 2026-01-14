@@ -170,4 +170,5 @@ export interface PurchaseRequest {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   no?: number; // For display purposes
+  document_url?: string; // New: URL for the uploaded purchase document
 }

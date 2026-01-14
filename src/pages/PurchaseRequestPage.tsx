@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { Loader2, CheckCircle, XCircle, Eye, Trash2, PlusCircle } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
+import PurchaseRequestDocumentUpload from "@/components/PurchaseRequestDocumentUpload"; // Import new component
 
 const PurchaseRequestPage = () => {
   const { session } = useSession();
@@ -235,6 +236,36 @@ const PurchaseRequestPage = () => {
     setIsViewNotesOpen(true);
   };
 
+  const handleDocumentUploadSuccess = async (purchaseRequestId: string, fileUrl: string) => {
+    const { error } = await supabase
+      .from("purchase_requests")
+      .update({ document_url: fileUrl })
+      .eq("id", purchaseRequestId);
+
+    if (error) {
+      console.error("Error updating purchase request with document URL:", error);
+      showError("Gagal menyimpan URL dokumen ke database.");
+      return;
+    }
+    showSuccess("URL dokumen pembelian berhasil diperbarui!");
+    fetchPurchaseRequests();
+  };
+
+  const handleDocumentRemoveSuccess = async (purchaseRequestId: string) => {
+    const { error } = await supabase
+      .from("purchase_requests")
+      .update({ document_url: null })
+      .eq("id", purchaseRequestId);
+
+    if (error) {
+      console.error("Error removing document URL from purchase request:", error);
+      showError("Gagal menghapus URL dokumen dari database.");
+      return;
+    }
+    showSuccess("URL dokumen pembelian berhasil dihapus!");
+    fetchPurchaseRequests();
+  };
+
   const totalPages = Math.ceil(filteredPurchaseRequests.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
@@ -316,6 +347,7 @@ const PurchaseRequestPage = () => {
                     <TableHead className="text-right">Total Harga</TableHead>
                     <TableHead>Pemasok</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Dokumen</TableHead> {/* New TableHead */}
                     <TableHead>Catatan</TableHead>
                     <TableHead>Tanggal Pengajuan</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
@@ -336,6 +368,14 @@ const PurchaseRequestPage = () => {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
                           {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                         </span>
+                      </TableCell>
+                      <TableCell> {/* New TableCell for document upload */}
+                        <PurchaseRequestDocumentUpload
+                          purchaseRequestId={request.id}
+                          currentFileUrl={request.document_url}
+                          onUploadSuccess={(fileUrl) => handleDocumentUploadSuccess(request.id, fileUrl)}
+                          onRemoveSuccess={() => handleDocumentRemoveSuccess(request.id)}
+                        />
                       </TableCell>
                       <TableCell>
                         {request.notes ? (
