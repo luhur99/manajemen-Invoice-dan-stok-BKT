@@ -32,6 +32,7 @@ export interface StockTransactionWithItemName extends StockTransaction {
   stock_items: {
     nama_barang: string;
     kode_barang: string;
+    warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // Added warehouse_category here
   }[] | null; // Diperbaiki: sekarang array objek atau null
 }
 
@@ -46,6 +47,14 @@ export interface StockMovement {
   reason?: string;
   movement_date: string; // YYYY-MM-DD
   created_at: string;
+}
+
+// New interface for Stock Movement with Item Name for display
+export interface StockMovementWithItemName extends StockMovement {
+  stock_items: {
+    nama_barang: string;
+    kode_barang: string;
+  } | null; // Single object or null, as it's a single item being moved
 }
 
 export interface SalesDetailItem {

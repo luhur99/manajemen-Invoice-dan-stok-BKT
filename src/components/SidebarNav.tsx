@@ -3,7 +3,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History } from "lucide-react"; // Import History icon
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft } from "lucide-react"; // Import History and ArrowRightLeft icons
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,14 @@ const navItems = [
     icon: Package,
   },
   {
-    title: "Riwayat Stok", // New nav item
+    title: "Riwayat Stok",
     href: "/stock-history",
-    icon: History, // Use History icon
+    icon: History,
+  },
+  {
+    title: "Riwayat Perpindahan Stok", // New nav item
+    href: "/stock-movement-history",
+    icon: ArrowRightLeft, // Use ArrowRightLeft icon
   },
   {
     title: "Profil Saya",

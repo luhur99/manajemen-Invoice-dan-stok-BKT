@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
 import { format, startOfMonth, endOfMonth, subMonths, addDays } from "date-fns";
-import { Loader2, History, CalendarIcon, Eye } from "lucide-react";
+import { Loader2, CalendarIcon, Eye } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ interface FlattenedStockTransactionForExport {
   transaction_type: string;
   quantity: number;
   notes: string;
+  warehouse_category: string; // New field for export
 }
 
 const StockHistoryPage = () => {
@@ -36,6 +37,7 @@ const StockHistoryPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterWarehouseCategory, setFilterWarehouseCategory] = useState<string>("all"); // New filter state
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
@@ -91,7 +93,8 @@ const StockHistoryPage = () => {
           created_at,
           stock_items (
             nama_barang,
-            kode_barang
+            kode_barang,
+            warehouse_category
           )
         `);
 
@@ -128,12 +131,17 @@ const StockHistoryPage = () => {
       // Client-side search filtering
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
-        return (
+        const matchesSearch = (
           item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
         );
+
+        const matchesCategory = filterWarehouseCategory === "all" ||
+                                item.stock_items?.[0]?.warehouse_category === filterWarehouseCategory;
+        
+        return matchesSearch && matchesCategory;
       });
 
       setTransactions(processedData); // Keep all fetched data (date & type filtered)
@@ -148,7 +156,7 @@ const StockHistoryPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [startDate, endDate, filterType, searchTerm]); // Dependencies for useCallback
+  }, [startDate, endDate, filterType, searchTerm, filterWarehouseCategory]); // Dependencies for useCallback
 
   // Function to fetch all stock transactions for export
   const fetchAllStockTransactionsForExport = useCallback(async () => {
@@ -164,7 +172,8 @@ const StockHistoryPage = () => {
           created_at,
           stock_items (
             nama_barang,
-            kode_barang
+            kode_barang,
+            warehouse_category
           )
         `);
 
@@ -224,6 +233,7 @@ const StockHistoryPage = () => {
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           notes: processedNotes,
+          warehouse_category: getCategoryDisplay(item.stock_items?.warehouse_category || "N/A"), // Include warehouse_category
         };
       }));
       return flattenedData;
@@ -241,6 +251,7 @@ const StockHistoryPage = () => {
     { key: "item_code", label: "Kode Barang" },
     { key: "transaction_type", label: "Tipe Transaksi" },
     { key: "quantity", label: "Kuantitas" },
+    { key: "warehouse_category", label: "Kategori Gudang" }, // New header for export
     { key: "notes", label: "Catatan" },
   ];
 
@@ -252,6 +263,7 @@ const StockHistoryPage = () => {
   const handleResetFilters = () => {
     setSearchTerm("");
     setFilterType("all");
+    setFilterWarehouseCategory("all"); // Reset new filter
     setSelectedDatePreset("all");
     setStartDate(undefined);
     setEndDate(undefined);
@@ -294,6 +306,15 @@ const StockHistoryPage = () => {
         return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const getCategoryDisplay = (category: string) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return category;
     }
   };
 
@@ -345,6 +366,17 @@ const StockHistoryPage = () => {
               <SelectItem value="out">Stok Keluar</SelectItem>
               <SelectItem value="return">Retur Barang</SelectItem>
               <SelectItem value="damage_loss">Rusak/Hilang</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterWarehouseCategory} onValueChange={setFilterWarehouseCategory}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter Kategori Gudang" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Kategori</SelectItem>
+              <SelectItem value="siap_jual">Siap Jual</SelectItem>
+              <SelectItem value="riset">Riset</SelectItem>
+              <SelectItem value="retur">Retur</SelectItem>
             </SelectContent>
           </Select>
           <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>
@@ -423,6 +455,7 @@ const StockHistoryPage = () => {
                     <TableHead>Kode Barang</TableHead>
                     <TableHead>Tipe Transaksi</TableHead>
                     <TableHead className="text-right">Kuantitas</TableHead>
+                    <TableHead>Kategori Gudang</TableHead> {/* New TableHead */}
                     <TableHead>Catatan</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -439,6 +472,7 @@ const StockHistoryPage = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
+                      <TableCell>{getCategoryDisplay(transaction.stock_items?.[0]?.warehouse_category || "N/A")}</TableCell> {/* New TableCell */}
                       <TableCell>
                         {transaction.notes ? (
                           <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">
