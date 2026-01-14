@@ -9,16 +9,17 @@ import {
   addInvoice, 
   updateInvoice, 
   deleteInvoice,
-  fetchInvoiceItems, // Import fetchInvoiceItems
+  fetchInvoiceItems,
   Invoice,
   InvoiceItem
 } from '@/api/invoices';
 import AddInvoiceForm from '@/components/AddInvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
+import InvoiceDetailDialog from '@/components/InvoiceDetailDialog'; // Import the new dialog component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client'; // Import supabase client
+import { supabase } from '@/integrations/supabase/client';
 
 const InvoiceManagementPage: React.FC = () => {
   const { session } = useSession();
@@ -26,7 +27,8 @@ const InvoiceManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
-  const [editingInvoice, setEditingInvoice] = React.useState<(Invoice & { items: InvoiceItem[] }) | null>(null); // State for editing invoice
+  const [editingInvoice, setEditingInvoice] = React.useState<(Invoice & { items: InvoiceItem[] }) | null>(null);
+  const [viewingInvoice, setViewingInvoice] = React.useState<(Invoice & { items: InvoiceItem[] }) | null>(null); // State for viewing invoice
 
   const { data: invoices, isLoading, error } = useQuery({
     queryKey: ['invoices', userId],
@@ -51,21 +53,17 @@ const InvoiceManagementPage: React.FC = () => {
     mutationFn: ({ id, updates, items }: { id: string; updates: Partial<Invoice>; items: InvoiceItem[] }) =>
       updateInvoice(id, updates, userId!)
         .then(async (updatedInvoice) => {
-          // Handle item updates/deletions/additions
           const existingItems = await fetchInvoiceItems(id, userId!);
           const existingItemIds = new Set(existingItems.map(item => item.id));
           const newItemIds = new Set(items.map(item => item.id).filter(Boolean));
 
-          // Items to delete
           const itemsToDelete = existingItems.filter(item => !newItemIds.has(item.id));
           for (const item of itemsToDelete) {
             await supabase.from('invoice_items').delete().eq('id', item.id);
           }
 
-          // Items to update or insert
           for (const item of items) {
             if (item.id && existingItemIds.has(item.id)) {
-              // Update existing item
               await supabase.from('invoice_items').update({
                 item_name: item.item_name,
                 quantity: item.quantity,
@@ -74,7 +72,6 @@ const InvoiceManagementPage: React.FC = () => {
                 unit_type: item.unit_type,
               }).eq('id', item.id);
             } else {
-              // Insert new item
               await supabase.from('invoice_items').insert({
                 invoice_id: id,
                 user_id: userId!,
@@ -128,7 +125,7 @@ const InvoiceManagementPage: React.FC = () => {
       invoice_date: values.invoice_date.toISOString().split('T')[0],
       due_date: values.due_date ? values.due_date.toISOString().split('T')[0] : null,
       total_amount: totalAmount,
-      payment_status: editingInvoice?.payment_status || 'pending' as const, // Keep existing status or default to pending
+      payment_status: editingInvoice?.payment_status || 'pending' as const,
     };
 
     if (editingInvoice) {
@@ -148,9 +145,17 @@ const InvoiceManagementPage: React.FC = () => {
     deleteInvoiceMutation.mutate({ id });
   };
 
-  const handleViewInvoice = (invoice: Invoice) => {
-    console.log('View invoice:', invoice);
-    // Implementasi untuk melihat detail faktur (misalnya, membuka modal)
+  const handleViewInvoice = async (invoice: Invoice) => {
+    if (!userId) {
+      showError('Anda harus login untuk melihat detail faktur.');
+      return;
+    }
+    try {
+      const items = await fetchInvoiceItems(invoice.id, userId);
+      setViewingInvoice({ ...invoice, items });
+    } catch (err: any) {
+      showError(`Gagal memuat item faktur: ${err.message}`);
+    }
   };
 
   const handleEditInvoice = async (invoice: Invoice) => {
@@ -161,7 +166,7 @@ const InvoiceManagementPage: React.FC = () => {
     try {
       const items = await fetchInvoiceItems(invoice.id, userId);
       setEditingInvoice({ ...invoice, items });
-      setActiveTab('add'); // Switch to the add/edit tab
+      setActiveTab('add');
     } catch (err: any) {
       showError(`Gagal memuat item faktur: ${err.message}`);
     }
@@ -233,6 +238,11 @@ const InvoiceManagementPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      <InvoiceDetailDialog
+        invoice={viewingInvoice}
+        onOpenChange={(open) => !open && setViewingInvoice(null)}
+      />
     </div>
   );
 };
