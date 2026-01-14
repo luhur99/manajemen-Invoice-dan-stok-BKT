@@ -1,2 +1,0 @@
-DROP POLICY IF EXISTS "Users can edit their own pending scheduling requests" ON public.scheduling_requests;
-DROP POLICY IF EXISTS "Users can approve/reject their own pending scheduling requests" ON public.scheduling_requests;

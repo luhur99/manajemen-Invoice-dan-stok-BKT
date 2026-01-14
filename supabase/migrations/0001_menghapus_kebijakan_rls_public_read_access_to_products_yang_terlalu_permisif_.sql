@@ -1,1 +1,0 @@
-DROP POLICY IF EXISTS "Public read access to products" ON public.products;
