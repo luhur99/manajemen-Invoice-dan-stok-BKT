@@ -32,7 +32,7 @@ interface StockTransactionWithProduct {
   quantity: number;
   notes: string | null;
   created_at: string;
-  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects
+  products: { "NAMA BARANG": string } | null; // Changed to single object or null
 }
 
 // Define interface for stock movement data with joined products
@@ -43,7 +43,7 @@ interface StockMovementWithProduct {
   quantity: number;
   reason: string | null;
   created_at: string;
-  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects
+  products: { "NAMA BARANG": string } | null; // Changed to single object or null
 }
 
 // Chart configuration
@@ -117,8 +117,8 @@ const DashboardOverviewPage = () => {
         let lowStockCount = 0;
         if (warehouseInventoriesData) {
           warehouseInventoriesData.forEach((item) => {
-            // Access safe_stock_limit from the first element of the products array
-            const limit = item.products?.[0]?.safe_stock_limit !== undefined && item.products?.[0]?.safe_stock_limit !== null ? item.products[0].safe_stock_limit : 10; // Default to 10 if limit not set
+            // Access safe_stock_limit directly from the products object (not an array)
+            const limit = item.products?.safe_stock_limit !== undefined && item.products?.safe_stock_limit !== null ? item.products.safe_stock_limit : 10; // Default to 10 if limit not set
             if (item.quantity < limit) {
               lowStockCount++;
             }
@@ -201,8 +201,8 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockTransactions.forEach(trans => {
-          // Access the products object directly from the first element of the array
-          const itemName = trans.products?.[0]?.["NAMA BARANG"] || "Item Tidak Dikenal";
+          // Access the products object directly
+          const itemName = trans.products?.["NAMA BARANG"] || "Item Tidak Dikenal";
           let desc = "";
           if (trans.transaction_type === 'initial') {
             desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
@@ -226,7 +226,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.products?.[0]?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access products object directly from the first element of the array
+          const itemName = mov.products?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access products object directly
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({

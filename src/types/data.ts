@@ -26,7 +26,7 @@ export interface WarehouseInventory {
     "HARGA BELI"?: number; // Make optional
     "HARGA JUAL"?: number; // Make optional
     safe_stock_limit?: number;
-  }[] | null; // Changed to array of objects or null
+  }[] | null; // Diperbaiki: sekarang array objek atau null
 }
 
 export interface StockTransaction {
