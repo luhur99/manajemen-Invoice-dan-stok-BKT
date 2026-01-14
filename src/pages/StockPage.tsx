@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Toggle } from "@/components/ui/toggle";
+import { format } from "date-fns"; // Import format
 
 // Define a flattened type for export
 interface FlattenedStockItemForExport {
@@ -36,7 +37,8 @@ interface FlattenedStockItemForExport {
   "KATEGORI GUDANG": string;
   "KUANTITAS": number;
   "BATAS AMAN": number;
-  "CREATED AT": string;
+  "Tanggal Dibuat": string; // New field for date
+  "Jam Dibuat": string; // New field for time
 }
 
 const StockPage = () => {
@@ -147,6 +149,9 @@ const StockPage = () => {
 
       // Flatten the data for CSV export
       const flattenedData: FlattenedStockItemForExport[] = productsData.flatMap((product: any) => {
+        const createdAtDate = product.created_at ? format(new Date(product.created_at), "yyyy-MM-dd") : "";
+        const createdAtTime = product.created_at ? format(new Date(product.created_at), "HH:mm:ss") : "";
+
         if (product.warehouse_inventories.length === 0) {
           return [{
             kode_barang: product.kode_barang, // Corrected
@@ -157,7 +162,8 @@ const StockPage = () => {
             "KATEGORI GUDANG": "Tidak Ada",
             "KUANTITAS": 0,
             "BATAS AMAN": product.safe_stock_limit || 0,
-            "CREATED AT": product.created_at,
+            "Tanggal Dibuat": createdAtDate,
+            "Jam Dibuat": createdAtTime,
           }];
         }
         return product.warehouse_inventories.map((inventory: any) => ({
@@ -169,7 +175,8 @@ const StockPage = () => {
           "KATEGORI GUDANG": getCategoryDisplay(inventory.warehouse_category),
           "KUANTITAS": inventory.quantity,
           "BATAS AMAN": product.safe_stock_limit || 0,
-          "CREATED AT": product.created_at,
+          "Tanggal Dibuat": createdAtDate,
+          "Jam Dibuat": createdAtTime,
         }));
       });
       return flattenedData;
@@ -189,7 +196,8 @@ const StockPage = () => {
     { key: "KATEGORI GUDANG", label: "Kategori Gudang" },
     { key: "KUANTITAS", label: "Kuantitas" },
     { key: "BATAS AMAN", label: "Batas Aman" },
-    { key: "CREATED AT", label: "Created At" },
+    { key: "Tanggal Dibuat", label: "Tanggal Dibuat" }, // Updated header
+    { key: "Jam Dibuat", label: "Jam Dibuat" }, // Updated header
   ];
 
   useEffect(() => {
