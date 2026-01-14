@@ -120,7 +120,7 @@ const StockMovementHistoryPage = () => {
 
       const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items || null, // Ensure it's a single object or null
+        stock_items: item.stock_items ? [item.stock_items] : null, // Ensure it's an array of objects or null
       }));
 
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
