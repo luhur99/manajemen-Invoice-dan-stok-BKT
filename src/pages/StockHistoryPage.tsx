@@ -468,8 +468,8 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.products?.["NAMA BARANG"] || "N/A"}</TableCell>
-                      <TableCell>{transaction.products?.["KODE BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.[0]?.["NAMA BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.[0]?.["KODE BARANG"] || "N/A"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}

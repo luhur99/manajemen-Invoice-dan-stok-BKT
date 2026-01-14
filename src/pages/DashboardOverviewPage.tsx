@@ -32,7 +32,7 @@ interface StockTransactionWithProduct {
   quantity: number;
   notes: string | null;
   created_at: string;
-  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects
+  products: { "NAMA BARANG": string } | null; // Changed to single object or null
 }
 
 // Define interface for stock movement data with joined products
@@ -43,7 +43,7 @@ interface StockMovementWithProduct {
   quantity: number;
   reason: string | null;
   created_at: string;
-  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects
+  products: { "NAMA BARANG": string } | null; // Changed to single object or null
 }
 
 // Chart configuration
@@ -179,11 +179,11 @@ const DashboardOverviewPage = () => {
         // Cast the data to the defined interface and adjust products access
         const recentStockTransactions: StockTransactionWithProduct[] = recentStockTransactionsData.map((item: any) => ({
           ...item,
-          products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
+          products: item.products || null, // Ensure it's a single object or null
         })) as StockTransactionWithProduct[];
         const recentStockMovements: StockMovementWithProduct[] = recentStockMovementsData.map((item: any) => ({
           ...item,
-          products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
+          products: item.products || null, // Ensure it's a single object or null
         })) as StockMovementWithProduct[];
 
         const allActivities: LatestActivity[] = [];
@@ -207,8 +207,8 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockTransactions.forEach(trans => {
-          // Access the products object directly from the first element of the array
-          const itemName = trans.products?.[0]?.["NAMA BARANG"] || "Item Tidak Dikenal";
+          // Access the products object directly
+          const itemName = trans.products?.["NAMA BARANG"] || "Item Tidak Dikenal";
           let desc = "";
           if (trans.transaction_type === 'initial') {
             desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
@@ -232,7 +232,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.products?.[0]?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access products object directly from the first element of the array
+          const itemName = mov.products?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access products object directly
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({
@@ -443,6 +443,7 @@ const DashboardOverviewPage = () => {
                     allowDecimals={false}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend /> {/* Add legend to distinguish bars */}
                   <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
                 </BarChart>
               </ChartContainer>
