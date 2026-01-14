@@ -11,10 +11,11 @@ import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
-import StockMovementForm from "@/components/StockMovementForm"; // Import new component
+import StockMovementForm from "@/components/StockMovementForm";
+import StockAdjustmentForm from "@/components/StockAdjustmentForm"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
 import ExportDataButton from "@/components/ExportDataButton";
-import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle } from "lucide-react"; // Import ArrowRightLeft and AlertCircle icons
+import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle, SlidersHorizontal } from "lucide-react"; // Import SlidersHorizontal for adjustment
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +23,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Toggle } from "@/components/ui/toggle"; // Import Toggle component
+import { Toggle } from "@/components/ui/toggle";
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -36,8 +37,9 @@ const StockPage = () => {
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
 
-  const [isMovementFormOpen, setIsMovementFormOpen] = useState(false); // State for StockMovementForm
-  const [showLowStockOnly, setShowLowStockOnly] = useState(false); // New state for low stock filter
+  const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
+  const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false); // New state for StockAdjustmentForm
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -48,7 +50,7 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at") // Include warehouse_category
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at")
         .order("nama_barang", { ascending: true });
 
       if (error) {
@@ -69,7 +71,7 @@ const StockPage = () => {
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
         safe_stock_limit: item.safe_stock_limit,
-        warehouse_category: item.warehouse_category, // Assign warehouse_category
+        warehouse_category: item.warehouse_category,
         created_at: item.created_at,
       }));
 
@@ -91,7 +93,7 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at") // Include warehouse_category
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at")
         .order("nama_barang", { ascending: true });
 
       if (error) {
@@ -111,7 +113,7 @@ const StockPage = () => {
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
         safe_stock_limit: item.safe_stock_limit,
-        warehouse_category: item.warehouse_category, // Assign warehouse_category
+        warehouse_category: item.warehouse_category,
         created_at: item.created_at,
       })) as StockItem[];
     } catch (err: any) {
@@ -132,7 +134,7 @@ const StockPage = () => {
     { key: "STOCK KELUAR", label: "Stok Keluar" },
     { key: "STOCK AKHIR", label: "Stok Akhir" },
     { key: "safe_stock_limit", label: "Batas Aman" },
-    { key: "warehouse_category", label: "Kategori Gudang" }, // New header
+    { key: "warehouse_category", label: "Kategori Gudang" },
     { key: "created_at", label: "Created At" },
   ];
 
@@ -146,7 +148,7 @@ const StockPage = () => {
       item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.warehouse_category?.toLowerCase().includes(lowerCaseSearchTerm) // Include warehouse_category in search
+      item.warehouse_category?.toLowerCase().includes(lowerCaseSearchTerm)
     );
 
     if (showLowStockOnly) {
@@ -158,7 +160,7 @@ const StockPage = () => {
 
     setFilteredStockData(filtered);
     setCurrentPage(1);
-  }, [searchTerm, stockData, showLowStockOnly]); // Add showLowStockOnly to dependencies
+  }, [searchTerm, stockData, showLowStockOnly]);
 
   const handleDeleteStockItem = async (stockItemId: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
@@ -197,6 +199,11 @@ const StockPage = () => {
   const handleOpenMovementForm = (item: StockItem) => {
     setSelectedStockItem(item);
     setIsMovementFormOpen(true);
+  };
+
+  const handleOpenAdjustmentForm = (item: StockItem) => { // New handler
+    setSelectedStockItem(item);
+    setIsAdjustmentFormOpen(true);
   };
 
   const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
@@ -254,7 +261,7 @@ const StockPage = () => {
                     <TableHead className="text-right">Stok Keluar</TableHead>
                     <TableHead className="text-right">Stok Akhir</TableHead>
                     <TableHead className="text-right">Batas Aman</TableHead>
-                    <TableHead>Kategori Gudang</TableHead> {/* New TableHead */}
+                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -301,6 +308,9 @@ const StockPage = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
                               <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}> {/* New dropdown item */}
+                              <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
@@ -351,6 +361,15 @@ const StockPage = () => {
           stockItem={selectedStockItem}
           isOpen={isMovementFormOpen}
           onOpenChange={setIsMovementFormOpen}
+          onSuccess={fetchStockData}
+        />
+      )}
+
+      {selectedStockItem && isAdjustmentFormOpen && ( // New form rendering
+        <StockAdjustmentForm
+          stockItem={selectedStockItem}
+          isOpen={isAdjustmentFormOpen}
+          onOpenChange={setIsAdjustmentFormOpen}
           onSuccess={fetchStockData}
         />
       )}

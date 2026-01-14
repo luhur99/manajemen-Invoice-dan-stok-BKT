@@ -20,7 +20,7 @@ export interface StockTransaction {
   id: string;
   user_id: string;
   stock_item_id: string;
-  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss'; // Updated transaction types
+  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment'; // Updated transaction types
   quantity: number;
   notes?: string;
   transaction_date: string; // ISO date string

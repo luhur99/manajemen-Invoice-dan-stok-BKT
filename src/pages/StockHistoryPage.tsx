@@ -15,8 +15,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import ExportDataButton from "@/components/ExportDataButton"; // Import ExportDataButton
-import ViewNotesDialog from "@/components/ViewNotesDialog"; // Import ViewNotesDialog
+import ExportDataButton from "@/components/ExportDataButton";
+import ViewNotesDialog from "@/components/ViewNotesDialog";
 
 // Define a flattened type for export
 interface FlattenedStockTransactionForExport {
@@ -27,7 +27,7 @@ interface FlattenedStockTransactionForExport {
   transaction_type: string;
   quantity: number;
   notes: string;
-  warehouse_category: string; // New field for export
+  warehouse_category: string;
 }
 
 const StockHistoryPage = () => {
@@ -37,14 +37,14 @@ const StockHistoryPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
-  const [filterWarehouseCategory, setFilterWarehouseCategory] = useState<string>("all"); // New filter state
+  const [filterWarehouseCategory, setFilterWarehouseCategory] = useState<string>("all");
 
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [selectedDatePreset, setSelectedDatePreset] = useState<string>("all"); // "all", "current_month", "last_3_months", "custom"
+  const [selectedDatePreset, setSelectedDatePreset] = useState<string>("all");
 
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false); // State for ViewNotesDialog
-  const [notesToView, setNotesToView] = useState<string>(""); // State for notes content
+  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
+  const [notesToView, setNotesToView] = useState<string>("");
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -228,12 +228,12 @@ const StockHistoryPage = () => {
           transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
           created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
           // Corrected access for item_name and item_code
-          item_name: item.stock_items?.nama_barang || "N/A",
-          item_code: item.stock_items?.kode_barang || "N/A",
+          item_name: item.stock_items?.[0]?.nama_barang || "N/A",
+          item_code: item.stock_items?.[0]?.kode_barang || "N/A",
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           notes: processedNotes,
-          warehouse_category: getCategoryDisplay(item.stock_items?.warehouse_category || "N/A"), // Include warehouse_category
+          warehouse_category: getCategoryDisplay(item.stock_items?.[0]?.warehouse_category || "N/A"),
         };
       }));
       return flattenedData;
@@ -242,7 +242,7 @@ const StockHistoryPage = () => {
       showError("Gagal memuat semua data riwayat stok untuk ekspor.");
       return null;
     }
-  }, [startDate, endDate, filterType]); // Dependencies for export function
+  }, [startDate, endDate, filterType]);
 
   const stockTransactionHeaders: { key: keyof FlattenedStockTransactionForExport; label: string }[] = [
     { key: "transaction_date", label: "Tanggal Transaksi" },
@@ -251,7 +251,7 @@ const StockHistoryPage = () => {
     { key: "item_code", label: "Kode Barang" },
     { key: "transaction_type", label: "Tipe Transaksi" },
     { key: "quantity", label: "Kuantitas" },
-    { key: "warehouse_category", label: "Kategori Gudang" }, // New header for export
+    { key: "warehouse_category", label: "Kategori Gudang" },
     { key: "notes", label: "Catatan" },
   ];
 
@@ -263,7 +263,7 @@ const StockHistoryPage = () => {
   const handleResetFilters = () => {
     setSearchTerm("");
     setFilterType("all");
-    setFilterWarehouseCategory("all"); // Reset new filter
+    setFilterWarehouseCategory("all");
     setSelectedDatePreset("all");
     setStartDate(undefined);
     setEndDate(undefined);
@@ -291,6 +291,7 @@ const StockHistoryPage = () => {
       case "out": return "Stok Keluar";
       case "return": return "Retur Barang";
       case "damage_loss": return "Rusak/Hilang";
+      case "adjustment": return "Penyesuaian Stok"; // New display type
       default: return type;
     }
   };
@@ -304,6 +305,8 @@ const StockHistoryPage = () => {
       case "out":
       case "damage_loss":
         return "bg-red-100 text-red-800";
+      case "adjustment": // New color for adjustment
+        return "bg-purple-100 text-purple-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -366,6 +369,7 @@ const StockHistoryPage = () => {
               <SelectItem value="out">Stok Keluar</SelectItem>
               <SelectItem value="return">Retur Barang</SelectItem>
               <SelectItem value="damage_loss">Rusak/Hilang</SelectItem>
+              <SelectItem value="adjustment">Penyesuaian Stok</SelectItem> {/* New filter option */}
             </SelectContent>
           </Select>
           <Select value={filterWarehouseCategory} onValueChange={setFilterWarehouseCategory}>
@@ -455,7 +459,7 @@ const StockHistoryPage = () => {
                     <TableHead>Kode Barang</TableHead>
                     <TableHead>Tipe Transaksi</TableHead>
                     <TableHead className="text-right">Kuantitas</TableHead>
-                    <TableHead>Kategori Gudang</TableHead> {/* New TableHead */}
+                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead>Catatan</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -472,7 +476,7 @@ const StockHistoryPage = () => {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.stock_items?.[0]?.warehouse_category || "N/A")}</TableCell> {/* New TableCell */}
+                      <TableCell>{getCategoryDisplay(transaction.stock_items?.[0]?.warehouse_category || "N/A")}</TableCell>
                       <TableCell>
                         {transaction.notes ? (
                           <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">
