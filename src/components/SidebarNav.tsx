@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom"; // Import useNavigate
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, FileText, Calendar, Package, BarChart, User, History, Truck, ShoppingCart, ListChecks } from "lucide-react";
+import { LayoutDashboard, FileText, Calendar, Package, BarChart, User, History, Truck, ShoppingCart, ListChecks, LogOut } from "lucide-react"; // Import LogOut icon
 import { Button } from "@/components/ui/button";
+import { supabase } from '@/integrations/supabase/client'; // Import supabase client
+import { showSuccess, showError } from '@/utils/toast'; // Import toast utilities
 
 const navItems = [
   {
@@ -66,6 +68,17 @@ const navItems = [
 
 const SidebarNav: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      showError(`Gagal logout: ${error.message}`);
+    } else {
+      showSuccess('Anda telah berhasil logout.');
+      navigate('/auth'); // Redirect to auth page after logout
+    }
+  };
 
   return (
     <div className="flex h-full flex-col justify-between p-4">
@@ -89,6 +102,16 @@ const SidebarNav: React.FC = () => {
             </Link>
           ))}
         </nav>
+      </div>
+      <div className="mt-auto pt-4 border-t border-sidebar-border">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-sidebar-foreground hover:bg-destructive hover:text-destructive-foreground"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4" />
+          <span className="ml-3">Logout</span>
+        </Button>
       </div>
     </div>
   );
