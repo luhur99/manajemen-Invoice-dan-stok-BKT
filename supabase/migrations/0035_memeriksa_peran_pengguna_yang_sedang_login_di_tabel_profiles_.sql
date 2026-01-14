@@ -1,1 +1,0 @@
-SELECT role FROM public.profiles WHERE id = auth.uid();

@@ -1,1 +1,0 @@
-ALTER TABLE public.stock_items ALTER COLUMN no DROP NOT NULL;
