@@ -70,6 +70,14 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
+          {/* Debug Info */}
+          <div className="text-sm text-muted-foreground border-t pt-4 mt-4">
+            <p>Informasi Debug (Hanya untuk pengembangan):</p>
+            <p>Anda Admin: {isAdmin ? 'Ya' : 'Tidak'}</p>
+            <p>Status Permintaan: {request.status}</p>
+          </div>
+          {/* End Debug Info */}
+
           <div className="grid grid-cols-2 items-center gap-4">
             <p className="text-sm font-medium text-muted-foreground">Nama Pelanggan</p>
             <p className="text-sm font-semibold">{request.customer_name}</p>
