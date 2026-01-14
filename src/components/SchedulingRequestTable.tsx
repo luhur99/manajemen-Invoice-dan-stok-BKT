@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, Eye, Edit, Trash, CheckCircle2, XCircle } from 'lucide-react'; // Import new icons
+import { Loader2, Eye, Edit, Trash, CheckCircle2, XCircle } from 'lucide-react';
 import { SchedulingRequest } from '@/api/schedulingRequests';
 
 interface SchedulingRequestTableProps {
@@ -18,10 +18,10 @@ interface SchedulingRequestTableProps {
   onEdit: (request: SchedulingRequest) => void;
   onDelete: (id: string) => void;
   deletingId: string | null;
-  isAdmin: boolean; // New prop
-  onApprove: (id: string) => void; // New prop
-  onReject: (id: string) => void; // New prop
-  isApprovingOrRejecting: boolean; // New prop
+  isAdmin: boolean;
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  isApprovingOrRejecting: boolean;
 }
 
 const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
@@ -32,10 +32,10 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
   onEdit,
   onDelete,
   deletingId,
-  isAdmin, // Destructure new prop
-  onApprove, // Destructure new prop
-  onReject, // Destructure new prop
-  isApprovingOrRejecting, // Destructure new prop
+  isAdmin,
+  onApprove,
+  onReject,
+  isApprovingOrRejecting,
 }) => {
   if (isLoading) {
     return (
@@ -148,7 +148,7 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                       {isAdmin && request.status === 'pending' ? (
                         <>
                           <Button
-                            variant="outline"
+                            variant="default" 
                             size="sm"
                             onClick={() => onApprove(request.id)}
                             disabled={isApprovingOrRejecting}
@@ -157,7 +157,7 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                             {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                           </Button>
                           <Button
-                            variant="outline"
+                            variant="default" 
                             size="sm"
                             onClick={() => onReject(request.id)}
                             disabled={isApprovingOrRejecting}
