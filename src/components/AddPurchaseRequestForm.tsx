@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PurchaseRequest } from '@/api/purchaseRequests'; // Import PurchaseRequest type
 
 const formSchema = z.object({
   item_name: z.string().min(1, { message: 'Nama item wajib diisi.' }),
@@ -36,9 +37,11 @@ const formSchema = z.object({
 interface AddPurchaseRequestFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingRequest?: PurchaseRequest | null; // New prop for existing request
+  onCancelEdit?: () => void; // New prop to cancel edit
 }
 
-const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSubmit, isLoading }) => {
+const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSubmit, isLoading, existingRequest, onCancelEdit }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -51,6 +54,30 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSubmi
       notes: '',
     },
   });
+
+  React.useEffect(() => {
+    if (existingRequest) {
+      form.reset({
+        item_name: existingRequest.item_name,
+        item_code: existingRequest.item_code,
+        quantity: existingRequest.quantity,
+        unit_price: existingRequest.unit_price,
+        suggested_selling_price: existingRequest.suggested_selling_price,
+        supplier: existingRequest.supplier || '',
+        notes: existingRequest.notes || '',
+      });
+    } else {
+      form.reset({
+        item_name: '',
+        item_code: '',
+        quantity: 1,
+        unit_price: 0,
+        suggested_selling_price: 0,
+        supplier: '',
+        notes: '',
+      });
+    }
+  }, [existingRequest, form]);
 
   return (
     <Form {...form}>
@@ -155,9 +182,16 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSubmi
           />
         </div>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Menyimpan...' : 'Simpan Permintaan'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Menyimpan...' : (existingRequest ? 'Update Permintaan' : 'Simpan Permintaan')}
+          </Button>
+          {existingRequest && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );

@@ -13,6 +13,7 @@ import {
 } from '@/api/purchaseRequests';
 import AddPurchaseRequestForm from '@/components/AddPurchaseRequestForm';
 import PurchaseRequestTable from '@/components/PurchaseRequestTable';
+import PurchaseRequestDetailDialog from '@/components/PurchaseRequestDetailDialog'; // Import the new dialog component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
@@ -23,6 +24,8 @@ const PurchaseRequestPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingRequest, setEditingRequest] = React.useState<PurchaseRequest | null>(null); // State for editing request
+  const [viewingRequest, setViewingRequest] = React.useState<PurchaseRequest | null>(null); // State for viewing request
 
   const { data: purchaseRequests, isLoading, error } = useQuery({
     queryKey: ['purchaseRequests', userId],
@@ -43,6 +46,20 @@ const PurchaseRequestPage: React.FC = () => {
     },
   });
 
+  const updatePurchaseRequestMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<PurchaseRequest> }) =>
+      updatePurchaseRequest(id, updates, userId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchaseRequests', userId] });
+      showSuccess('Permintaan pembelian berhasil diperbarui!');
+      setEditingRequest(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui permintaan pembelian: ${err.message}`);
+    },
+  });
+
   const deletePurchaseRequestMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deletePurchaseRequest(id, userId!),
     onSuccess: () => {
@@ -57,13 +74,17 @@ const PurchaseRequestPage: React.FC = () => {
     },
   });
 
-  const handleAddPurchaseRequest = (values: any) => {
+  const handleAddOrUpdatePurchaseRequest = (values: any) => {
     if (!userId) {
-      showError('Anda harus login untuk menambahkan permintaan pembelian.');
+      showError('Anda harus login untuk menambahkan/memperbarui permintaan pembelian.');
       return;
     }
 
-    addPurchaseRequestMutation.mutate(values);
+    if (editingRequest) {
+      updatePurchaseRequestMutation.mutate({ id: editingRequest.id, updates: values });
+    } else {
+      addPurchaseRequestMutation.mutate(values);
+    }
   };
 
   const handleDeletePurchaseRequest = (id: string) => {
@@ -76,16 +97,18 @@ const PurchaseRequestPage: React.FC = () => {
     deletePurchaseRequestMutation.mutate({ id });
   };
 
-  const handleViewPurchaseRequest = (purchaseRequest: PurchaseRequest) => {
-    // Implementasi untuk melihat detail permintaan pembelian
-    console.log('View purchase request:', purchaseRequest);
-    // Di sini Anda bisa membuka modal atau navigasi ke halaman detail
+  const handleViewPurchaseRequest = (request: PurchaseRequest) => {
+    setViewingRequest(request);
   };
 
-  const handleEditPurchaseRequest = (purchaseRequest: PurchaseRequest) => {
-    // Implementasi untuk mengedit permintaan pembelian
-    console.log('Edit purchase request:', purchaseRequest);
-    // Di sini Anda bisa membuka modal edit atau navigasi ke halaman edit
+  const handleEditPurchaseRequest = (request: PurchaseRequest) => {
+    setEditingRequest(request);
+    setActiveTab('add'); // Switch to the add/edit tab
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRequest(null);
+    setActiveTab('view');
   };
 
   if (isLoading) {
@@ -109,18 +132,20 @@ const PurchaseRequestPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="view">Lihat Permintaan</TabsTrigger>
-          <TabsTrigger value="add">Tambah Permintaan Baru</TabsTrigger>
+          <TabsTrigger value="add">{editingRequest ? 'Edit Permintaan' : 'Tambah Permintaan Baru'}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="add">
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Permintaan Pembelian Baru</CardTitle>
+              <CardTitle>{editingRequest ? 'Edit Permintaan Pembelian' : 'Tambah Permintaan Pembelian Baru'}</CardTitle>
             </CardHeader>
             <CardContent>
               <AddPurchaseRequestForm 
-                onSubmit={handleAddPurchaseRequest} 
-                isLoading={addPurchaseRequestMutation.isPending} 
+                onSubmit={handleAddOrUpdatePurchaseRequest} 
+                isLoading={addPurchaseRequestMutation.isPending || updatePurchaseRequestMutation.isPending} 
+                existingRequest={editingRequest}
+                onCancelEdit={handleCancelEdit}
               />
             </CardContent>
           </Card>
@@ -138,6 +163,11 @@ const PurchaseRequestPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      <PurchaseRequestDetailDialog
+        request={viewingRequest}
+        onOpenChange={(open) => !open && setViewingRequest(null)}
+      />
     </div>
   );
 };
