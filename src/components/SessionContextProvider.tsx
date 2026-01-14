@@ -19,12 +19,35 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
   const navigate = useNavigate();
 
   useEffect(() => {
+    const fetchAndSetSession = async () => {
+      console.log("Fetching latest session from Supabase...");
+      const { data: { session: fetchedSession }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error("Error fetching session:", error);
+        showError("Gagal mendapatkan sesi.");
+        setSession(null);
+      } else {
+        console.log("Session fetched:", fetchedSession);
+        setSession(fetchedSession);
+      }
+      setIsLoading(false);
+    };
+
+    // Initial fetch when component mounts
+    fetchAndSetSession();
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, currentSession) => {
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          setSession(currentSession);
-          if (currentSession) {
-            // Fetch user profile to get role
+        console.log("Auth event detected:", event, "Current session from event:", currentSession);
+
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') {
+          // For these events, always re-fetch the session to ensure latest metadata
+          // This handles cases where currentSession from event might be slightly stale
+          await fetchAndSetSession();
+
+          // Additionally, if it's SIGNED_IN or INITIAL_SESSION, and a profile exists,
+          // ensure the role is synced to user_metadata if it's not already.
+          if (currentSession && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
             const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('role')
@@ -35,50 +58,30 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
               console.error("Error fetching user profile:", profileError);
               showError("Gagal memuat profil pengguna.");
             } else if (profile) {
-              // Update user metadata with role
-              await supabase.auth.updateUser({
-                data: { role: profile.role }
-              });
-              // IMPORTANT: After updating user metadata, explicitly get the latest session
-              // to ensure the client-side session object reflects the new role.
-              const { data: { session: updatedSession }, error: sessionRefreshError } = await supabase.auth.getSession();
-              if (sessionRefreshError) {
-                console.error("Error refreshing session after profile update:", sessionRefreshError);
-                showError("Gagal menyegarkan sesi setelah pembaruan profil.");
-              } else if (updatedSession) {
-                setSession(updatedSession);
+              // Check if role in session metadata is already correct
+              if (currentSession.user.user_metadata?.role !== profile.role) {
+                console.log("User metadata role is different from profile role. Updating user metadata to:", profile.role);
+                await supabase.auth.updateUser({
+                  data: { role: profile.role }
+                });
+                // After updating, fetch and set session again to reflect this change immediately
+                await fetchAndSetSession();
+              } else {
+                console.log("User metadata role already matches profile role:", profile.role);
               }
             }
           }
-          setIsLoading(false);
         } else if (event === 'SIGNED_OUT') {
+          console.log("User signed out. Clearing session.");
           setSession(null);
           setIsLoading(false);
           navigate('/auth');
-        } else if (event === 'USER_UPDATED') {
-          // When user metadata is updated, the session object in this event should be the latest.
-          setSession(currentSession);
         } else if (event === 'PASSWORD_RECOVERY') {
-          // Handle password recovery if needed
-        } else {
-          setIsLoading(false);
+          console.log("Password recovery event.");
+          // handle password recovery event
         }
       }
     );
-
-    // Initial session check
-    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setIsLoading(false);
-      if (!initialSession) {
-        navigate('/auth');
-      }
-    }).catch((err) => {
-      console.error("Error getting initial session:", err);
-      showError("Gagal mendapatkan sesi awal.");
-      setIsLoading(false);
-      navigate('/auth');
-    });
 
     return () => {
       authListener.subscription.unsubscribe();
