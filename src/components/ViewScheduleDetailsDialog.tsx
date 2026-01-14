@@ -1,10 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Schedule } from "@/types/data";
+import { Schedule, DeliveryOrder } from "@/types/data"; // Import DeliveryOrder
 import { format } from "date-fns";
-import { FileText } from "lucide-react";
+import { FileText, Truck } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { showError } from "@/utils/toast";
+import { Loader2 } from "lucide-react";
 
 interface ViewScheduleDetailsDialogProps {
   schedule: Schedule;
@@ -17,6 +20,38 @@ const ViewScheduleDetailsDialog: React.FC<ViewScheduleDetailsDialogProps> = ({
   isOpen,
   onOpenChange,
 }) => {
+  const [deliveryOrder, setDeliveryOrder] = useState<DeliveryOrder | null>(null);
+  const [loadingDeliveryOrder, setLoadingDeliveryOrder] = useState(true);
+
+  useEffect(() => {
+    if (isOpen && schedule?.delivery_order_id) {
+      const fetchDeliveryOrder = async () => {
+        setLoadingDeliveryOrder(true);
+        try {
+          const { data, error } = await supabase
+            .from("delivery_orders")
+            .select("do_number")
+            .eq("id", schedule.delivery_order_id)
+            .single();
+
+          if (error) {
+            throw error;
+          }
+          setDeliveryOrder(data as DeliveryOrder);
+        } catch (err: any) {
+          showError(`Gagal memuat detail Delivery Order: ${err.message}`);
+          console.error("Error fetching delivery order for schedule:", err);
+          setDeliveryOrder(null);
+        } finally {
+          setLoadingDeliveryOrder(false);
+        }
+      };
+      fetchDeliveryOrder();
+    } else if (!isOpen) {
+      setDeliveryOrder(null);
+    }
+  }, [isOpen, schedule?.delivery_order_id]);
+
   if (!schedule) return null;
 
   return (
@@ -41,6 +76,13 @@ const ViewScheduleDetailsDialog: React.FC<ViewScheduleDetailsDialogProps> = ({
             <p><strong>Alamat:</strong> {schedule.address || "-"}</p>
             <p><strong>Nama Teknisi:</strong> {schedule.technician_name || "-"}</p>
             <p><strong>Nomor Invoice Terkait:</strong> {schedule.invoice_number || "-"}</p>
+            {schedule.delivery_order_id && (
+              <p className="flex items-center">
+                <Truck className="h-4 w-4 mr-2 text-muted-foreground" />
+                <strong>Nomor DO Terkait:</strong>{" "}
+                {loadingDeliveryOrder ? <Loader2 className="h-4 w-4 animate-spin ml-1" /> : deliveryOrder?.do_number || "-"}
+              </p>
+            )}
             <p><strong>Status:</strong> 
               <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
                 schedule.status === 'completed' ? 'bg-green-100 text-green-800' :

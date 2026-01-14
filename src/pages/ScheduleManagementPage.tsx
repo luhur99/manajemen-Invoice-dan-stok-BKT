@@ -10,11 +10,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
 import EditScheduleForm from "@/components/EditScheduleForm";
-import ViewScheduleDetailsDialog from "@/components/ViewScheduleDetailsDialog"; // Import new component
+import ViewScheduleDetailsDialog from "@/components/ViewScheduleDetailsDialog";
 import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react"; // Import Eye icon
+import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ScheduleManagementPage = () => {
@@ -27,8 +27,8 @@ const ScheduleManagementPage = () => {
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null);
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
 
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // State for View Details dialog
-  const [scheduleToView, setScheduleToView] = useState<Schedule | null>(null); // State for schedule to view
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [scheduleToView, setScheduleToView] = useState<Schedule | null>(null);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -41,24 +41,27 @@ const ScheduleManagementPage = () => {
         .from("schedules")
         .select(`
           *,
-          invoices (invoice_number)
+          invoices (invoice_number),
+          delivery_orders (do_number)
         `)
-        .order("created_at", { ascending: false }) // Sort by created_at descending (newest transaction first)
-        .order("schedule_date", { ascending: false }) // Secondary sort by schedule_date descending
-        .order("schedule_time", { ascending: true }); // Tertiary sort by schedule_time ascending
+        .order("created_at", { ascending: false })
+        .order("schedule_date", { ascending: false })
+        .order("schedule_time", { ascending: true });
 
       if (error) {
         throw error;
       }
 
-      const schedulesWithInvoiceNumber: Schedule[] = data.map((s, index) => ({
+      const schedulesWithJoinedData: Schedule[] = data.map((s: any, index) => ({
         ...s,
-        no: index + 1, // Assign sequential number
+        no: index + 1,
         invoice_number: s.invoices?.invoice_number || undefined,
+        delivery_order_id: s.delivery_orders?.id || undefined, // Ensure delivery_order_id is set
+        do_number: s.delivery_orders?.do_number || undefined, // Add do_number for display
       }));
 
-      setSchedules(schedulesWithInvoiceNumber);
-      setFilteredSchedules(schedulesWithInvoiceNumber);
+      setSchedules(schedulesWithJoinedData);
+      setFilteredSchedules(schedulesWithJoinedData);
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat data jadwal: ${err.message}`);
@@ -85,7 +88,8 @@ const ScheduleManagementPage = () => {
       item.status.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Include invoice number in search
+      item.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.do_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Include DO number in search
       format(new Date(item.schedule_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
     setFilteredSchedules(filtered);
@@ -203,7 +207,7 @@ const ScheduleManagementPage = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan konsumen, tipe, teknisi, alamat, status, No WA, Jasa Kurir, atau Nomor Invoice..."
+          placeholder="Cari berdasarkan konsumen, tipe, teknisi, alamat, status, No WA, Jasa Kurir, Nomor Invoice, atau Nomor DO..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
@@ -215,7 +219,7 @@ const ScheduleManagementPage = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>No</TableHead>
-                    <TableHead>Tanggal Penjadwalan</TableHead> {/* Changed from "Tanggal" */}
+                    <TableHead>Tanggal Penjadwalan</TableHead>
                     <TableHead>Waktu</TableHead>
                     <TableHead>Tipe</TableHead>
                     <TableHead>Konsumen</TableHead>
@@ -224,6 +228,7 @@ const ScheduleManagementPage = () => {
                     <TableHead>Alamat</TableHead>
                     <TableHead>Teknisi</TableHead>
                     <TableHead>No. Invoice</TableHead>
+                    <TableHead>No. DO</TableHead> {/* New column */}
                     <TableHead>Status</TableHead>
                     <TableHead>Dokumen</TableHead>
                     <TableHead>Catatan</TableHead>
@@ -243,6 +248,7 @@ const ScheduleManagementPage = () => {
                       <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell>
                       <TableCell>{schedule.technician_name || "-"}</TableCell>
                       <TableCell>{schedule.invoice_number || "-"}</TableCell>
+                      <TableCell>{schedule.do_number || "-"}</TableCell> {/* Display DO number */}
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           schedule.status === 'completed' ? 'bg-green-100 text-green-800' :

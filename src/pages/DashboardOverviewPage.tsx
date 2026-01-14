@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReceiptText, CalendarDays, Package, ShoppingCart } from "lucide-react"; // Import ShoppingCart icon
+import { ReceiptText, CalendarDays, Package, ShoppingCart, ListChecks, Truck } from "lucide-react"; // Import ListChecks and Truck icons
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { format, parseISO, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -12,15 +12,16 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts"; // Import Legend
-import { Product, WarehouseInventory } from "@/types/data"; // Import Product and WarehouseInventory types
-import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar"; // Import the new component
-import { Link } from "react-router-dom"; // For navigation
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend }
+ from "recharts";
+import { Product, WarehouseInventory, DeliveryOrder } from "@/types/data"; // Import DeliveryOrder
+import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
+import { Link } from "react-router-dom";
 
 // Define a type for combined activities
 interface LatestActivity {
   id: string;
-  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement' | 'purchase_request'; // Added purchase_request
+  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement' | 'purchase_request' | 'scheduling_request' | 'delivery_order'; // Added new types
   description: string;
   date: string; // ISO date string
 }
@@ -32,7 +33,7 @@ interface StockTransactionWithProduct {
   quantity: number;
   notes: string | null;
   created_at: string;
-  products: Product | null; // Changed to single object or null
+  products: Product | null;
 }
 
 // Define interface for stock movement data with joined products
@@ -43,7 +44,7 @@ interface StockMovementWithProduct {
   quantity: number;
   reason: string | null;
   created_at: string;
-  products: Product | null; // Changed to single object or null
+  products: Product | null;
 }
 
 // Chart configuration
@@ -66,10 +67,12 @@ const DashboardOverviewPage = () => {
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [todaySchedules, setTodaySchedules] = useState(0);
   const [lowStockItems, setLowStockItems] = useState(0);
-  const [pendingPurchaseRequests, setPendingPurchaseRequests] = useState(0); // New state for pending purchase requests
+  const [pendingPurchaseRequests, setPendingPurchaseRequests] = useState(0);
+  const [pendingSchedulingRequests, setPendingSchedulingRequests] = useState(0); // New state
+  const [pendingDeliveryOrders, setPendingDeliveryOrders] = useState(0); // New state
   const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
   const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
-  const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]); // New state for stock chart
+  const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const getCategoryDisplay = (category: string) => {
@@ -118,7 +121,7 @@ const DashboardOverviewPage = () => {
         if (productsWithInventories) {
           productsWithInventories.forEach((product) => {
             const totalQuantity = product.warehouse_inventories.reduce((sum: number, inv: WarehouseInventory) => sum + inv.quantity, 0);
-            const limit = product.safe_stock_limit !== undefined && product.safe_stock_limit !== null ? product.safe_stock_limit : 0; // Default to 0
+            const limit = product.safe_stock_limit !== undefined && product.safe_stock_limit !== null ? product.safe_stock_limit : 0;
             if (totalQuantity < limit) {
               lowStockCount++;
             }
@@ -134,6 +137,24 @@ const DashboardOverviewPage = () => {
 
         if (purchaseRequestsError) throw purchaseRequestsError;
         setPendingPurchaseRequests(purchaseRequestsCount || 0);
+
+        // Fetch Pending Scheduling Requests (New)
+        const { count: schedulingRequestsCount, error: schedulingRequestsError } = await supabase
+          .from("scheduling_requests")
+          .select("id", { count: "exact" })
+          .eq("status", "pending");
+
+        if (schedulingRequestsError) throw schedulingRequestsError;
+        setPendingSchedulingRequests(schedulingRequestsCount || 0);
+
+        // Fetch Pending Delivery Orders (New)
+        const { count: deliveryOrdersCount, error: deliveryOrdersError } = await supabase
+          .from("delivery_orders")
+          .select("id", { count: "exact" })
+          .eq("status", "pending");
+
+        if (deliveryOrdersError) throw deliveryOrdersError;
+        setPendingDeliveryOrders(deliveryOrdersCount || 0);
 
         // Fetch Latest Activities
         const { data: recentInvoices, error: recentInvoicesError } = await supabase
@@ -154,7 +175,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
           .from("stock_transactions")
-          .select(`id, transaction_type, quantity, notes, created_at, products(nama_barang)`) // Corrected: use nama_barang
+          .select(`id, transaction_type, quantity, notes, created_at, products(nama_barang)`)
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -162,7 +183,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockMovementsData, error: recentStockMovementsError } = await supabase
           .from("stock_movements")
-          .select(`id, from_category, to_category, quantity, reason, created_at, products(nama_barang)`) // Corrected: use nama_barang
+          .select(`id, from_category, to_category, quantity, reason, created_at, products(nama_barang)`)
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -176,15 +197,33 @@ const DashboardOverviewPage = () => {
 
         if (recentPurchaseRequestsError) throw recentPurchaseRequestsError;
 
-        // Cast the data to the defined interface and adjust products access
+        const { data: recentSchedulingRequestsData, error: recentSchedulingRequestsError } = await supabase // New fetch
+          .from("scheduling_requests")
+          .select("id, customer_name, type, requested_date, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentSchedulingRequestsError) throw recentSchedulingRequestsError;
+
+        const { data: recentDeliveryOrdersRaw, error: recentDeliveryOrdersError } = await supabase
+          .from("delivery_orders")
+          .select("id, do_number, created_at, scheduling_requests(customer_name)")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentDeliveryOrdersError) throw recentDeliveryOrdersError;
+
         const recentStockTransactions: StockTransactionWithProduct[] = recentStockTransactionsData.map((item: any) => ({
           ...item,
-          products: item.products || null, // Ensure it's a single object or null
+          products: item.products || null,
         })) as StockTransactionWithProduct[];
         const recentStockMovements: StockMovementWithProduct[] = recentStockMovementsData.map((item: any) => ({
           ...item,
-          products: item.products || null, // Ensure it's a single object or null
+          products: item.products || null,
         })) as StockMovementWithProduct[];
+
+        // Explicitly cast recentDeliveryOrdersRaw to DeliveryOrder[]
+        const recentDeliveryOrders: DeliveryOrder[] = recentDeliveryOrdersRaw as DeliveryOrder[];
 
         const allActivities: LatestActivity[] = [];
 
@@ -207,8 +246,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockTransactions.forEach(trans => {
-          // Access the products object directly
-          const itemName = trans.products?.nama_barang || "Item Tidak Dikenal"; // Corrected access
+          const itemName = trans.products?.nama_barang || "Item Tidak Dikenal";
           let desc = "";
           if (trans.transaction_type === 'initial') {
             desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
@@ -232,7 +270,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.products?.nama_barang || "Item Tidak Dikenal"; // Corrected access
+          const itemName = mov.products?.nama_barang || "Item Tidak Dikenal";
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({
@@ -252,12 +290,30 @@ const DashboardOverviewPage = () => {
           });
         });
 
+        recentSchedulingRequestsData.forEach(req => { // New activity
+          allActivities.push({
+            id: req.id,
+            type: 'scheduling_request',
+            description: `Permintaan penjadwalan baru (${req.type}) untuk ${req.customer_name}`,
+            date: req.created_at,
+          });
+        });
+
+        recentDeliveryOrders.forEach(order => { // New activity
+          allActivities.push({
+            id: order.id,
+            type: 'delivery_order',
+            description: `Delivery Order baru #${order.do_number} untuk ${order.scheduling_requests?.[0]?.customer_name || 'N/A'}`, // Fixed access
+            date: order.created_at,
+          });
+        });
+
         // Sort all activities by date and take the latest 5
         allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setLatestActivities(allActivities.slice(0, 5));
 
         // Fetch data for monthly invoice chart
-        const sixMonthsAgo = subMonths(new Date(), 5); // Start 5 months ago to include current month = 6 months total
+        const sixMonthsAgo = subMonths(new Date(), 5);
         const startDate = startOfMonth(sixMonthsAgo);
 
         const { data: allInvoicesForChart, error: chartInvoicesError } = await supabase
@@ -339,7 +395,7 @@ const DashboardOverviewPage = () => {
       <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Dashboard Budi Karya Teknologi</h1>
       <p className="text-gray-600 dark:text-gray-300">Selamat datang di aplikasi manajemen penjualan dan stok Anda. Berikut adalah ringkasan aktivitas terbaru.</p>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"> {/* Changed to lg:grid-cols-4 */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Invoice Pending</CardTitle>
@@ -393,7 +449,7 @@ const DashboardOverviewPage = () => {
             )}
           </CardContent>
         </Card>
-        <Card> {/* New Card for Pending Purchase Requests */}
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pengajuan Pembelian Pending</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
@@ -410,6 +466,48 @@ const DashboardOverviewPage = () => {
             {pendingPurchaseRequests > 0 && (
               <Link to="/purchase-requests" className="text-sm text-blue-500 hover:underline mt-2 block">
                 Lihat Pengajuan
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+        <Card> {/* New Card for Pending Scheduling Requests */}
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Permintaan Penjadwalan Pending</CardTitle>
+            <ListChecks className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+            ) : (
+              <div className="text-2xl font-bold">{pendingSchedulingRequests}</div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {pendingSchedulingRequests > 0 ? `${pendingSchedulingRequests} permintaan menunggu persetujuan` : "Tidak ada permintaan pending"}
+            </p>
+            {pendingSchedulingRequests > 0 && (
+              <Link to="/scheduling-requests" className="text-sm text-blue-500 hover:underline mt-2 block">
+                Lihat Permintaan
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+        <Card> {/* New Card for Pending Delivery Orders */}
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Delivery Order Pending</CardTitle>
+            <Truck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+            ) : (
+              <div className="text-2xl font-bold">{pendingDeliveryOrders}</div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {pendingDeliveryOrders > 0 ? `${pendingDeliveryOrders} DO menunggu penjadwalan` : "Tidak ada DO pending"}
+            </p>
+            {pendingDeliveryOrders > 0 && (
+              <Link to="/delivery-orders" className="text-sm text-blue-500 hover:underline mt-2 block">
+                Lihat Delivery Order
               </Link>
             )}
           </CardContent>
@@ -443,7 +541,7 @@ const DashboardOverviewPage = () => {
                     allowDecimals={false}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend /> {/* Add legend to distinguish bars */}
+                  <Legend />
                   <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
                 </BarChart>
               </ChartContainer>
@@ -451,7 +549,6 @@ const DashboardOverviewPage = () => {
           </CardContent>
         </Card>
 
-        {/* New Card for Monthly Stock Transactions Chart */}
         <Card>
           <CardHeader>
             <CardTitle>Pergerakan Stok per Bulan</CardTitle>
@@ -478,7 +575,7 @@ const DashboardOverviewPage = () => {
                     allowDecimals={false}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend /> {/* Add legend to distinguish bars */}
+                  <Legend />
                   <Bar dataKey="stock_in" fill="var(--color-stock_in)" radius={4} />
                   <Bar dataKey="stock_out" fill="var(--color-stock_out)" radius={4} />
                 </BarChart>
@@ -487,7 +584,7 @@ const DashboardOverviewPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2"> {/* Span two columns for better layout */}
+        <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Aktivitas Terbaru</CardTitle>
             <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
@@ -515,7 +612,6 @@ const DashboardOverviewPage = () => {
         </Card>
       </div>
 
-      {/* New Technician Schedule Calendar */}
       <TechnicianScheduleCalendar />
     </div>
   );

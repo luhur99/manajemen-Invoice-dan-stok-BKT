@@ -165,6 +165,7 @@ export interface Schedule {
   document_url?: string;
   no?: number; // Sequential number for display
   delivery_order_id?: string; // New: Link to related delivery order
+  do_number?: string; // New: Delivery Order number from related delivery order
 }
 
 export interface Profile {
@@ -245,12 +246,12 @@ export interface DeliveryOrder {
   created_at: string;
   no?: number; // For display purposes
   // Joined request details for display
-  scheduling_requests?: {
+  scheduling_requests?: Array<{ // Changed to array
     customer_name: string;
     type: 'instalasi' | 'service' | 'kirim';
     requested_date: string;
     requested_time?: string;
     full_address: string;
     phone_number: string;
-  } | null;
+  }> | null;
 }

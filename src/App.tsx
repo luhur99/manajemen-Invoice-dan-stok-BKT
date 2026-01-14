@@ -12,7 +12,9 @@ import SalesDetailsPage from "./pages/SalesDetailsPage";
 import ProfilePage from "./pages/ProfilePage";
 import StockHistoryPage from "./pages/StockHistoryPage";
 import StockMovementHistoryPage from "./pages/StockMovementHistoryPage";
-import PurchaseRequestPage from "./pages/PurchaseRequestPage"; // Import new page
+import PurchaseRequestPage from "./pages/PurchaseRequestPage";
+import SchedulingRequestPage from "./pages/SchedulingRequestPage"; // Import new page
+import DeliveryOrderPage from "./pages/DeliveryOrderPage"; // Import new page
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
@@ -31,12 +33,14 @@ const App = () => (
             <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
             <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
             <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
+            <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} /> {/* New route */}
+            <Route path="/delivery-orders" element={<MainLayout><DeliveryOrderPage /></MainLayout>} /> {/* New route */}
             <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
             <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
             <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
             <Route path="/stock-history" element={<MainLayout><StockHistoryPage /></MainLayout>} />
             <Route path="/stock-movement-history" element={<MainLayout><StockMovementHistoryPage /></MainLayout>} />
-            <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} /> {/* New route */}
+            <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>

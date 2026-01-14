@@ -24,7 +24,17 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Schedule, InvoiceItem, Product, Invoice } from "@/types/data"; // Changed from StockItem
+import { Schedule, InvoiceItem, Product, Invoice, DeliveryOrder } from "@/types/data"; // Import DeliveryOrder
+
+// Helper function for display (moved outside component)
+const getRequestTypeDisplay = (type?: 'instalasi' | 'service' | 'kirim') => {
+  switch (type) {
+    case 'instalasi': return 'Instalasi';
+    case 'service': return 'Servis';
+    case 'kirim': return 'Kirim Barang';
+    default: return '-';
+  }
+};
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -36,14 +46,15 @@ const formSchema = z.object({
   customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
   phone_number: z.string().optional(),
   address: z.string().optional(),
-  technician_name: z.enum(["Jubed", "Daffa", "Teknisi Lain"]).optional(), // Updated to enum
+  technician_name: z.enum(["Jubed", "Daffa", "Teknisi Lain"]).optional(),
   invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")),
+  delivery_order_id: z.string().uuid("ID Delivery Order harus format UUID yang valid").optional().or(z.literal("")), // New field
   status: z.enum(["scheduled", "in progress", "completed", "cancelled"], {
     required_error: "Status jadwal wajib dipilih",
   }).default("scheduled"),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
-  document_url: z.string().optional(), // New field
+  document_url: z.string().optional(),
 });
 
 interface EditScheduleFormProps {
@@ -56,6 +67,8 @@ interface EditScheduleFormProps {
 const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, onOpenChange, onSuccess }) => {
   const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(true);
+  const [deliveryOrdersList, setDeliveryOrdersList] = useState<DeliveryOrder[]>([]); // New state for DOs
+  const [loadingDeliveryOrders, setLoadingDeliveryOrders] = useState(true); // New state for DO loading
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -66,8 +79,9 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       customer_name: schedule.customer_name,
       phone_number: schedule.phone_number || "",
       address: schedule.address || "",
-      technician_name: (schedule.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined, // Cast to enum type
+      technician_name: (schedule.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined,
       invoice_id: schedule.invoice_id || "",
+      delivery_order_id: schedule.delivery_order_id || "", // Initialize new field
       status: schedule.status,
       notes: schedule.notes || "",
       courier_service: schedule.courier_service || "",
@@ -92,7 +106,32 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       setLoadingInvoices(false);
     };
 
+    const fetchDeliveryOrders = async () => { // New fetch function for DOs
+      setLoadingDeliveryOrders(true);
+      const { data, error } = await supabase
+        .from("delivery_orders")
+        .select(`
+          *,
+          scheduling_requests (customer_name, type, full_address, phone_number)
+        `)
+        .eq("status", "pending") // Only show pending DOs that can be scheduled
+        .order("do_number", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat daftar Delivery Order.");
+        console.error("Error fetching delivery orders:", error);
+      } else {
+        // Corrected type assertion: Supabase join returns an array for scheduling_requests
+        setDeliveryOrdersList(data.map(item => ({
+          ...item,
+          scheduling_requests: item.scheduling_requests ? [item.scheduling_requests] : null // Ensure it's an array or null
+        })) as DeliveryOrder[]);
+      }
+      setLoadingDeliveryOrders(false);
+    };
+
     fetchInvoices();
+    fetchDeliveryOrders();
   }, []);
 
   // Watch for status changes
@@ -111,6 +150,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         address: schedule.address || "",
         technician_name: (schedule.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined,
         invoice_id: schedule.invoice_id || "",
+        delivery_order_id: schedule.delivery_order_id || "", // Reset new field
         status: schedule.status,
         notes: schedule.notes || "",
         courier_service: schedule.courier_service || "",
@@ -144,10 +184,11 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
           address: values.address || null,
           technician_name: values.technician_name || null,
           invoice_id: values.invoice_id || null,
+          delivery_order_id: values.delivery_order_id || null, // Save new field
           status: values.status,
           notes: values.notes || null,
           courier_service: values.courier_service || null,
-          document_url: values.document_url || null, // Save new field
+          document_url: values.document_url || null,
         })
         .eq("id", schedule.id);
 
@@ -243,6 +284,32 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         }
       }
 
+      // If schedule status changes to 'completed', update related Delivery Order status to 'completed'
+      if (values.status === 'completed' && previousStatus !== 'completed' && values.delivery_order_id) {
+        const { error: updateDoStatusError } = await supabase
+          .from("delivery_orders")
+          .update({ status: "completed" })
+          .eq("id", values.delivery_order_id);
+
+        if (updateDoStatusError) {
+          console.error("Error updating related Delivery Order status to completed:", updateDoStatusError);
+          showError("Gagal memperbarui status Delivery Order terkait menjadi 'completed'.");
+        }
+      }
+      // If schedule status changes to 'cancelled', update related Delivery Order status to 'cancelled'
+      else if (values.status === 'cancelled' && previousStatus !== 'cancelled' && values.delivery_order_id) {
+        const { error: updateDoStatusError } = await supabase
+          .from("delivery_orders")
+          .update({ status: "cancelled" })
+          .eq("id", values.delivery_order_id);
+
+        if (updateDoStatusError) {
+          console.error("Error updating related Delivery Order status to cancelled:", updateDoStatusError);
+          showError("Gagal memperbarui status Delivery Order terkait menjadi 'cancelled'.");
+        }
+      }
+
+
       showSuccess("Jadwal berhasil diperbarui!");
       onOpenChange(false);
       onSuccess(); // Trigger refresh of schedule data
@@ -262,6 +329,30 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="delivery_order_id"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Delivery Order Terkait (Opsional)</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""} disabled={true}> {/* Disabled in edit form */}
+                      <FormControl>
+                        <SelectTrigger disabled={loadingDeliveryOrders}>
+                          <SelectValue placeholder={loadingDeliveryOrders ? "Memuat Delivery Order..." : "Pilih Delivery Order"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {deliveryOrdersList.map((doItem) => (
+                          <SelectItem key={doItem.id} value={doItem.id}>
+                            {doItem.do_number} - {doItem.scheduling_requests?.[0]?.customer_name} ({getRequestTypeDisplay(doItem.scheduling_requests?.[0]?.type)})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <FormField
                 control={form.control}
                 name="schedule_date"
