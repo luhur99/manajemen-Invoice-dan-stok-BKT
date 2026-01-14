@@ -20,9 +20,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 
 const SchedulingRequestPage: React.FC = () => {
-  const { session } = useSession();
+  const { session, isLoading: isSessionLoading } = useSession(); // Gunakan isSessionLoading
   const userId = session?.user?.id;
-  const isAdmin = session?.user?.user_metadata?.role === 'admin'; // Get isAdmin status
+  const isAdmin = !isSessionLoading && session?.user?.user_metadata?.role === 'admin'; // Hanya hitung isAdmin setelah sesi dimuat
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -137,7 +137,7 @@ const SchedulingRequestPage: React.FC = () => {
 
   const isApprovingOrRejecting = updateSchedulingRequestMutation.isPending;
 
-  if (isLoading) {
+  if (isLoading || isSessionLoading) { // Tambahkan isSessionLoading ke kondisi loading keseluruhan
     return (
       <div className="flex items-center justify-center h-full min-h-[calc(100vh-100px)]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

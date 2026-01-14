@@ -142,6 +142,7 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                         variant="outline"
                         size="sm"
                         onClick={() => onView(request)}
+                        title="Lihat Detail"
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
@@ -152,7 +153,8 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                             size="sm"
                             onClick={() => onApprove(request.id)}
                             disabled={isApprovingOrRejecting}
-                            className="bg-green-500 hover:bg-green-600 text-white"
+                            className="bg-green-600 hover:bg-green-700 text-white shadow-sm" // Gaya yang lebih kuat
+                            title="Setujui Permintaan" // Tooltip
                           >
                             {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                           </Button>
@@ -161,7 +163,8 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                             size="sm"
                             onClick={() => onReject(request.id)}
                             disabled={isApprovingOrRejecting}
-                            className="bg-red-500 hover:bg-red-600 text-white"
+                            className="bg-red-600 hover:bg-red-700 text-white shadow-sm" // Gaya yang lebih kuat
+                            title="Tolak Permintaan" // Tooltip
                           >
                             {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                           </Button>
@@ -173,6 +176,7 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                             size="sm"
                             onClick={() => onEdit(request)}
                             disabled={request.status !== 'pending'}
+                            title="Edit Permintaan"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -181,6 +185,7 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                             size="sm"
                             onClick={() => onDelete(request.id)}
                             disabled={deletingId === request.id || request.status !== 'pending'}
+                            title="Hapus Permintaan"
                           >
                             {deletingId === request.id ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
