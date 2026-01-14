@@ -132,8 +132,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                       <div className="relative">
                         <Input
                           placeholder="Ex: BRG001"
-                          value={field.value}
-                          onChange={field.onChange}
+                          {...field} // Bind field props directly to Input
                           className="pr-10" // Memberi ruang untuk ikon
                         />
                         <Button
@@ -201,8 +200,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                       <div className="relative">
                         <Input
                           placeholder="Ex: Kipas Angin"
-                          value={field.value}
-                          onChange={field.onChange}
+                          {...field} // Bind field props directly to Input
                           className="pr-10" // Memberi ruang untuk ikon
                         />
                         <Button
