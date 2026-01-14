@@ -9,13 +9,16 @@ import {
   addInvoice, 
   updateInvoice, 
   deleteInvoice,
-  Invoice
+  fetchInvoiceItems, // Import fetchInvoiceItems
+  Invoice,
+  InvoiceItem
 } from '@/api/invoices';
 import AddInvoiceForm from '@/components/AddInvoiceForm';
 import InvoiceTable from '@/components/InvoiceTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client'; // Import supabase client
 
 const InvoiceManagementPage: React.FC = () => {
   const { session } = useSession();
@@ -23,6 +26,7 @@ const InvoiceManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingInvoice, setEditingInvoice] = React.useState<(Invoice & { items: InvoiceItem[] }) | null>(null); // State for editing invoice
 
   const { data: invoices, isLoading, error } = useQuery({
     queryKey: ['invoices', userId],
@@ -43,6 +47,58 @@ const InvoiceManagementPage: React.FC = () => {
     },
   });
 
+  const updateInvoiceMutation = useMutation({
+    mutationFn: ({ id, updates, items }: { id: string; updates: Partial<Invoice>; items: InvoiceItem[] }) =>
+      updateInvoice(id, updates, userId!)
+        .then(async (updatedInvoice) => {
+          // Handle item updates/deletions/additions
+          const existingItems = await fetchInvoiceItems(id, userId!);
+          const existingItemIds = new Set(existingItems.map(item => item.id));
+          const newItemIds = new Set(items.map(item => item.id).filter(Boolean));
+
+          // Items to delete
+          const itemsToDelete = existingItems.filter(item => !newItemIds.has(item.id));
+          for (const item of itemsToDelete) {
+            await supabase.from('invoice_items').delete().eq('id', item.id);
+          }
+
+          // Items to update or insert
+          for (const item of items) {
+            if (item.id && existingItemIds.has(item.id)) {
+              // Update existing item
+              await supabase.from('invoice_items').update({
+                item_name: item.item_name,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                subtotal: item.quantity * item.unit_price,
+                unit_type: item.unit_type,
+              }).eq('id', item.id);
+            } else {
+              // Insert new item
+              await supabase.from('invoice_items').insert({
+                invoice_id: id,
+                user_id: userId!,
+                item_name: item.item_name,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                subtotal: item.quantity * item.unit_price,
+                unit_type: item.unit_type,
+              });
+            }
+          }
+          return updatedInvoice;
+        }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['invoices', userId] });
+      showSuccess('Faktur berhasil diperbarui!');
+      setEditingInvoice(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui faktur: ${err.message}`);
+    },
+  });
+
   const deleteInvoiceMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deleteInvoice(id, userId!),
     onSuccess: () => {
@@ -57,24 +113,29 @@ const InvoiceManagementPage: React.FC = () => {
     },
   });
 
-  const handleAddInvoice = (values: any) => {
+  const handleAddOrUpdateInvoice = (values: any) => {
     if (!userId) {
-      showError('Anda harus login untuk menambahkan faktur.');
+      showError('Anda harus login untuk menambahkan/memperbarui faktur.');
       return;
     }
 
-    // Hitung total amount dari items
     const totalAmount = values.items.reduce((sum: number, item: any) => {
       return sum + (item.quantity * item.unit_price);
     }, 0);
 
     const invoiceData = {
       ...values,
+      invoice_date: values.invoice_date.toISOString().split('T')[0],
+      due_date: values.due_date ? values.due_date.toISOString().split('T')[0] : null,
       total_amount: totalAmount,
-      payment_status: 'pending' as const,
+      payment_status: editingInvoice?.payment_status || 'pending' as const, // Keep existing status or default to pending
     };
 
-    addInvoiceMutation.mutate(invoiceData);
+    if (editingInvoice) {
+      updateInvoiceMutation.mutate({ id: editingInvoice.id, updates: invoiceData, items: values.items });
+    } else {
+      addInvoiceMutation.mutate(invoiceData);
+    }
   };
 
   const handleDeleteInvoice = (id: string) => {
@@ -88,19 +149,30 @@ const InvoiceManagementPage: React.FC = () => {
   };
 
   const handleViewInvoice = (invoice: Invoice) => {
-    // Implementasi untuk melihat detail faktur
     console.log('View invoice:', invoice);
-    // Di sini Anda bisa membuka modal atau navigasi ke halaman detail
+    // Implementasi untuk melihat detail faktur (misalnya, membuka modal)
   };
 
-  const handleEditInvoice = (invoice: Invoice) => {
-    // Implementasi untuk mengedit faktur
-    console.log('Edit invoice:', invoice);
-    // Di sini Anda bisa membuka modal edit atau navigasi ke halaman edit
+  const handleEditInvoice = async (invoice: Invoice) => {
+    if (!userId) {
+      showError('Anda harus login untuk mengedit faktur.');
+      return;
+    }
+    try {
+      const items = await fetchInvoiceItems(invoice.id, userId);
+      setEditingInvoice({ ...invoice, items });
+      setActiveTab('add'); // Switch to the add/edit tab
+    } catch (err: any) {
+      showError(`Gagal memuat item faktur: ${err.message}`);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingInvoice(null);
+    setActiveTab('view');
   };
 
   const handleDownloadInvoice = (invoice: Invoice) => {
-    // Implementasi untuk mengunduh faktur
     if (invoice.document_url) {
       window.open(invoice.document_url, '_blank');
     } else {
@@ -129,18 +201,20 @@ const InvoiceManagementPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="view">Lihat Faktur</TabsTrigger>
-          <TabsTrigger value="add">Tambah Faktur Baru</TabsTrigger>
+          <TabsTrigger value="add">{editingInvoice ? 'Edit Faktur' : 'Tambah Faktur Baru'}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="add">
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Faktur Baru</CardTitle>
+              <CardTitle>{editingInvoice ? 'Edit Faktur' : 'Tambah Faktur Baru'}</CardTitle>
             </CardHeader>
             <CardContent>
               <AddInvoiceForm 
-                onSubmit={handleAddInvoice} 
-                isLoading={addInvoiceMutation.isPending} 
+                onSubmit={handleAddOrUpdateInvoice} 
+                isLoading={addInvoiceMutation.isPending || updateInvoiceMutation.isPending} 
+                existingInvoice={editingInvoice}
+                onCancelEdit={handleCancelEdit}
               />
             </CardContent>
           </Card>

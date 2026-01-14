@@ -28,8 +28,10 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CalendarIcon, PlusIcon, TrashIcon } from 'lucide-react';
+import { Invoice, InvoiceItem } from '@/api/invoices'; // Import Invoice and InvoiceItem types
 
 const invoiceItemSchema = z.object({
+  id: z.string().optional(), // Add id for existing items
   item_name: z.string().min(1, { message: 'Nama item wajib diisi.' }),
   quantity: z.coerce.number().min(1, { message: 'Kuantitas harus minimal 1.' }),
   unit_price: z.coerce.number().min(0, { message: 'Harga satuan harus positif.' }),
@@ -52,9 +54,11 @@ const formSchema = z.object({
 interface AddInvoiceFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingInvoice?: (Invoice & { items: InvoiceItem[] }) | null; // New prop for existing invoice
+  onCancelEdit?: () => void; // New prop to cancel edit
 }
 
-const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading }) => {
+const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, existingInvoice, onCancelEdit }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -77,6 +81,49 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading }) 
       ],
     },
   });
+
+  React.useEffect(() => {
+    if (existingInvoice) {
+      form.reset({
+        invoice_number: existingInvoice.invoice_number,
+        invoice_date: new Date(existingInvoice.invoice_date),
+        due_date: existingInvoice.due_date ? new Date(existingInvoice.due_date) : undefined,
+        customer_name: existingInvoice.customer_name,
+        company_name: existingInvoice.company_name || '',
+        type: existingInvoice.type || '',
+        customer_type: existingInvoice.customer_type || '',
+        payment_method: existingInvoice.payment_method || '',
+        notes: existingInvoice.notes || '',
+        items: existingInvoice.items.map(item => ({
+          id: item.id,
+          item_name: item.item_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          unit_type: item.unit_type || 'pcs',
+        })),
+      });
+    } else {
+      form.reset({
+        invoice_number: '',
+        invoice_date: new Date(),
+        due_date: undefined,
+        customer_name: '',
+        company_name: '',
+        type: '',
+        customer_type: '',
+        payment_method: '',
+        notes: '',
+        items: [
+          {
+            item_name: '',
+            quantity: 1,
+            unit_price: 0,
+            unit_type: 'pcs',
+          },
+        ],
+      });
+    }
+  }, [existingInvoice, form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -413,9 +460,16 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading }) 
           )}
         />
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Menyimpan...' : 'Simpan Faktur'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Menyimpan...' : (existingInvoice ? 'Update Faktur' : 'Simpan Faktur')}
+          </Button>
+          {existingInvoice && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );
