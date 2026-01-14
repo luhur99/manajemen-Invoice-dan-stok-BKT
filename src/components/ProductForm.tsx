@@ -56,17 +56,18 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
       form.setValue('harga_beli', existingProduct.harga_beli);
       form.setValue('harga_jual', existingProduct.harga_jual);
       form.setValue('safe_stock_limit', existingProduct.safe_stock_limit);
-    } else {
-      // Reset form to default values if no existing product is found
-      form.reset({
-        kode_barang: '',
-        nama_barang: '',
-        satuan: 'pcs',
-        harga_beli: 0,
-        harga_jual: 0,
-        safe_stock_limit: 0,
-      });
-    }
+    } 
+    // Hapus bagian else yang mereset formulir secara otomatis
+    // else {
+    //   form.reset({
+    //     kode_barang: '',
+    //     nama_barang: '',
+    //     satuan: 'pcs',
+    //     harga_beli: 0,
+    //     harga_jual: 0,
+    //     safe_stock_limit: 0,
+    //   });
+    // }
   }, [existingProduct, form]);
 
   const isDuplicate = existingProduct && (

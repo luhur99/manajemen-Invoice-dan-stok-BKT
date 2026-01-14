@@ -38,6 +38,9 @@ const StockPage: React.FC = () => {
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
 
+  // State untuk memaksa ProductForm mereset
+  const [productFormKey, setProductFormKey] = React.useState(0);
+
   const { data: products, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
     queryKey: ['products', userId],
     queryFn: () => fetchProducts(userId!),
@@ -82,9 +85,10 @@ const StockPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['products', userId] });
       queryClient.invalidateQueries({ queryKey: ['warehouseInventories', userId] });
       showSuccess('Produk berhasil ditambahkan!');
-      // Clear input fields after successful addition
-      setCurrentProductCode('');
-      setCurrentProductName('');
+      // Clear input fields after successful addition by incrementing key
+      setProductFormKey(prevKey => prevKey + 1);
+      setCurrentProductCode(''); // Clear the search state as well
+      setCurrentProductName(''); // Clear the search state as well
     },
     onError: (err) => {
       showError(`Gagal menambahkan produk: ${err.message}`);
@@ -208,6 +212,7 @@ const StockPage: React.FC = () => {
             </CardHeader>
             <CardContent>
               <ProductForm
+                key={productFormKey} // Tambahkan key di sini
                 onSubmit={handleAddProduct}
                 isLoading={addProductMutation.isPending}
                 existingProduct={prepopulatedProduct}
