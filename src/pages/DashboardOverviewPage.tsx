@@ -118,7 +118,7 @@ const DashboardOverviewPage = () => {
         if (productsWithInventories) {
           productsWithInventories.forEach((product) => {
             const totalQuantity = product.warehouse_inventories.reduce((sum: number, inv: WarehouseInventory) => sum + inv.quantity, 0);
-            const limit = product.safe_stock_limit !== undefined && product.safe_stock_limit !== null ? product.safe_stock_limit : 10; // Default to 10 if limit not set
+            const limit = product.safe_stock_limit !== undefined && product.safe_stock_limit !== null ? product.safe_stock_limit : 0; // Default to 0
             if (totalQuantity < limit) {
               lowStockCount++;
             }

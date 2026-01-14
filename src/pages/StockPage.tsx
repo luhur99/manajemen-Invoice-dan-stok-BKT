@@ -215,9 +215,9 @@ const StockPage = () => {
 
     if (showLowStockOnly) {
       filtered = filtered.filter(item => {
-        const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
-        // Check if any inventory category for this product is below the safe stock limit
-        return item.warehouse_inventories.some(inv => inv.quantity < limit);
+        const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 0; // Use 0 as default
+        // Check if total stock for this product is below the safe stock limit
+        return item.total_stock_akhir < limit;
       });
     }
 
@@ -341,14 +341,14 @@ const StockPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item) => (
-                    <TableRow key={item.id} className={item.total_stock_akhir < (item.safe_stock_limit || 10) ? "bg-red-50 dark:bg-red-950" : ""}>
+                    <TableRow key={item.id} className={item.total_stock_akhir < (item.safe_stock_limit || 0) ? "bg-red-50 dark:bg-red-950" : ""}>
                       <TableCell>{item.kode_barang}</TableCell> {/* Corrected access */}
                       <TableCell>{item.nama_barang}</TableCell> {/* Corrected access */}
                       <TableCell>{item.satuan}</TableCell>
                       <TableCell className="text-right">{item.harga_beli.toLocaleString('id-ID')}</TableCell> {/* Corrected access */}
                       <TableCell className="text-right">{item.harga_jual.toLocaleString('id-ID')}</TableCell> {/* Corrected access */}
                       <TableCell className="text-right">
-                        <span className={item.total_stock_akhir < (item.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
+                        <span className={item.total_stock_akhir < (item.safe_stock_limit || 0) ? "font-bold text-red-600 dark:text-red-400" : ""}>
                           {item.total_stock_akhir}
                         </span>
                       </TableCell>

@@ -213,7 +213,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
                   <TableRow key={inventory.id}>
                     <TableCell>{getCategoryDisplay(inventory.warehouse_category)}</TableCell>
                     <TableCell className="text-right">
-                      <span className={inventory.quantity < (product.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
+                      <span className={inventory.quantity < (product.safe_stock_limit || 0) ? "font-bold text-red-600 dark:text-red-400" : ""}>
                         {inventory.quantity}
                       </span>
                     </TableCell>
