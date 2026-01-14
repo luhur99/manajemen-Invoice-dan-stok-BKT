@@ -62,7 +62,7 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
   };
 
   return (
-    <Dialog open={!!request} onOpenChange={onOpenChange}>
+    <Dialog open={!!request} onOpenChange={onOpenChange} key={request.id}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detail Permintaan Penjadwalan</DialogTitle>
