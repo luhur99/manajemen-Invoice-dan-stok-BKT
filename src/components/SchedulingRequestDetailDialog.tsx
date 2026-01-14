@@ -7,23 +7,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter, // Import DialogFooter
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { SchedulingRequest } from '@/api/schedulingRequests';
 import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button'; // Import Button
-import { useSession } from '@/components/SessionContextProvider'; // Import useSession
-import { Loader2 } from 'lucide-react'; // Import Loader2
+import { Button } from '@/components/ui/button';
+import { useSession } from '@/components/SessionContextProvider';
+import { Loader2 } from 'lucide-react';
 
 interface SchedulingRequestDetailDialogProps {
   request: SchedulingRequest | null;
   onOpenChange: (open: boolean) => void;
-  onApprove: (id: string) => void; // New prop for approve action
-  onReject: (id: string) => void; // New prop for reject action
-  isApprovingOrRejecting: boolean; // New prop to indicate loading state for actions
+  onApprove: (id: string) => void;
+  onReject: (id: string) => void;
+  isApprovingOrRejecting: boolean;
 }
 
 const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps> = ({ request, onOpenChange, onApprove, onReject, isApprovingOrRejecting }) => {
@@ -68,6 +68,14 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
           <DialogTitle>Detail Permintaan Penjadwalan</DialogTitle>
           <DialogDescription>Informasi lengkap mengenai permintaan penjadwalan ini.</DialogDescription>
         </DialogHeader>
+
+        {/* DEBUG SECTION START */}
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-2 mb-4" role="alert">
+          <p className="font-bold">Informasi Debug (Hanya untuk pengembangan):</p>
+          <p>Anda Admin: {isAdmin ? 'Ya' : 'Tidak'}</p>
+          <p>Status Permintaan: {request.status}</p>
+        </div>
+        {/* DEBUG SECTION END */}
 
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 items-center gap-4">
