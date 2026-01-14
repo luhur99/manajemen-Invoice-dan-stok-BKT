@@ -10,6 +10,8 @@ import { showError } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
 import { Profile } from "@/types/data";
 import EditProfileForm from "@/components/EditProfileForm";
+import { Badge } from "@/components/ui/badge"; // Import Badge component
+import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton component
 
 const ProfilePage = () => {
   const { session, loading: sessionLoading } = useSession();
@@ -52,13 +54,26 @@ const ProfilePage = () => {
 
   if (sessionLoading || loading) {
     return (
-      <Card className="border shadow-sm">
+      <Card className="border shadow-sm max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Profil Pengguna</CardTitle>
           <CardDescription>Memuat informasi profil Anda...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-gray-700 dark:text-gray-300">Memuat data profil...</p>
+        <CardContent className="space-y-6">
+          <div className="flex items-center space-x-4">
+            <Skeleton className="h-20 w-20 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </div>
+          <div className="space-y-3">
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+          </div>
         </CardContent>
       </Card>
     );
@@ -66,7 +81,7 @@ const ProfilePage = () => {
 
   if (!session?.user) {
     return (
-      <Card className="border shadow-sm">
+      <Card className="border shadow-sm max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl font-semibold">Profil Pengguna</CardTitle>
           <CardDescription>Anda perlu login untuk melihat profil.</CardDescription>
@@ -80,6 +95,7 @@ const ProfilePage = () => {
 
   const displayName = profile?.first_name || session.user.email?.split('@')[0] || "Pengguna";
   const displayFullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
+  const userRole = profile?.role || 'user';
 
   return (
     <Card className="border shadow-sm max-w-2xl mx-auto">
@@ -102,7 +118,9 @@ const ProfilePage = () => {
           </Avatar>
           <div>
             <h3 className="text-xl font-bold">{displayFullName || displayName}</h3>
-            <p className="text-sm text-muted-foreground">{profile?.role || 'user'}</p>
+            <Badge className={`mt-1 ${userRole === 'admin' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-500 hover:bg-gray-600'} text-white`}>
+              {userRole.charAt(0).toUpperCase() + userRole.slice(1)}
+            </Badge>
           </div>
         </div>
 
@@ -127,12 +145,6 @@ const ProfilePage = () => {
             <div className="flex items-center text-gray-700 dark:text-gray-300">
               <User className="mr-2 h-5 w-5 text-muted-foreground" />
               <span>Nama Belakang: {profile.last_name}</span>
-            </div>
-          )}
-          {profile?.role && (
-            <div className="flex items-center text-gray-700 dark:text-gray-300">
-              <Briefcase className="mr-2 h-5 w-5 text-muted-foreground" />
-              <span>Role: {profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}</span>
             </div>
           )}
         </div>
