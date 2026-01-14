@@ -365,25 +365,25 @@ const StockPage = () => {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className="text-center flex items-center justify-center space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleViewDetailsClick(item)} title="Lihat Detail">
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleOpenMovementForm(item)} title="Pindah Stok">
+                          <ArrowRightLeft className="h-4 w-4" />
+                        </Button>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="flex items-center gap-1">
-                              <Settings className="h-4 w-4" /> Atur Barang
+                            <Button variant="ghost" size="icon" title="Opsi Lain">
+                              <Settings className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewDetailsClick(item)}> {/* New dropdown item */}
-                              <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditClick(item)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Produk
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
                               <Settings className="mr-2 h-4 w-4" /> Atur Stok (Masuk/Keluar)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
-                              <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
                               <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
