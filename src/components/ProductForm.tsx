@@ -90,6 +90,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
                     {...field}
                     onChange={(e) => {
                       field.onChange(e);
+                      console.log("ProductForm - kode_barang onChange:", e.target.value); // Log di sini
                       onInputChange?.('kode_barang', e.target.value);
                     }}
                   />
@@ -111,6 +112,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
                     {...field}
                     onChange={(e) => {
                       field.onChange(e);
+                      console.log("ProductForm - nama_barang onChange:", e.target.value); // Log di sini
                       onInputChange?.('nama_barang', e.target.value);
                     }}
                   />

@@ -122,12 +122,13 @@ const StockPage: React.FC = () => {
   };
 
   const handleProductInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
+    console.log(`StockPage - handleProductInputChange called: field=${field}, value=${value}`); // Log di sini
     if (field === 'kode_barang') {
       setCurrentProductCode(value);
-      setCurrentProductName(''); // Clear other field to prioritize search by current field
+      // setCurrentProductName(''); // Dihapus sementara untuk debugging
     } else {
       setCurrentProductName(value);
-      setCurrentProductCode(''); // Clear other field to prioritize search by current field
+      // setCurrentProductCode(''); // Dihapus sementara untuk debugging
     }
   };
 
