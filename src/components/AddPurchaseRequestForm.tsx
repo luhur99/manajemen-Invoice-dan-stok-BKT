@@ -66,7 +66,15 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
         showError("Gagal memuat daftar produk."); // Changed message
         console.error("Error fetching products:", error); // Changed message
       } else {
-        setProducts(data as Product[]); // Changed from StockItem[]
+        // Map data to match Product interface property names
+        setProducts(data.map(item => ({
+          id: item.id,
+          "KODE BARANG": item.kode_barang,
+          "NAMA BARANG": item.nama_barang,
+          SATUAN: item.satuan,
+          "HARGA BELI": item.harga_beli,
+          "HARGA JUAL": item.harga_jual,
+        })) as Product[]);
       }
       setLoadingProducts(false); // Changed from setLoadingStockItems
     };

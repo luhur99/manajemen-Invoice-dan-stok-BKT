@@ -20,13 +20,13 @@ export interface WarehouseInventory {
   updated_at: string;
   // Joined product details for display
   products?: {
-    "KODE BARANG": string;
-    "NAMA BARANG": string;
-    SATUAN: string;
-    "HARGA BELI": number;
-    "HARGA JUAL": number;
+    "KODE BARANG"?: string; // Make optional as it might not be selected in all joins
+    "NAMA BARANG"?: string; // Make optional
+    SATUAN?: string; // Make optional
+    "HARGA BELI"?: number; // Make optional
+    "HARGA JUAL"?: number; // Make optional
     safe_stock_limit?: number;
-  } | null;
+  }[] | null; // Changed to array of objects or null
 }
 
 export interface StockTransaction {
