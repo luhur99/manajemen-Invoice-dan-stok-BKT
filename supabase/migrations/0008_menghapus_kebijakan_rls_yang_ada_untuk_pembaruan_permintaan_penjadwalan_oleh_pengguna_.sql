@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Users can update their own pending scheduling requests" ON public.scheduling_requests;
