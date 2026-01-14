@@ -16,10 +16,10 @@ import {
 } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useQuery } from '@tanstack/react-query';
-import { fetchProductByCodeOrName, fetchProducts, Product } from '@/api/stock'; // Import fetchProducts
+import { fetchProductByCodeOrName, fetchProducts, Product } from '@/api/stock';
 import { useSession } from '@/components/SessionContextProvider';
-import { Check, ChevronsUpDown, Loader2 } from 'lucide-react'; // Import icons
-import { cn } from '@/lib/utils'; // Import cn utility
+import { Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Command,
   CommandEmpty,
@@ -61,7 +61,7 @@ const formSchema = z.object({
 
 interface AddProductFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
-  isLoading: boolean; // isLoading dari mutasi di StockPage
+  isLoading: boolean;
 }
 
 const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) => {
@@ -86,7 +86,6 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
   const debouncedKodeBarang = useDebounce(kodeBarangWatch, 500);
   const debouncedNamaBarang = useDebounce(namaBarangWatch, 500);
 
-  // Query untuk memeriksa duplikat (exact match)
   const { data: existingProduct, isLoading: isLoadingExistingProduct } = useQuery<Product | null>({
     queryKey: ['checkDuplicateProduct', userId, debouncedKodeBarang, debouncedNamaBarang],
     queryFn: () => {
@@ -98,7 +97,6 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
 
   const isDuplicate = !!existingProduct;
 
-  // Query untuk mendapatkan semua produk sebagai saran combobox
   const { data: allProducts, isLoading: isLoadingAllProducts } = useQuery<Product[]>({
     queryKey: ['allProductsForSuggestions', userId],
     queryFn: () => fetchProducts(userId!),
@@ -115,7 +113,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
       return;
     }
     onSubmit(values);
-    form.reset(); // Reset form setelah berhasil submit
+    form.reset();
   };
 
   return (
@@ -131,21 +129,22 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                 <Popover open={openKodeBarang} onOpenChange={setOpenKodeBarang}>
                   <PopoverTrigger asChild>
                     <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className={cn(
-                          "w-full justify-between",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value
-                          ? allProducts?.find(
-                              (product) => product.kode_barang === field.value
-                            )?.kode_barang
-                          : "Pilih Kode Barang..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
+                      <div className="relative">
+                        <Input
+                          placeholder="Ex: BRG001"
+                          value={field.value}
+                          onChange={field.onChange}
+                          className="pr-10" // Memberi ruang untuk ikon
+                        />
+                        <Button
+                          variant="ghost"
+                          role="combobox"
+                          className="absolute right-0 top-0 h-full px-3 py-2"
+                          onClick={() => setOpenKodeBarang((prev) => !prev)}
+                        >
+                          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </div>
                     </FormControl>
                   </PopoverTrigger>
                   <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -184,6 +183,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {isLoadingExistingProduct && debouncedKodeBarang && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Memeriksa duplikat...</p>}
                 {isDuplicate && form.formState.errors.kode_barang && <FormMessage className="text-orange-500">{form.formState.errors.kode_barang.message}</FormMessage>}
                 <FormMessage />
               </FormItem>
@@ -198,21 +198,22 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                 <Popover open={openNamaBarang} onOpenChange={setOpenNamaBarang}>
                   <PopoverTrigger asChild>
                     <FormControl>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        className={cn(
-                          "w-full justify-between",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value
-                          ? allProducts?.find(
-                              (product) => product.nama_barang === field.value
-                            )?.nama_barang
-                          : "Pilih Nama Barang..."}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
+                      <div className="relative">
+                        <Input
+                          placeholder="Ex: Kipas Angin"
+                          value={field.value}
+                          onChange={field.onChange}
+                          className="pr-10" // Memberi ruang untuk ikon
+                        />
+                        <Button
+                          variant="ghost"
+                          role="combobox"
+                          className="absolute right-0 top-0 h-full px-3 py-2"
+                          onClick={() => setOpenNamaBarang((prev) => !prev)}
+                        >
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </div>
                     </FormControl>
                   </PopoverTrigger>
                   <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
@@ -251,6 +252,7 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                     </Command>
                   </PopoverContent>
                 </Popover>
+                {isLoadingExistingProduct && debouncedNamaBarang && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Memeriksa duplikat...</p>}
                 {isDuplicate && form.formState.errors.nama_barang && <FormMessage className="text-orange-500">{form.formState.errors.nama_barang.message}</FormMessage>}
                 <FormMessage />
               </FormItem>
