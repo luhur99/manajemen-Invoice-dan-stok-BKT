@@ -167,8 +167,14 @@ export interface PurchaseRequest {
   total_price: number;
   supplier?: string;
   notes?: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'waiting_for_receipt' | 'closed'; // Updated status types
   created_at: string;
   no?: number; // For display purposes
   document_url?: string; // New: URL for the uploaded purchase document
+  received_quantity?: number; // New: Kuantitas yang diterima
+  returned_quantity?: number; // New: Kuantitas yang dikembalikan
+  damaged_quantity?: number; // New: Kuantitas yang rusak
+  target_warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Kategori gudang tujuan
+  received_notes?: string; // New: Catatan penerimaan
+  received_at?: string; // New: Tanggal penerimaan
 }

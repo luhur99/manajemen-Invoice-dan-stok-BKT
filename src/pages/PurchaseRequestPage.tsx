@@ -9,12 +9,13 @@ import { PurchaseRequest } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm";
+import ReceivePurchaseRequestForm from "@/components/ReceivePurchaseRequestForm"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, CheckCircle, XCircle, Eye, Trash2, PlusCircle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Eye, Trash2, PlusCircle, PackageCheck, Clock } from "lucide-react"; // Import new icons
 import { useSession } from "@/components/SessionContextProvider";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
-import PurchaseRequestDocumentUpload from "@/components/PurchaseRequestDocumentUpload"; // Import new component
+import PurchaseRequestDocumentUpload from "@/components/PurchaseRequestDocumentUpload";
 
 const PurchaseRequestPage = () => {
   const { session } = useSession();
@@ -27,6 +28,9 @@ const PurchaseRequestPage = () => {
 
   const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
   const [notesToView, setNotesToView] = useState<string>("");
+
+  const [isReceiveFormOpen, setIsReceiveFormOpen] = useState(false); // State for Receive form
+  const [selectedRequestForReceipt, setSelectedRequestForReceipt] = useState<PurchaseRequest | null>(null); // State for selected request
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -80,109 +84,40 @@ const PurchaseRequestPage = () => {
       item.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.supplier?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.status.toLowerCase().includes(lowerCaseSearchTerm)
+      item.status.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.received_notes?.toLowerCase().includes(lowerCaseSearchTerm) // Include new notes in search
     );
     setFilteredPurchaseRequests(filtered);
     setCurrentPage(1);
   }, [searchTerm, purchaseRequests]);
 
   const handleApproveRequest = async (request: PurchaseRequest) => {
-    if (!window.confirm(`Apakah Anda yakin ingin MENYETUJUI pengajuan pembelian untuk "${request.item_name}"?`)) {
+    if (!window.confirm(`Apakah Anda yakin ingin MENYETUJUI pengajuan pembelian untuk "${request.item_name}"? Status akan berubah menjadi 'Menunggu Barang Diterima'.`)) {
       return;
     }
 
     try {
-      // 1. Update purchase_requests status to 'approved'
+      // Only update status to 'waiting_for_receipt', no stock changes yet
       const { error: updateReqError } = await supabase
         .from("purchase_requests")
-        .update({ status: "approved" })
+        .update({ status: "waiting_for_receipt" })
         .eq("id", request.id);
 
       if (updateReqError) {
         throw updateReqError;
       }
 
-      // 2. Check if stock item exists or create new
-      const { data: existingStockItem, error: fetchStockError } = await supabase
-        .from("stock_items")
-        .select("id, stock_masuk, stock_akhir, harga_beli, harga_jual, satuan, warehouse_category")
-        .eq("kode_barang", request.item_code)
-        .single();
-
-      let stockItemId: string;
-      let newStockMasuk: number;
-      let newStockAkhir: number;
-
-      if (fetchStockError && fetchStockError.code === 'PGRST116') { // No rows found
-        // Create new stock item
-        const { data: newStockData, error: createStockError } = await supabase
-          .from("stock_items")
-          .insert({
-            user_id: session?.user?.id,
-            kode_barang: request.item_code,
-            nama_barang: request.item_name,
-            satuan: "PCS", // Default to PCS if not specified in request, or add to form
-            harga_beli: request.unit_price,
-            harga_jual: request.suggested_selling_price,
-            stock_awal: 0, // Initial stock is 0, then add via stock_masuk
-            stock_masuk: request.quantity,
-            stock_keluar: 0,
-            stock_akhir: request.quantity,
-            safe_stock_limit: 10, // Default safe stock limit
-            warehouse_category: "siap_jual", // Default category for new purchased items
-          })
-          .select("id, stock_masuk, stock_akhir")
-          .single();
-
-        if (createStockError) throw createStockError;
-        stockItemId = newStockData.id;
-        newStockMasuk = newStockData.stock_masuk;
-        newStockAkhir = newStockData.stock_akhir;
-
-      } else if (existingStockItem) {
-        // Update existing stock item
-        newStockMasuk = existingStockItem.stock_masuk + request.quantity;
-        newStockAkhir = existingStockItem.stock_akhir + request.quantity;
-
-        const { error: updateStockError } = await supabase
-          .from("stock_items")
-          .update({
-            stock_masuk: newStockMasuk,
-            stock_akhir: newStockAkhir,
-            harga_beli: request.unit_price, // Update purchase price
-            harga_jual: request.suggested_selling_price, // Update selling price
-          })
-          .eq("id", existingStockItem.id);
-
-        if (updateStockError) throw updateStockError;
-        stockItemId = existingStockItem.id;
-
-      } else {
-        throw new Error("Gagal memproses item stok.");
-      }
-
-      // 3. Record transaction in stock_transactions
-      const { error: transactionError } = await supabase
-        .from("stock_transactions")
-        .insert({
-          user_id: session?.user?.id,
-          stock_item_id: stockItemId,
-          transaction_type: "in",
-          quantity: request.quantity,
-          notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,
-          transaction_date: format(new Date(), "yyyy-MM-dd"),
-        });
-
-      if (transactionError) {
-        throw transactionError;
-      }
-
-      showSuccess(`Pengajuan pembelian untuk "${request.item_name}" berhasil disetujui dan stok diperbarui!`);
+      showSuccess(`Pengajuan pembelian untuk "${request.item_name}" berhasil disetujui. Menunggu penerimaan barang.`);
       fetchPurchaseRequests(); // Refresh the list
     } catch (err: any) {
       showError(`Gagal menyetujui pengajuan: ${err.message}`);
       console.error("Error approving purchase request:", err);
     }
+  };
+
+  const handleReceiveItemsClick = (request: PurchaseRequest) => {
+    setSelectedRequestForReceipt(request);
+    setIsReceiveFormOpen(true);
   };
 
   const handleRejectRequest = async (request: PurchaseRequest) => {
@@ -275,12 +210,34 @@ const PurchaseRequestPage = () => {
     setCurrentPage(page);
   };
 
-  const getStatusColor = (status: 'pending' | 'approved' | 'rejected') => {
+  const getStatusColor = (status: 'pending' | 'approved' | 'rejected' | 'waiting_for_receipt' | 'closed') => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
+      case 'approved': return 'bg-blue-100 text-blue-800'; // Approved but not received
+      case 'waiting_for_receipt': return 'bg-orange-100 text-orange-800'; // Waiting for receipt
+      case 'closed': return 'bg-green-100 text-green-800'; // Fulfilled/Closed
       case 'rejected': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getStatusDisplay = (status: 'pending' | 'approved' | 'rejected' | 'waiting_for_receipt' | 'closed') => {
+    switch (status) {
+      case 'pending': return 'Pending';
+      case 'approved': return 'Disetujui'; // This status is now an intermediate state
+      case 'waiting_for_receipt': return 'Menunggu Barang Diterima';
+      case 'closed': return 'Terpenuhi';
+      case 'rejected': return 'Ditolak';
+      default: return status;
+    }
+  };
+
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return "-";
     }
   };
 
@@ -324,7 +281,8 @@ const PurchaseRequestPage = () => {
           >
             <option value="all">Semua Status</option>
             <option value="pending">Pending</option>
-            <option value="approved">Disetujui</option>
+            <option value="waiting_for_receipt">Menunggu Barang Diterima</option>
+            <option value="closed">Terpenuhi</option>
             <option value="rejected">Ditolak</option>
           </select>
           <Button onClick={() => { setSearchTerm(""); setFilterStatus("all"); }} variant="outline">
@@ -341,15 +299,21 @@ const PurchaseRequestPage = () => {
                     <TableHead>No</TableHead>
                     <TableHead>Nama Item</TableHead>
                     <TableHead>Kode Item</TableHead>
-                    <TableHead className="text-right">Kuantitas</TableHead>
+                    <TableHead className="text-right">Kuantitas Diajukan</TableHead>
+                    <TableHead className="text-right">Diterima</TableHead>
+                    <TableHead className="text-right">Dikembalikan</TableHead>
+                    <TableHead className="text-right">Rusak</TableHead>
+                    <TableHead>Gudang Tujuan</TableHead>
                     <TableHead className="text-right">Harga Beli/Unit</TableHead>
                     <TableHead className="text-right">Harga Jual Disarankan/Unit</TableHead>
                     <TableHead className="text-right">Total Harga</TableHead>
                     <TableHead>Pemasok</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Dokumen</TableHead> {/* New TableHead */}
-                    <TableHead>Catatan</TableHead>
+                    <TableHead>Dokumen</TableHead>
+                    <TableHead>Catatan Pengajuan</TableHead>
+                    <TableHead>Catatan Penerimaan</TableHead>
                     <TableHead>Tanggal Pengajuan</TableHead>
+                    <TableHead>Tanggal Penerimaan</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -360,16 +324,20 @@ const PurchaseRequestPage = () => {
                       <TableCell>{request.item_name}</TableCell>
                       <TableCell>{request.item_code}</TableCell>
                       <TableCell className="text-right">{request.quantity}</TableCell>
+                      <TableCell className="text-right">{request.received_quantity || 0}</TableCell>
+                      <TableCell className="text-right">{request.returned_quantity || 0}</TableCell>
+                      <TableCell className="text-right">{request.damaged_quantity || 0}</TableCell>
+                      <TableCell>{getCategoryDisplay(request.target_warehouse_category)}</TableCell>
                       <TableCell className="text-right">{request.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                       <TableCell className="text-right">{request.suggested_selling_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                       <TableCell className="text-right">{request.total_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                       <TableCell>{request.supplier || "-"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
-                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                          {getStatusDisplay(request.status)}
                         </span>
                       </TableCell>
-                      <TableCell> {/* New TableCell for document upload */}
+                      <TableCell>
                         <PurchaseRequestDocumentUpload
                           purchaseRequestId={request.id}
                           currentFileUrl={request.document_url}
@@ -386,17 +354,32 @@ const PurchaseRequestPage = () => {
                           "-"
                         )}
                       </TableCell>
+                      <TableCell>
+                        {request.received_notes ? (
+                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(request.received_notes!)} className="h-7 px-2">
+                            <Eye className="h-3 w-3 mr-1" /> Lihat
+                          </Button>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
                       <TableCell>{format(new Date(request.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
+                      <TableCell>{request.received_at ? format(new Date(request.received_at), "dd-MM-yyyy HH:mm") : "-"}</TableCell>
                       <TableCell className="text-center flex items-center justify-center space-x-1">
                         {request.status === "pending" && (
                           <>
-                            <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui">
+                            <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui Pengajuan">
                               <CheckCircle className="h-4 w-4 text-green-600" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak">
+                            <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak Pengajuan">
                               <XCircle className="h-4 w-4 text-red-600" />
                             </Button>
                           </>
+                        )}
+                        {request.status === "waiting_for_receipt" && (
+                          <Button variant="ghost" size="icon" onClick={() => handleReceiveItemsClick(request)} title="Terima Barang">
+                            <PackageCheck className="h-4 w-4 text-blue-600" />
+                          </Button>
                         )}
                         {(request.status === "pending" || session?.user?.user_metadata.role === 'admin') && ( // Allow deletion of pending by user, or any by admin
                           <Button variant="destructive" size="icon" onClick={() => handleDeleteRequest(request.id)} title="Hapus">
@@ -427,6 +410,15 @@ const PurchaseRequestPage = () => {
         isOpen={isViewNotesOpen}
         onOpenChange={setIsViewNotesOpen}
       />
+
+      {selectedRequestForReceipt && (
+        <ReceivePurchaseRequestForm
+          purchaseRequest={selectedRequestForReceipt}
+          isOpen={isReceiveFormOpen}
+          onOpenChange={setIsReceiveFormOpen}
+          onSuccess={fetchPurchaseRequests}
+        />
+      )}
     </Card>
   );
 };
