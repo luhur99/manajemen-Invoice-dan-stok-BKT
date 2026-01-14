@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
+import { format } from "date-fns"; // Import format for transaction_date
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -55,7 +56,6 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const stock_akhir = values.stock_awal; // Stock akhir is initially just stock awal
     const user = await supabase.auth.getUser();
     const userId = user.data.user?.id;
 
@@ -65,54 +65,72 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      const { data: stockItemData, error: stockItemError } = await supabase
-        .from("stock_items")
+      // 1. Insert into products table
+      const { data: productData, error: productError } = await supabase
+        .from("products")
         .insert({
+          user_id: userId,
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
-          satuan: values.satuan,
+          satuan: values.satuan || null,
           harga_beli: values.harga_beli,
           harga_jual: values.harga_jual,
-          stock_awal: values.stock_awal,
-          stock_masuk: 0, // Default to 0 for new item
-          stock_keluar: 0, // Default to 0 for new item
-          stock_akhir: stock_akhir,
           safe_stock_limit: values.safe_stock_limit,
-          warehouse_category: values.warehouse_category, // Save new field
-          user_id: userId,
         })
         .select("id")
         .single();
 
-      if (stockItemError) {
-        throw stockItemError;
+      if (productError) {
+        throw productError;
       }
 
-      // Record initial stock transaction if stock_awal > 0
-      if (values.stock_awal > 0) {
-        const { error: transactionError } = await supabase
-          .from("stock_transactions")
-          .insert({
-            user_id: userId,
-            stock_item_id: stockItemData.id,
-            transaction_type: "initial",
-            quantity: values.stock_awal,
-            notes: `Stok awal saat penambahan item di kategori ${values.warehouse_category}`,
-          });
+      const productId = productData.id;
 
-        if (transactionError) {
-          console.error("Error recording initial stock transaction:", transactionError);
-          // Don't throw, just log, as the item itself was added successfully
+      // 2. If stock_awal > 0, insert into warehouse_inventories
+      if (values.stock_awal > 0) {
+        const { data: inventoryData, error: inventoryError } = await supabase
+          .from("warehouse_inventories")
+          .insert({
+            product_id: productId,
+            warehouse_category: values.warehouse_category,
+            quantity: values.stock_awal,
+            user_id: userId,
+          })
+          .select("id")
+          .single();
+
+        if (inventoryError) {
+          console.error("Error inserting into warehouse_inventories:", inventoryError);
+          // Don't throw, just log, as the product itself was added successfully
+          showError("Gagal mencatat stok awal di inventaris gudang.");
+        } else {
+          // 3. Record initial stock transaction
+          const { error: transactionError } = await supabase
+            .from("stock_transactions")
+            .insert({
+              user_id: userId,
+              product_id: productId,
+              transaction_type: "initial",
+              quantity: values.stock_awal,
+              notes: `Stok awal saat penambahan produk di kategori ${values.warehouse_category}`,
+              transaction_date: format(new Date(), "yyyy-MM-dd"),
+              warehouse_category: values.warehouse_category,
+            });
+
+          if (transactionError) {
+            console.error("Error recording initial stock transaction:", transactionError);
+            showError("Gagal mencatat transaksi stok awal.");
+          }
         }
       }
 
-      showSuccess("Item stok berhasil ditambahkan!");
+      showSuccess("Produk dan stok awal berhasil ditambahkan!");
       form.reset();
       setIsOpen(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
-      showError(`Gagal menambahkan item stok: ${error.message}`);
-      console.error("Error adding stock item:", error);
+      showError(`Gagal menambahkan produk: ${error.message}`);
+      console.error("Error adding product:", error);
     }
   };
 
