@@ -18,12 +18,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { StockItem } from "@/types/data";
+import { Product } from "@/types/data"; // Changed from StockItem
 
 interface StockItemComboboxProps {
-  items: StockItem[];
+  items: Product[]; // Changed from StockItem[]
   value?: string; // The selected item_name
-  onValueChange: (item: StockItem | undefined) => void;
+  onValueChange: (item: Product | undefined) => void; // Changed from StockItem
   placeholder?: string;
   disabled?: boolean;
   id?: string; // Added for accessibility
@@ -43,14 +43,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
 
   const selectedItem = items.find((item) => item["NAMA BARANG"] === value);
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      default: return "";
-    }
-  };
+  // Removed getCategoryDisplay as warehouse_category is no longer on Product
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -67,7 +60,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           {/* Wrap children in a single span to ensure PopoverTrigger asChild receives one child */}
           <span>
             {selectedItem
-              ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${getCategoryDisplay(selectedItem.warehouse_category)}`
+              ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]})` // Removed category display
               : placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </span>
@@ -96,7 +89,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
                       selectedItem?.["NAMA BARANG"] === item["NAMA BARANG"] ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {item["NAMA BARANG"]} ({item["KODE BARANG"]}) - {getCategoryDisplay(item.warehouse_category)}
+                  {item["NAMA BARANG"]} ({item["KODE BARANG"]})
                 </CommandItem>
               ))}
             </CommandGroup>

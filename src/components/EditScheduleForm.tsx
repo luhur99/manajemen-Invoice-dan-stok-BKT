@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Schedule, InvoiceItem, StockItem, Invoice } from "@/types/data"; // Import Invoice type
+import { Schedule, InvoiceItem, Product, Invoice } from "@/types/data"; // Changed from StockItem
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -175,7 +175,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
 
         const { data: invoiceItems, error: itemsError } = await supabase
           .from("invoice_items")
-          .select("*")
+          .select("product_id, quantity, item_name") // Select product_id
           .eq("invoice_id", values.invoice_id);
 
         if (itemsError) {
@@ -184,59 +184,59 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
           // Continue with schedule update, but stock deduction failed
         } else if (invoiceItems && invoiceItems.length > 0) {
           for (const item of invoiceItems as InvoiceItem[]) {
-            const { data: stockItemData, error: stockItemError } = await supabase
-              .from("stock_items")
-              .select("id, nama_barang, stock_keluar, stock_akhir")
-              .eq("nama_barang", item.item_name)
-              .single();
-
-            if (stockItemError) {
-              console.warn(`Stock item for "${item.item_name}" not found or error:`, stockItemError);
-              showError(`Item stok "${item.item_name}" tidak ditemukan atau gagal diperbarui.`);
-              continue; // Skip to next invoice item
+            if (!item.product_id) {
+              console.warn(`Invoice item "${item.item_name}" has no product_id. Skipping stock deduction.`);
+              continue;
             }
 
-            if (stockItemData) {
-              const newStockKeluar = stockItemData.stock_keluar + item.quantity;
-              const newStockAkhir = stockItemData.stock_akhir - item.quantity;
+            // Fetch the warehouse_inventory for 'siap_jual' category for this product
+            const { data: warehouseInventory, error: inventoryError } = await supabase
+              .from("warehouse_inventories")
+              .select("id, quantity")
+              .eq("product_id", item.product_id)
+              .eq("warehouse_category", "siap_jual") // Assuming sales deduct from 'siap_jual'
+              .single();
 
-              if (newStockAkhir < 0) {
-                showError(`Stok akhir untuk "${item.item_name}" akan menjadi negatif. Pengurangan dibatalkan.`);
-                // Optionally, revert schedule status or mark as partially completed
-                continue;
-              }
+            if (inventoryError && inventoryError.code !== 'PGRST116') { // PGRST116 means no rows found
+              console.error(`Error fetching warehouse inventory for product ${item.product_id}:`, inventoryError);
+              showError(`Gagal memuat inventaris gudang untuk item "${item.item_name}".`);
+              continue;
+            }
 
-              // Update stock item
-              const { error: updateStockError } = await supabase
-                .from("stock_items")
-                .update({
-                  stock_keluar: newStockKeluar,
-                  stock_akhir: newStockAkhir,
-                })
-                .eq("id", stockItemData.id);
+            if (!warehouseInventory || warehouseInventory.quantity < item.quantity) {
+              showError(`Stok tidak mencukupi di gudang 'Siap Jual' untuk "${item.item_name}". Tersedia: ${warehouseInventory?.quantity || 0}, Diminta: ${item.quantity}`);
+              continue;
+            }
 
-              if (updateStockError) {
-                console.error(`Error updating stock for "${item.item_name}":`, updateStockError);
-                showError(`Gagal memperbarui stok untuk "${item.item_name}".`);
-                continue;
-              }
+            // Update warehouse_inventories: decrease quantity
+            const newQuantity = warehouseInventory.quantity - item.quantity;
+            const { error: updateInventoryError } = await supabase
+              .from("warehouse_inventories")
+              .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+              .eq("id", warehouseInventory.id);
 
-              // Record stock transaction
-              const { error: transactionError } = await supabase
-                .from("stock_transactions")
-                .insert({
-                  user_id: userId,
-                  stock_item_id: stockItemData.id,
-                  transaction_type: "out",
-                  quantity: item.quantity,
-                  notes: `Pengurangan stok untuk jadwal ${values.type} (Invoice: ${relatedInvoiceNumber || values.invoice_id})`, // Use relatedInvoiceNumber
-                });
+            if (updateInventoryError) {
+              console.error(`Error updating warehouse inventory for "${item.item_name}":`, updateInventoryError);
+              showError(`Gagal memperbarui inventaris gudang untuk "${item.item_name}".`);
+              continue;
+            }
 
-              if (transactionError) {
-                console.error(`Error recording stock transaction for "${item.item_name}":`, transactionError);
-                showError(`Gagal mencatat transaksi stok untuk "${item.item_name}".`);
-                continue;
-              }
+            // Record stock transaction
+            const { error: transactionError } = await supabase
+              .from("stock_transactions")
+              .insert({
+                user_id: userId,
+                product_id: item.product_id, // Use product_id
+                transaction_type: "out",
+                quantity: item.quantity,
+                notes: `Pengurangan stok untuk jadwal ${values.type} (Invoice: ${relatedInvoiceNumber || values.invoice_id})`, // Use relatedInvoiceNumber
+                warehouse_category: "siap_jual", // Record the category affected
+              });
+
+            if (transactionError) {
+              console.error(`Error recording stock transaction for "${item.item_name}":`, transactionError);
+              showError(`Gagal mencatat transaksi stok untuk "${item.item_name}".`);
+              continue;
             }
           }
           showSuccess("Stok barang terkait berhasil diperbarui.");

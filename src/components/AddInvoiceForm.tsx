@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data"; // Import StockItem type
+import { Product } from "@/types/data"; // Changed from StockItem type
 import StockItemCombobox from "@/components/StockItemCombobox"; // Import new combobox
 
 // Schema validasi menggunakan Zod
@@ -34,6 +34,7 @@ const invoiceItemSchema = z.object({
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Satuan tidak boleh negatif"),
   unit_type: z.string().optional(), // New field for unit type
+  product_id: z.string().uuid().optional(), // New: Link to products table
 });
 
 const formSchema = z.object({
@@ -76,8 +77,8 @@ const generateInvoiceNumber = () => {
 
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [loadingStockItems, setLoadingStockItems] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]); // Changed from stockItems
+  const [loadingProducts, setLoadingProducts] = useState(true); // Changed from loadingStockItems
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -91,7 +92,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
       payment_method: "",
       notes: "",
       courier_service: "", // Initialize new field
-      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
+      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", product_id: undefined }], // Added product_id
     },
   });
 
@@ -101,30 +102,30 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
   });
 
   useEffect(() => {
-    const fetchStockItems = async () => {
-      setLoadingStockItems(true);
+    const fetchProducts = async () => { // Changed from fetchStockItems
+      setLoadingProducts(true); // Changed from setLoadingStockItems
       const { data, error } = await supabase
-        .from("stock_items")
-        .select("id, kode_barang, nama_barang, harga_jual, satuan");
+        .from("products") // Changed from stock_items
+        .select("id, kode_barang, nama_barang, satuan, harga_beli, harga_jual");
 
       if (error) {
-        showError("Gagal memuat daftar item stok.");
-        console.error("Error fetching stock items:", error);
+        showError("Gagal memuat daftar produk."); // Changed message
+        console.error("Error fetching products:", error); // Changed message
       } else {
-        setStockItems(data.map(item => ({
+        // Map data to match Product interface property names
+        setProducts(data.map(item => ({
           id: item.id,
           "KODE BARANG": item.kode_barang,
           "NAMA BARANG": item.nama_barang,
+          SATUAN: item.satuan,
+          "HARGA BELI": item.harga_beli,
           "HARGA JUAL": item.harga_jual,
-          SATUAN: item.satuan || "", // Ensure SATUAN is always a string
-          // Default values for other StockItem fields not used here
-          NO: 0, "HARGA BELI": 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
-        })) as StockItem[]);
+        })) as Product[]);
       }
-      setLoadingStockItems(false);
+      setLoadingProducts(false); // Changed from setLoadingStockItems
     };
 
-    fetchStockItems();
+    fetchProducts();
   }, []);
 
   const totalAmount = useMemo(() => {
@@ -176,6 +177,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
       const itemsToInsert = values.items.map((item) => ({
         invoice_id: invoiceData.id,
         user_id: userId,
+        product_id: item.product_id || null, // Save product_id
         item_name: item.item_name,
         quantity: item.quantity,
         unit_price: item.unit_price,
@@ -202,7 +204,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         payment_method: "",
         notes: "",
         courier_service: "", // Reset new field
-        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
+        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", product_id: undefined }], // Reset product_id
       });
       setIsOpen(false);
       onSuccess();
@@ -475,16 +477,17 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                         <FormControl>
                           <StockItemCombobox
                             name={field.name}
-                            items={stockItems}
+                            items={products} // Changed from stockItems
                             value={field.value}
-                            onValueChange={(selectedStock) => {
-                              if (selectedStock) {
+                            onValueChange={(selectedProduct) => { // Changed from selectedStock
+                              if (selectedProduct) {
                                 update(index, {
                                   ...form.getValues().items[index],
-                                  item_name: selectedStock["NAMA BARANG"],
-                                  item_code: selectedStock["KODE BARANG"],
-                                  unit_price: selectedStock["HARGA JUAL"],
-                                  unit_type: selectedStock.SATUAN || "",
+                                  item_name: selectedProduct["NAMA BARANG"],
+                                  item_code: selectedProduct["KODE BARANG"],
+                                  unit_price: selectedProduct["HARGA JUAL"],
+                                  unit_type: selectedProduct.SATUAN || "",
+                                  product_id: selectedProduct.id, // Set product_id
                                 });
                               } else {
                                 update(index, {
@@ -493,11 +496,12 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                                   item_code: "",
                                   unit_price: 0,
                                   unit_type: "",
+                                  product_id: undefined, // Clear product_id
                                 });
                               }
                             }}
-                            disabled={loadingStockItems}
-                            placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item..."}
+                            disabled={loadingProducts} // Changed from loadingStockItems
+                            placeholder={loadingProducts ? "Memuat item produk..." : "Pilih item..."} // Changed message
                           />
                         </FormControl>
                         <FormMessage />
@@ -574,7 +578,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" })}
+              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", product_id: undefined })} // Reset product_id
               className="w-full flex items-center gap-2"
             >
               <PlusCircle className="h-4 w-4" /> Tambah Item

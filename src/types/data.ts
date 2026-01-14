@@ -1,46 +1,60 @@
-export interface StockItem {
-  id?: string; // New: UUID from Supabase, made optional for initial data loading
-  user_id?: string; // New: User ID for RLS, made optional for initial data loading
-  NO: number;
+export interface Product {
+  id?: string; // UUID from Supabase
+  user_id?: string; // User ID for RLS
   "KODE BARANG": string;
   "NAMA BARANG": string;
   SATUAN: string;
   "HARGA BELI": number;
   "HARGA JUAL": number;
-  "STOCK AWAL": number;
-  "STOCK MASUK": number;
-  "STOCK KELUAR": number;
-  "STOCK AKHIR": number;
-  safe_stock_limit?: number; // New: Batas stok aman
-  warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Kategori gudang stok
-  created_at?: string; // Add created_at for consistency
+  safe_stock_limit?: number; // Batas stok aman
+  created_at?: string;
+}
+
+export interface WarehouseInventory {
+  id: string;
+  product_id: string;
+  warehouse_category: 'siap_jual' | 'riset' | 'retur';
+  quantity: number;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  // Joined product details for display
+  products?: {
+    "KODE BARANG": string;
+    "NAMA BARANG": string;
+    SATUAN: string;
+    "HARGA BELI": number;
+    "HARGA JUAL": number;
+    safe_stock_limit?: number;
+  } | null;
 }
 
 export interface StockTransaction {
   id: string;
   user_id: string;
-  stock_item_id: string;
-  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment'; // Updated transaction types
+  product_id: string; // Changed from stock_item_id
+  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment';
   quantity: number;
   notes?: string;
   transaction_date: string; // ISO date string
   created_at: string;
+  warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Kategori gudang yang terpengaruh
 }
 
-// New interface for Stock Transaction with Item Name for display
+// New interface for Stock Transaction with Product Name for display
 export interface StockTransactionWithItemName extends StockTransaction {
-  stock_items: {
-    nama_barang: string;
-    kode_barang: string;
-    warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // Added warehouse_category here
-  }[] | null; // Diperbaiki: sekarang array objek atau null
+  products: { // Changed from stock_items
+    "NAMA BARANG": string;
+    "KODE BARANG": string;
+    safe_stock_limit?: number;
+  } | null; // Diperbaiki: sekarang objek tunggal atau null
 }
 
 // New interface for Stock Movement
 export interface StockMovement {
   id: string;
   user_id: string;
-  stock_item_id: string;
+  product_id: string; // Changed from stock_item_id
   from_category: 'siap_jual' | 'riset' | 'retur';
   to_category: 'siap_jual' | 'riset' | 'retur';
   quantity: number;
@@ -49,42 +63,42 @@ export interface StockMovement {
   created_at: string;
 }
 
-// New interface for Stock Movement with Item Name for display
+// New interface for Stock Movement with Product Name for display
 export interface StockMovementWithItemName extends StockMovement {
-  stock_items: {
-    nama_barang: string;
-    kode_barang: string;
-  }[] | null; // Diperbarui: sekarang array objek atau null
+  products: { // Changed from stock_items
+    "NAMA BARANG": string;
+    "KODE BARANG": string;
+  } | null; // Diperbarui: sekarang objek tunggal atau null
 }
 
 export interface SalesDetailItem {
-  id?: string; // New: UUID from Supabase
-  user_id?: string; // New: User ID for RLS
+  id?: string; // UUID from Supabase
+  user_id?: string; // User ID for RLS
   no: number;
-  kirim_install: string; // Changed from "Kirim/Install"
-  no_transaksi: string; // Changed from "No Transaksi"
-  invoice_number: string; // Changed from "Invoice"
-  new_old?: string; // Changed from "New/Old"
-  perusahaan?: string; // Changed from "Perusahaan"
+  kirim_install: string;
+  no_transaksi: string;
+  invoice_number: string;
+  new_old?: string;
+  perusahaan?: string;
   tanggal: string; // Assuming date as string "yyyy-mm-dd"
-  hari?: string; // Changed from "Hari"
-  jam?: string; // Changed from "Jam"
-  customer: string; // Changed from "Customer"
-  alamat_install?: string; // Changed from "Alamat install"
-  no_hp?: string; // Changed from "No HP"
-  type?: string; // Changed from "Type"
-  qty_unit?: number; // Changed from "Qty unit"
-  stock?: number; // Changed from "Stock"
-  harga?: number; // Changed from "Harga"
-  web?: string; // Changed from "WEB"
-  qty_web?: number; // Changed from "Qty Web"
-  kartu?: string; // Changed from "Kartu"
-  qty_kartu?: number; // Changed from "Qty kartu"
-  paket?: string; // Changed from "Paket"
-  pulsa?: number; // Changed from "Pulsa"
-  teknisi?: string; // Changed from "Teknisi"
-  payment?: string; // Changed from "Payment"
-  catatan?: string; // Changed from "Catatan"
+  hari?: string;
+  jam?: string;
+  customer: string;
+  alamat_install?: string;
+  no_hp?: string;
+  type?: string;
+  qty_unit?: number;
+  stock?: number;
+  harga?: number;
+  web?: string;
+  qty_web?: number;
+  kartu?: string;
+  qty_kartu?: number;
+  paket?: string;
+  pulsa?: number;
+  teknisi?: string;
+  payment?: string;
+  catatan?: string;
   invoice_file_url?: string; // This will still be fetched from sales_invoices table
   created_at?: string;
 }
@@ -94,12 +108,13 @@ export interface InvoiceItem {
   id?: string; // Optional for new items
   invoice_id?: string; // Optional for new items
   user_id?: string; // Optional for new items, will be set by backend
+  product_id?: string; // New: Link to products table
   item_name: string;
-  item_code?: string; // New field for item code
+  item_code?: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
-  unit_type?: string; // New field for unit type
+  unit_type?: string;
   created_at?: string;
 }
 
@@ -113,16 +128,16 @@ export interface Invoice {
   company_name?: string;
   total_amount: number;
   payment_status: 'pending' | 'paid' | 'overdue';
-  type?: 'instalasi' | 'kirim barang'; // New field
-  customer_type?: 'lama' | 'baru'; // New field
-  payment_method?: string; // New field
-  notes?: string; // New field
+  type?: 'instalasi' | 'kirim barang';
+  customer_type?: 'lama' | 'baru';
+  payment_method?: string;
+  notes?: string;
   created_at: string;
   items?: InvoiceItem[]; // For displaying joined items
-  item_names_summary?: string; // New: Summary of item names for table display
-  document_url?: string; // New: URL for the uploaded invoice document
-  no?: number; // New: Sequential number for display
-  courier_service?: string; // New: Jasa Kurir field
+  item_names_summary?: string; // Summary of item names for table display
+  document_url?: string; // URL for the uploaded invoice document
+  no?: number; // Sequential number for display
+  courier_service?: string;
 }
 
 export interface Schedule {
@@ -135,14 +150,14 @@ export interface Schedule {
   address?: string;
   technician_name?: string;
   invoice_id?: string; // UUID of related invoice
-  invoice_number?: string; // New: Invoice number from related invoice
+  invoice_number?: string; // Invoice number from related invoice
   status: 'scheduled' | 'in progress' | 'completed' | 'cancelled';
   notes?: string;
   created_at: string;
-  phone_number?: string; // New field for phone number
-  courier_service?: string; // New field for courier service
-  document_url?: string; // New field for delivery/installation document
-  no?: number; // New: Sequential number for display
+  phone_number?: string;
+  courier_service?: string;
+  document_url?: string;
+  no?: number; // Sequential number for display
 }
 
 export interface Profile {
@@ -159,6 +174,7 @@ export interface Profile {
 export interface PurchaseRequest {
   id: string;
   user_id: string;
+  product_id?: string; // New: Link to products table
   item_name: string;
   item_code: string;
   quantity: number;
@@ -167,14 +183,14 @@ export interface PurchaseRequest {
   total_price: number;
   supplier?: string;
   notes?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'waiting_for_receipt' | 'closed'; // Updated status types
+  status: 'pending' | 'approved' | 'rejected' | 'waiting_for_receipt' | 'closed';
   created_at: string;
   no?: number; // For display purposes
-  document_url?: string; // New: URL for the uploaded purchase document
-  received_quantity?: number; // New: Kuantitas yang diterima
-  returned_quantity?: number; // New: Kuantitas yang dikembalikan
-  damaged_quantity?: number; // New: Kuantitas yang rusak
-  target_warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Kategori gudang tujuan
-  received_notes?: string; // New: Catatan penerimaan
-  received_at?: string; // New: Tanggal penerimaan
+  document_url?: string; // URL for the uploaded purchase document
+  received_quantity?: number;
+  returned_quantity?: number;
+  damaged_quantity?: number;
+  target_warehouse_category?: 'siap_jual' | 'riset' | 'retur';
+  received_notes?: string;
+  received_at?: string;
 }
