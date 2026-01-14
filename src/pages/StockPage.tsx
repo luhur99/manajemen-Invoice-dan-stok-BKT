@@ -40,6 +40,8 @@ const StockPage: React.FC = () => {
 
   // State untuk memaksa ProductForm mereset
   const [productFormKey, setProductFormKey] = React.useState(0);
+  // State baru untuk mengontrol tab yang aktif
+  const [activeTab, setActiveTab] = React.useState<string>('add');
 
   const { data: products, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
     queryKey: ['products', userId],
@@ -89,6 +91,7 @@ const StockPage: React.FC = () => {
       setProductFormKey(prevKey => prevKey + 1);
       setCurrentProductCode(''); // Clear the search state as well
       setCurrentProductName(''); // Clear the search state as well
+      setActiveTab('view'); // Pindah ke tab 'Lihat Stok' setelah berhasil menambahkan produk
     },
     onError: (err) => {
       showError(`Gagal menambahkan produk: ${err.message}`);
@@ -107,6 +110,7 @@ const StockPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['warehouseInventories', userId] });
       queryClient.invalidateQueries({ queryKey: ['stockMovements', userId] }); // Invalidate stock movements history
       showSuccess('Pergerakan stok berhasil dicatat!');
+      setActiveTab('view'); // Pindah ke tab 'Lihat Stok' setelah berhasil memindahkan stok
     },
     onError: (err) => {
       showError(`Gagal mencatat pergerakan stok: ${err.message}`);
@@ -199,7 +203,7 @@ const StockPage: React.FC = () => {
       <h1 className="text-3xl font-bold mb-6">Manajemen Stok</h1>
       <p className="text-lg text-muted-foreground mb-8">Kelola inventaris stok produk Anda di sini.</p>
 
-      <Tabs defaultValue="view" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="view">Lihat Stok</TabsTrigger>
           <TabsTrigger value="add">Tambah Produk Baru</TabsTrigger>
