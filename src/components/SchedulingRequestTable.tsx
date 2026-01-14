@@ -115,20 +115,20 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                       >
                         {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
                       </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => onDelete(request.id)}
+                        disabled={deletingId === request.id || isApprovingOrRejecting}
+                      >
+                        {deletingId === request.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
                     </>
                   )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onDelete(request.id)}
-                    disabled={deletingId === request.id || isApprovingOrRejecting}
-                  >
-                    {deletingId === request.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="h-4 w-4" />
-                    )}
-                  </Button>
                 </div>
               </TableCell>
             </TableRow>

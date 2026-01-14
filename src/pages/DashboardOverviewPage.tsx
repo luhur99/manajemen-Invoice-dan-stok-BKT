@@ -3,6 +3,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useSession } from '@/components/SessionContextProvider';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const DashboardOverviewPage: React.FC = () => {
   const { isLoading: isSessionLoading } = useSession();
@@ -22,20 +23,37 @@ const DashboardOverviewPage: React.FC = () => {
       <p className="text-lg text-muted-foreground mb-8">
         Selamat datang di dashboard Anda! Fitur-fitur akan segera hadir di sini.
       </p>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Placeholder for dashboard cards */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Total Penjualan</h2>
-          <p className="text-3xl font-bold text-primary">Rp 0</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Jadwal Mendatang</h2>
-          <p className="text-3xl font-bold text-primary">0</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-2">Permintaan Tertunda</h2>
-          <p className="text-3xl font-bold text-primary">0</p>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Total Jadwal</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">120</p>
+            <p className="text-muted-foreground text-sm">Jadwal yang telah diselesaikan</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Permintaan Pending</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">15</p>
+            <p className="text-muted-foreground text-sm">Permintaan penjadwalan baru</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Pendapatan Bulan Ini</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">Rp 50.000.000</p>
+            <p className="text-muted-foreground text-sm">Target: Rp 75.000.000</p>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -1,24 +1,25 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type ScheduleStatus = 'scheduled' | 'completed' | 'cancelled';
+export type ScheduleType = 'install' | 'service' | 'survey'; // Assuming same types as scheduling requests
 
 export interface Schedule {
   id: string;
   user_id: string;
-  schedule_date: string; // YYYY-MM-DD
-  schedule_time: string | null;
-  type: string;
+  schedule_date: string; // YYYY-MM-DD format
+  schedule_time?: string;
+  type: ScheduleType;
   customer_name: string;
-  address: string | null;
-  technician_name: string | null;
-  invoice_id: string | null;
+  address?: string;
+  technician_name?: string;
+  invoice_id?: string;
   status: ScheduleStatus;
-  notes: string | null;
+  notes?: string;
   created_at: string;
-  phone_number: string | null;
-  courier_service: string | null;
-  document_url: string | null;
-  scheduling_request_id: string | null;
+  phone_number?: string;
+  courier_service?: string;
+  document_url?: string;
+  scheduling_request_id?: string;
 }
 
 export async function fetchSchedules(userId: string): Promise<Schedule[]> {
@@ -26,7 +27,8 @@ export async function fetchSchedules(userId: string): Promise<Schedule[]> {
     .from('schedules')
     .select('*')
     .eq('user_id', userId)
-    .order('schedule_date', { ascending: false });
+    .order('schedule_date', { ascending: false })
+    .order('schedule_time', { ascending: false });
 
   if (error) throw new Error(error.message);
   return data;

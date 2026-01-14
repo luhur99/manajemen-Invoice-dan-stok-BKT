@@ -17,21 +17,25 @@ import { cn } from '@/lib/utils';
 import { SchedulingRequest, SchedulingRequestType } from '@/api/schedulingRequests';
 
 const formSchema = z.object({
-  customer_name: z.string().min(1, { message: 'Nama pelanggan wajib diisi.' }),
-  company_name: z.string().nullable().optional(),
-  type: z.enum(['install', 'service', 'survey'], { message: 'Tipe permintaan wajib dipilih.' }),
-  vehicle_units: z.coerce.number().int().min(0).nullable().optional(),
-  vehicle_type: z.string().nullable().optional(),
-  vehicle_year: z.coerce.number().int().min(1900).max(new Date().getFullYear() + 1).nullable().optional(),
-  full_address: z.string().min(1, { message: 'Alamat lengkap wajib diisi.' }),
-  landmark: z.string().nullable().optional(),
-  requested_date: z.date({ required_error: 'Tanggal permintaan wajib diisi.' }),
-  requested_time: z.string().nullable().optional(),
-  contact_person: z.string().min(1, { message: 'Nama kontak wajib diisi.' }),
-  phone_number: z.string().min(1, { message: 'Nomor telepon wajib diisi.' }),
-  customer_type: z.string().nullable().optional(),
-  payment_method: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
+  customer_name: z.string().min(1, 'Nama pelanggan wajib diisi'),
+  company_name: z.string().optional(),
+  type: z.enum(['install', 'service', 'survey'], { // FIX: Changed z.nativeEnum to z.enum
+    errorMap: () => ({ message: 'Tipe permintaan wajib diisi' }),
+  }),
+  vehicle_units: z.coerce.number().min(0, 'Jumlah unit tidak boleh negatif').optional(),
+  vehicle_type: z.string().optional(),
+  vehicle_year: z.coerce.number().min(1900, 'Tahun kendaraan tidak valid').optional(),
+  full_address: z.string().min(1, 'Alamat lengkap wajib diisi'),
+  landmark: z.string().optional(),
+  requested_date: z.date({
+    required_error: 'Tanggal permintaan wajib diisi',
+  }),
+  requested_time: z.string().optional(),
+  contact_person: z.string().min(1, 'Nama kontak wajib diisi'),
+  phone_number: z.string().min(1, 'Nomor telepon wajib diisi'),
+  customer_type: z.string().optional(),
+  payment_method: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 interface AddSchedulingRequestFormProps {
@@ -127,7 +131,7 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({
             <FormItem>
               <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
               <FormControl>
-                <Input placeholder="Nama Perusahaan" {...field} value={field.value || ''} />
+                <Input placeholder="Nama Perusahaan" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -146,54 +150,56 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="install">Install</SelectItem>
-                  <SelectItem value="service">Service</SelectItem>
-                  <SelectItem value="survey">Survey</SelectItem>
+                  <SelectItem value="install">Instalasi</SelectItem>
+                  <SelectItem value="service">Servis</SelectItem>
+                  <SelectItem value="survey">Survei</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="vehicle_units"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Jumlah Unit Kendaraan (Opsional)</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder="Jumlah Unit Kendaraan" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="vehicle_type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipe Kendaraan (Opsional)</FormLabel>
-              <FormControl>
-                <Input placeholder="Tipe Kendaraan" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="vehicle_year"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tahun Kendaraan (Opsional)</FormLabel>
-              <FormControl>
-                <Input type="number" placeholder="Tahun Kendaraan" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <FormField
+            control={form.control}
+            name="vehicle_units"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Jumlah Unit Kendaraan (Opsional)</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="Jumlah Unit" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="vehicle_type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tipe Kendaraan (Opsional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Tipe Kendaraan" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="vehicle_year"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tahun Kendaraan (Opsional)</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="Tahun Kendaraan" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
           name="full_address"
@@ -212,66 +218,64 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({
           name="landmark"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Patokan (Opsional)</FormLabel>
+              <FormLabel>Landmark (Opsional)</FormLabel>
               <FormControl>
-                <Input placeholder="Patokan" {...field} value={field.value || ''} />
+                <Input placeholder="Landmark terdekat" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="requested_date"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Tanggal Permintaan</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value ? (
-                        format(field.value, "PPP")
-                      ) : (
-                        <span>Pilih tanggal</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    disabled={(date) => date < new Date("1900-01-01")}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="requested_time"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Waktu Permintaan (Opsional)</FormLabel>
-              <FormControl>
-                <Input type="time" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="requested_date"
+            render={({ field }) => (
+              <FormItem className="flex flex-col">
+                <FormLabel>Tanggal Permintaan</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={'outline'}
+                        className={cn(
+                          'w-full pl-3 text-left font-normal',
+                          !field.value && 'text-muted-foreground',
+                        )}
+                      >
+                        {field.value ? format(field.value, 'PPP') : <span>Pilih tanggal</span>}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={(date) => date < new Date('1900-01-01')}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="requested_time"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Waktu Permintaan (Opsional)</FormLabel>
+                <FormControl>
+                  <Input type="time" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
           name="contact_person"
@@ -298,32 +302,34 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({
             </FormItem>
           )}
         />
-        <FormField
-          control={form.control}
-          name="customer_type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-              <FormControl>
-                <Input placeholder="Tipe Pelanggan" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="payment_method"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-              <FormControl>
-                <Input placeholder="Metode Pembayaran" {...field} value={field.value || ''} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="customer_type"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Tipe Pelanggan" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="payment_method"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
+                <FormControl>
+                  <Input placeholder="Metode Pembayaran" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
           name="notes"
@@ -331,21 +337,21 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({
             <FormItem>
               <FormLabel>Catatan (Opsional)</FormLabel>
               <FormControl>
-                <Textarea placeholder="Catatan tambahan" {...field} value={field.value || ''} />
+                <Textarea placeholder="Catatan tambahan" {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
         <div className="flex justify-end space-x-2">
-          {existingRequest && (
+          {existingRequest && onCancelEdit && (
             <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
               Batal
             </Button>
           )}
           <Button type="submit" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {existingRequest ? 'Perbarui Permintaan' : 'Tambah Permintaan'}
+            {existingRequest ? 'Simpan Perubahan' : 'Kirim Permintaan'}
           </Button>
         </div>
       </form>

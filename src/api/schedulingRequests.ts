@@ -1,27 +1,27 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export type SchedulingRequestStatus = 'pending' | 'approved' | 'rejected';
-export type SchedulingRequestType = 'install' | 'service' | 'survey'; // Example types, adjust as needed
+export type SchedulingRequestType = 'install' | 'service' | 'survey';
 
 export interface SchedulingRequest {
   id: string;
   user_id: string;
   customer_name: string;
-  company_name: string | null;
+  company_name?: string;
   type: SchedulingRequestType;
-  vehicle_units: number | null;
-  vehicle_type: string | null;
-  vehicle_year: number | null;
+  vehicle_units?: number;
+  vehicle_type?: string;
+  vehicle_year?: number;
   full_address: string;
-  landmark: string | null;
-  requested_date: string; // YYYY-MM-DD
-  requested_time: string | null;
+  landmark?: string;
+  requested_date: string; // YYYY-MM-DD format
+  requested_time?: string;
   contact_person: string;
   phone_number: string;
-  customer_type: string | null;
-  payment_method: string | null;
+  customer_type?: string;
+  payment_method?: string;
   status: SchedulingRequestStatus;
-  notes: string | null;
+  notes?: string;
   created_at: string;
 }
 
