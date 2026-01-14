@@ -53,13 +53,17 @@ const SchedulingRequestPage: React.FC = () => {
       updateSchedulingRequest(id, updates, userId!),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['schedulingRequests', userId] });
+      // Invalidate schedules query if the request was approved
+      if (data.status === 'approved') {
+        queryClient.invalidateQueries({ queryKey: ['schedules', userId] });
+      }
       showSuccess(`Permintaan penjadwalan berhasil diperbarui menjadi ${data.status}!`);
       setEditingRequest(null);
       setViewingRequest(null); // Close dialog after update
       setActiveTab('view');
     },
     onError: (err) => {
-      showError(`Gagal memperbarui permintaan penjadwalan: ${err.message}`);
+      showError(`Gagal memperbarui permintaan penjadang: ${err.message}`);
     },
   });
 
