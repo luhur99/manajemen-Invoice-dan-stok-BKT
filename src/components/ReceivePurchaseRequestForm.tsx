@@ -183,7 +183,7 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
             stock_item_id: stockItemId,
             transaction_type: "in",
             quantity: values.received_quantity,
-            notes: `Stok masuk dari pengajuan pembelian #${purchaseRequest.no} (${purchaseRequest.item_name}). Kategori: ${values.target_warehouse_category}. Catatan Penerimaan: ${values.received_notes || '-'}`,
+            notes: `Stok masuk dari pengajuan pembelian #${purchaseRequest.no || 'N/A'} (${purchaseRequest.item_name}). Kategori: ${getCategoryDisplay(values.target_warehouse_category)}. Catatan Penerimaan: ${values.received_notes || '-'}`,
             transaction_date: format(new Date(), "yyyy-MM-dd"),
           });
 
@@ -210,7 +210,7 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
               stock_item_id: stockItemForDamage.id,
               transaction_type: "damage_loss",
               quantity: values.damaged_quantity,
-              notes: `Stok rusak/cacat dari pengajuan pembelian #${purchaseRequest.no} (${purchaseRequest.item_name}). Catatan Penerimaan: ${values.received_notes || '-'}`,
+              notes: `Stok rusak/cacat dari pengajuan pembelian #${purchaseRequest.no || 'N/A'} (${purchaseRequest.item_name}). Catatan Penerimaan: ${values.received_notes || '-'}`,
               transaction_date: format(new Date(), "yyyy-MM-dd"),
             });
           if (damageTransactionError) console.error("Error recording damage transaction:", damageTransactionError);
@@ -221,7 +221,7 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
       onOpenChange(false);
       onSuccess();
     } catch (error: any) {
-      showError(`Gagal mencatat penerimaan barang: ${error.message}`);
+      showError(`Gagal mencatat penerimaan barang: ${error.message}`); // Display specific error message
       console.error("Error receiving purchase request:", error);
     }
   };
