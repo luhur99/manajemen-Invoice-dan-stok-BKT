@@ -18,7 +18,6 @@ interface SchedulingRequestTableProps {
   onEdit: (request: SchedulingRequest) => void;
   onDelete: (id: string) => void;
   deletingId: string | null;
-  isAdmin: boolean;
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
   isApprovingOrRejecting: boolean;
@@ -32,7 +31,6 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
   onEdit,
   onDelete,
   deletingId,
-  isAdmin,
   onApprove,
   onReject,
   isApprovingOrRejecting,
@@ -146,15 +144,17 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                       >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      {isAdmin && request.status === 'pending' ? (
+
+                      {/* Approve/Reject buttons - only shown if pending */}
+                      {request.status === 'pending' && (
                         <>
                           <Button
                             variant="default" 
                             size="sm"
                             onClick={() => onApprove(request.id)}
                             disabled={isApprovingOrRejecting}
-                            className="bg-green-600 hover:bg-green-700 text-white shadow-sm" // Gaya yang lebih kuat
-                            title="Setujui Permintaan" // Tooltip
+                            className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                            title="Setujui Permintaan"
                           >
                             {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                           </Button>
@@ -163,38 +163,39 @@ const SchedulingRequestTable: React.FC<SchedulingRequestTableProps> = ({
                             size="sm"
                             onClick={() => onReject(request.id)}
                             disabled={isApprovingOrRejecting}
-                            className="bg-red-600 hover:bg-red-700 text-white shadow-sm" // Gaya yang lebih kuat
-                            title="Tolak Permintaan" // Tooltip
+                            className="bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                            title="Tolak Permintaan"
                           >
                             {isApprovingOrRejecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                           </Button>
                         </>
-                      ) : (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onEdit(request)}
-                            disabled={request.status !== 'pending'}
-                            title="Edit Permintaan"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDelete(request.id)}
-                            disabled={deletingId === request.id || request.status !== 'pending'}
-                            title="Hapus Permintaan"
-                          >
-                            {deletingId === request.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </>
                       )}
+
+                      {/* Edit button - always shown, but disabled if not pending */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onEdit(request)}
+                        disabled={request.status !== 'pending'}
+                        title="Edit Permintaan"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+
+                      {/* Delete button - always shown, but disabled if not pending */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onDelete(request.id)}
+                        disabled={deletingId === request.id || request.status !== 'pending'}
+                        title="Hapus Permintaan"
+                      >
+                        {deletingId === request.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash className="h-4 w-4" />
+                        )}
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>

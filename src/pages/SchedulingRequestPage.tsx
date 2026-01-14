@@ -22,7 +22,7 @@ import { Loader2 } from 'lucide-react';
 const SchedulingRequestPage: React.FC = () => {
   const { session, isLoading: isSessionLoading } = useSession(); // Gunakan isSessionLoading
   const userId = session?.user?.id;
-  const isAdmin = !isSessionLoading && session?.user?.user_metadata?.role === 'admin'; // Hanya hitung isAdmin setelah sesi dimuat
+  // const isAdmin = !isSessionLoading && session?.user?.user_metadata?.role === 'admin'; // Tidak lagi diperlukan
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -186,7 +186,7 @@ const SchedulingRequestPage: React.FC = () => {
             onEdit={handleEditSchedulingRequest}
             onDelete={handleDeleteSchedulingRequest}
             deletingId={deletingId}
-            isAdmin={isAdmin}
+            // isAdmin={isAdmin} // Prop ini dihapus
             onApprove={handleApproveRequest}
             onReject={handleRejectRequest}
             isApprovingOrRejecting={isApprovingOrRejecting}
