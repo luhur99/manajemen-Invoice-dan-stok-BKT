@@ -69,14 +69,6 @@ const SchedulingRequestDetailDialog: React.FC<SchedulingRequestDetailDialogProps
           <DialogDescription>Informasi lengkap mengenai permintaan penjadwalan ini.</DialogDescription>
         </DialogHeader>
 
-        {/* DEBUG SECTION START */}
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-2 mb-4" role="alert">
-          <p className="font-bold">Informasi Debug (Hanya untuk pengembangan):</p>
-          <p>Anda Admin: {isAdmin ? 'Ya' : 'Tidak'}</p>
-          <p>Status Permintaan: {request.status}</p>
-        </div>
-        {/* DEBUG SECTION END */}
-
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 items-center gap-4">
             <p className="text-sm font-medium text-muted-foreground">Nama Pelanggan</p>
