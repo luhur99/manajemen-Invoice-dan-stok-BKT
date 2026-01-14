@@ -28,6 +28,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
+import { Schedule } from '@/api/schedules'; // Import Schedule type
 
 const formSchema = z.object({
   schedule_date: z.date({ required_error: "Tanggal jadwal wajib diisi." }),
@@ -43,9 +44,11 @@ const formSchema = z.object({
 interface AddScheduleFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingSchedule?: Schedule | null; // New prop for existing schedule
+  onCancelEdit?: () => void; // New prop to cancel edit
 }
 
-const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSubmit, isLoading }) => {
+const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSubmit, isLoading, existingSchedule, onCancelEdit }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -59,6 +62,32 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSubmit, isLoading }
       notes: '',
     },
   });
+
+  React.useEffect(() => {
+    if (existingSchedule) {
+      form.reset({
+        schedule_date: new Date(existingSchedule.schedule_date),
+        schedule_time: existingSchedule.schedule_time || '',
+        type: existingSchedule.type,
+        customer_name: existingSchedule.customer_name,
+        address: existingSchedule.address || '',
+        technician_name: existingSchedule.technician_name || '',
+        phone_number: existingSchedule.phone_number || '',
+        notes: existingSchedule.notes || '',
+      });
+    } else {
+      form.reset({
+        schedule_date: undefined,
+        schedule_time: '',
+        type: '',
+        customer_name: '',
+        address: '',
+        technician_name: '',
+        phone_number: '',
+        notes: '',
+      });
+    }
+  }, [existingSchedule, form]);
 
   return (
     <Form {...form}>
@@ -214,9 +243,16 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSubmit, isLoading }
           />
         </div>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Menyimpan...' : 'Simpan Jadwal'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Menyimpan...' : (existingSchedule ? 'Update Jadwal' : 'Simpan Jadwal')}
+          </Button>
+          {existingSchedule && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );

@@ -13,6 +13,7 @@ import {
 } from '@/api/schedules';
 import AddScheduleForm from '@/components/AddScheduleForm';
 import ScheduleTable from '@/components/ScheduleTable';
+import ScheduleDetailDialog from '@/components/ScheduleDetailDialog'; // Import the new dialog component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
@@ -23,6 +24,8 @@ const ScheduleManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingSchedule, setEditingSchedule] = React.useState<Schedule | null>(null); // State for editing schedule
+  const [viewingSchedule, setViewingSchedule] = React.useState<Schedule | null>(null); // State for viewing schedule
 
   const { data: schedules, isLoading, error } = useQuery({
     queryKey: ['schedules', userId],
@@ -43,6 +46,20 @@ const ScheduleManagementPage: React.FC = () => {
     },
   });
 
+  const updateScheduleMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Schedule> }) =>
+      updateSchedule(id, updates, userId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['schedules', userId] });
+      showSuccess('Jadwal berhasil diperbarui!');
+      setEditingSchedule(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui jadwal: ${err.message}`);
+    },
+  });
+
   const deleteScheduleMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deleteSchedule(id, userId!),
     onSuccess: () => {
@@ -57,13 +74,22 @@ const ScheduleManagementPage: React.FC = () => {
     },
   });
 
-  const handleAddSchedule = (values: any) => {
+  const handleAddOrUpdateSchedule = (values: any) => {
     if (!userId) {
-      showError('Anda harus login untuk menambahkan jadwal.');
+      showError('Anda harus login untuk menambahkan/memperbarui jadwal.');
       return;
     }
 
-    addScheduleMutation.mutate(values);
+    const scheduleData = {
+      ...values,
+      schedule_date: values.schedule_date.toISOString().split('T')[0], // Format date to YYYY-MM-DD
+    };
+
+    if (editingSchedule) {
+      updateScheduleMutation.mutate({ id: editingSchedule.id, updates: scheduleData });
+    } else {
+      addScheduleMutation.mutate(scheduleData);
+    }
   };
 
   const handleDeleteSchedule = (id: string) => {
@@ -77,15 +103,17 @@ const ScheduleManagementPage: React.FC = () => {
   };
 
   const handleViewSchedule = (schedule: Schedule) => {
-    // Implementasi untuk melihat detail jadwal
-    console.log('View schedule:', schedule);
-    // Di sini Anda bisa membuka modal atau navigasi ke halaman detail
+    setViewingSchedule(schedule);
   };
 
   const handleEditSchedule = (schedule: Schedule) => {
-    // Implementasi untuk mengedit jadwal
-    console.log('Edit schedule:', schedule);
-    // Di sini Anda bisa membuka modal edit atau navigasi ke halaman edit
+    setEditingSchedule(schedule);
+    setActiveTab('add'); // Switch to the add/edit tab
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSchedule(null);
+    setActiveTab('view');
   };
 
   if (isLoading) {
@@ -109,18 +137,20 @@ const ScheduleManagementPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="view">Lihat Jadwal</TabsTrigger>
-          <TabsTrigger value="add">Tambah Jadwal Baru</TabsTrigger>
+          <TabsTrigger value="add">{editingSchedule ? 'Edit Jadwal' : 'Tambah Jadwal Baru'}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="add">
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Jadwal Baru</CardTitle>
+              <CardTitle>{editingSchedule ? 'Edit Jadwal' : 'Tambah Jadwal Baru'}</CardTitle>
             </CardHeader>
             <CardContent>
               <AddScheduleForm 
-                onSubmit={handleAddSchedule} 
-                isLoading={addScheduleMutation.isPending} 
+                onSubmit={handleAddOrUpdateSchedule} 
+                isLoading={addScheduleMutation.isPending || updateScheduleMutation.isPending} 
+                existingSchedule={editingSchedule}
+                onCancelEdit={handleCancelEdit}
               />
             </CardContent>
           </Card>
@@ -138,6 +168,11 @@ const ScheduleManagementPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      <ScheduleDetailDialog
+        schedule={viewingSchedule}
+        onOpenChange={(open) => !open && setViewingSchedule(null)}
+      />
     </div>
   );
 };
