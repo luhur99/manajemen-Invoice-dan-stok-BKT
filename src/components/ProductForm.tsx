@@ -46,29 +46,10 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
     },
   });
 
-  React.useEffect(() => {
-    console.log("ProductForm - existingProduct in useEffect:", existingProduct);
-    if (existingProduct) {
-      // Use setValue for more reliable pre-population
-      form.setValue('kode_barang', existingProduct.kode_barang);
-      form.setValue('nama_barang', existingProduct.nama_barang);
-      form.setValue('satuan', existingProduct.satuan);
-      form.setValue('harga_beli', existingProduct.harga_beli);
-      form.setValue('harga_jual', existingProduct.harga_jual);
-      form.setValue('safe_stock_limit', existingProduct.safe_stock_limit);
-    } 
-    // Hapus bagian else yang mereset formulir secara otomatis
-    // else {
-    //   form.reset({
-    //     kode_barang: '',
-    //     nama_barang: '',
-    //     satuan: 'pcs',
-    //     harga_beli: 0,
-    //     harga_jual: 0,
-    //     safe_stock_limit: 0,
-    //   });
-    // }
-  }, [existingProduct, form]);
+  // Hapus useEffect yang mengisi formulir berdasarkan existingProduct
+  // Ini akan mencegah input menghilang saat existingProduct berubah (misalnya, dari undefined ke null)
+  // dan memastikan input pengguna tetap ada saat mengetik.
+  // existingProduct masih akan digunakan untuk logika isDuplicate.
 
   const isDuplicate = existingProduct && (
     form.watch('kode_barang') === existingProduct.kode_barang ||
