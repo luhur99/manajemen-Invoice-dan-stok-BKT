@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
+import { Product, WarehouseInventory, ProductWithInventory } from "@/types/data"; // Import ProductWithInventory
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
@@ -26,10 +26,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Toggle } from "@/components/ui/toggle";
 
-// Define a combined type for display in the table
-interface ProductWithInventory extends Product {
-  total_stock_akhir: number;
-  warehouse_inventories: WarehouseInventory[];
+// Define a flattened type for export
+interface FlattenedStockItemForExport {
+  "KODE BARANG": string;
+  "NAMA BARANG": string;
+  SATUAN: string;
+  "HARGA BELI": number;
+  "HARGA JUAL": number;
+  "KATEGORI GUDANG": string;
+  "KUANTITAS": number;
+  "BATAS AMAN": number;
+  "CREATED AT": string;
 }
 
 const StockPage = () => {
@@ -139,13 +146,13 @@ const StockPage = () => {
       }
 
       // Flatten the data for CSV export
-      const flattenedData = productsData.flatMap((product: any) => {
+      const flattenedData: FlattenedStockItemForExport[] = productsData.flatMap((product: any) => {
         if (product.warehouse_inventories.length === 0) {
           return [{
             "KODE BARANG": product.kode_barang,
             "NAMA BARANG": product.nama_barang,
             SATUAN: product.satuan || "",
-            "HARGA BELI": product.harga_beli,
+                        "HARGA BELI": product.harga_beli,
             "HARGA JUAL": product.harga_jual,
             "KATEGORI GUDANG": "Tidak Ada",
             "KUANTITAS": 0,
@@ -173,7 +180,7 @@ const StockPage = () => {
     }
   }, []);
 
-  const stockItemHeaders = [
+  const stockItemHeaders: { key: keyof FlattenedStockItemForExport; label: string }[] = [ // Explicitly typed headers
     { key: "KODE BARANG", label: "Kode Barang" },
     { key: "NAMA BARANG", label: "Nama Barang" },
     { key: "SATUAN", label: "Satuan" },

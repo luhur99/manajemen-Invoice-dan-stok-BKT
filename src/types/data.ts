@@ -19,7 +19,14 @@ export interface WarehouseInventory {
   created_at: string;
   updated_at: string;
   // Joined product details for display
-  products?: Product[] | null; // Diperbaiki: sekarang array objek atau null
+  products?: {
+    "KODE BARANG"?: string; // Make optional as it might not be selected in all joins
+    "NAMA BARANG"?: string; // Make optional
+    SATUAN?: string; // Make optional
+    "HARGA BELI"?: number; // Make optional
+    "HARGA JUAL"?: number; // Make optional
+    safe_stock_limit?: number;
+  } | null; // Diperbaiki: sekarang objek tunggal atau null
 }
 
 export interface StockTransaction {
@@ -36,7 +43,11 @@ export interface StockTransaction {
 
 // New interface for Stock Transaction with Product Name for display
 export interface StockTransactionWithItemName extends StockTransaction {
-  products: Product[] | null; // Diperbaiki: sekarang array objek atau null
+  products: { // Changed from stock_items
+    "NAMA BARANG": string;
+    "KODE BARANG": string;
+    safe_stock_limit?: number;
+  } | null; // Diperbaiki: sekarang objek tunggal atau null
 }
 
 // New interface for Stock Movement
@@ -54,7 +65,16 @@ export interface StockMovement {
 
 // New interface for Stock Movement with Product Name for display
 export interface StockMovementWithItemName extends StockMovement {
-  products: Product[] | null; // Diperbarui: sekarang array objek atau null
+  products: { // Changed from stock_items
+    "NAMA BARANG": string;
+    "KODE BARANG": string;
+  } | null; // Diperbarui: sekarang objek tunggal atau null
+}
+
+// New interface for Product combined with its warehouse inventories for display
+export interface ProductWithInventory extends Product {
+  total_stock_akhir: number;
+  warehouse_inventories: WarehouseInventory[];
 }
 
 export interface SalesDetailItem {
