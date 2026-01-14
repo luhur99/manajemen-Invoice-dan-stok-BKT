@@ -31,6 +31,7 @@ import { CalendarIcon, PlusIcon, TrashIcon, Loader2 } from 'lucide-react'; // Im
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/components/SessionContextProvider';
 import { fetchProducts, Product } from '@/api/stock';
+import { DeliveryOrder, DeliveryOrderItem } from '@/api/deliveryOrders'; // Import DeliveryOrder type
 
 const deliveryOrderItemSchema = z.object({
   product_id: z.string().min(1, { message: 'Produk wajib dipilih.' }),
@@ -51,9 +52,11 @@ const formSchema = z.object({
 interface AddDeliveryOrderFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingOrder?: DeliveryOrder | null; // New prop for existing order
+  onCancelEdit?: () => void; // New prop to cancel edit
 }
 
-const AddDeliveryOrderForm: React.FC<AddDeliveryOrderFormProps> = ({ onSubmit, isLoading }) => {
+const AddDeliveryOrderForm: React.FC<AddDeliveryOrderFormProps> = ({ onSubmit, isLoading, existingOrder, onCancelEdit }) => {
   const { session } = useSession();
   const userId = session?.user?.id;
 
@@ -81,6 +84,40 @@ const AddDeliveryOrderForm: React.FC<AddDeliveryOrderFormProps> = ({ onSubmit, i
       notes: '',
     },
   });
+
+  React.useEffect(() => {
+    if (existingOrder) {
+      form.reset({
+        request_id: existingOrder.request_id || '',
+        do_number: existingOrder.do_number,
+        items_json: existingOrder.items_json.map(item => ({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_type: item.unit_type,
+        })),
+        delivery_date: new Date(existingOrder.delivery_date),
+        delivery_time: existingOrder.delivery_time || '',
+        notes: existingOrder.notes || '',
+      });
+    } else {
+      form.reset({
+        request_id: '',
+        do_number: '',
+        items_json: [
+          {
+            product_id: '',
+            product_name: '',
+            quantity: 1,
+            unit_type: 'pcs',
+          },
+        ],
+        delivery_date: undefined,
+        delivery_time: '',
+        notes: '',
+      });
+    }
+  }, [existingOrder, form]);
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -326,9 +363,16 @@ const AddDeliveryOrderForm: React.FC<AddDeliveryOrderFormProps> = ({ onSubmit, i
           )}
         />
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Menyimpan...' : 'Buat Pesanan Pengiriman'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Menyimpan...' : (existingOrder ? 'Update Pesanan Pengiriman' : 'Buat Pesanan Pengiriman')}
+          </Button>
+          {existingOrder && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );

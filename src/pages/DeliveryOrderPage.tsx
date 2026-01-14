@@ -13,6 +13,7 @@ import {
 } from '@/api/deliveryOrders';
 import AddDeliveryOrderForm from '@/components/AddDeliveryOrderForm';
 import DeliveryOrderTable from '@/components/DeliveryOrderTable';
+import DeliveryOrderDetailDialog from '@/components/DeliveryOrderDetailDialog'; // Import the new dialog component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
@@ -23,6 +24,8 @@ const DeliveryOrderPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = React.useState<DeliveryOrder | null>(null); // State for editing order
+  const [viewingOrder, setViewingOrder] = React.useState<DeliveryOrder | null>(null); // State for viewing order
 
   const { data: deliveryOrders, isLoading, error } = useQuery({
     queryKey: ['deliveryOrders', userId],
@@ -43,6 +46,20 @@ const DeliveryOrderPage: React.FC = () => {
     },
   });
 
+  const updateDeliveryOrderMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<DeliveryOrder> }) =>
+      updateDeliveryOrder(id, updates, userId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deliveryOrders', userId] });
+      showSuccess('Pesanan pengiriman berhasil diperbarui!');
+      setEditingOrder(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui pesanan pengiriman: ${err.message}`);
+    },
+  });
+
   const deleteDeliveryOrderMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deleteDeliveryOrder(id, userId!),
     onSuccess: () => {
@@ -57,16 +74,22 @@ const DeliveryOrderPage: React.FC = () => {
     },
   });
 
-  const handleAddDeliveryOrder = (values: any) => {
+  const handleAddOrUpdateDeliveryOrder = (values: any) => {
     if (!userId) {
-      showError('Anda harus login untuk menambahkan pesanan pengiriman.');
+      showError('Anda harus login untuk menambahkan/memperbarui pesanan pengiriman.');
       return;
     }
 
-    addDeliveryOrderMutation.mutate({
+    const orderData = {
       ...values,
       delivery_date: values.delivery_date.toISOString().split('T')[0], // Format date to YYYY-MM-DD
-    });
+    };
+
+    if (editingOrder) {
+      updateDeliveryOrderMutation.mutate({ id: editingOrder.id, updates: orderData });
+    } else {
+      addDeliveryOrderMutation.mutate(orderData);
+    }
   };
 
   const handleDeleteDeliveryOrder = (id: string) => {
@@ -80,15 +103,17 @@ const DeliveryOrderPage: React.FC = () => {
   };
 
   const handleViewDeliveryOrder = (order: DeliveryOrder) => {
-    // Implementasi untuk melihat detail pesanan pengiriman
-    console.log('View delivery order:', order);
-    // Di sini Anda bisa membuka modal atau navigasi ke halaman detail
+    setViewingOrder(order);
   };
 
   const handleEditDeliveryOrder = (order: DeliveryOrder) => {
-    // Implementasi untuk mengedit pesanan pengiriman
-    console.log('Edit delivery order:', order);
-    // Di sini Anda bisa membuka modal edit atau navigasi ke halaman edit
+    setEditingOrder(order);
+    setActiveTab('add'); // Switch to the add/edit tab
+  };
+
+  const handleCancelEdit = () => {
+    setEditingOrder(null);
+    setActiveTab('view');
   };
 
   if (isLoading) {
@@ -112,18 +137,20 @@ const DeliveryOrderPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="view">Lihat Pesanan</TabsTrigger>
-          <TabsTrigger value="add">Buat Pesanan Baru</TabsTrigger>
+          <TabsTrigger value="add">{editingOrder ? 'Edit Pesanan' : 'Buat Pesanan Baru'}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="add">
           <Card>
             <CardHeader>
-              <CardTitle>Buat Pesanan Pengiriman Baru</CardTitle>
+              <CardTitle>{editingOrder ? 'Edit Pesanan Pengiriman' : 'Buat Pesanan Pengiriman Baru'}</CardTitle>
             </CardHeader>
             <CardContent>
               <AddDeliveryOrderForm 
-                onSubmit={handleAddDeliveryOrder} 
-                isLoading={addDeliveryOrderMutation.isPending} 
+                onSubmit={handleAddOrUpdateDeliveryOrder} 
+                isLoading={addDeliveryOrderMutation.isPending || updateDeliveryOrderMutation.isPending} 
+                existingOrder={editingOrder}
+                onCancelEdit={handleCancelEdit}
               />
             </CardContent>
           </Card>
@@ -141,6 +168,11 @@ const DeliveryOrderPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      <DeliveryOrderDetailDialog
+        order={viewingOrder}
+        onOpenChange={(open) => !open && setViewingOrder(null)}
+      />
     </div>
   );
 };
