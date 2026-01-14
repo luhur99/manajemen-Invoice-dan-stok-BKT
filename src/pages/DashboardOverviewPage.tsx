@@ -12,6 +12,9 @@ import {
   fetchPendingPurchaseRequests,
   fetchPendingDeliveryOrders,
 } from '@/api/dashboard';
+import { fetchInvoices, Invoice } from '@/api/invoices'; // Import fetchInvoices
+import InvoiceAmountChart from '@/components/InvoiceAmountChart'; // Import the new chart component
+import { format } from 'date-fns';
 
 const DashboardOverviewPage: React.FC = () => {
   const { session } = useSession();
@@ -21,7 +24,7 @@ const DashboardOverviewPage: React.FC = () => {
   const { data: totalInvoices, isLoading: isLoadingInvoices, error: errorInvoices } = useQuery({
     queryKey: ['dashboardTotalInvoices', userId],
     queryFn: () => fetchTotalInvoices(userId!),
-    enabled: !!userId, // Hanya jalankan query jika userId tersedia
+    enabled: !!userId,
   });
 
   const { data: pendingSchedules, isLoading: isLoadingSchedules, error: errorSchedules } = useQuery({
@@ -48,6 +51,30 @@ const DashboardOverviewPage: React.FC = () => {
     enabled: !!userId,
   });
 
+  // Query untuk data faktur yang lebih detail untuk grafik
+  const { data: invoicesForChart, isLoading: isLoadingInvoicesForChart, error: errorInvoicesForChart } = useQuery<Invoice[]>({
+    queryKey: ['invoicesForChart', userId],
+    queryFn: () => fetchInvoices(userId!),
+    enabled: !!userId,
+  });
+
+  // Proses data faktur untuk grafik
+  const chartData = React.useMemo(() => {
+    if (!invoicesForChart) return [];
+
+    const monthlyData: { [key: string]: number } = {};
+
+    invoicesForChart.forEach(invoice => {
+      const monthYear = format(new Date(invoice.invoice_date), 'yyyy-MM'); // Group by year-month
+      monthlyData[monthYear] = (monthlyData[monthYear] || 0) + invoice.total_amount;
+    });
+
+    return Object.keys(monthlyData).map(date => ({
+      date,
+      totalAmount: monthlyData[date],
+    }));
+  }, [invoicesForChart]);
+
   // Tangani kesalahan dengan toast
   React.useEffect(() => {
     if (errorInvoices) showError(`Gagal memuat total faktur: ${errorInvoices.message}`);
@@ -55,9 +82,10 @@ const DashboardOverviewPage: React.FC = () => {
     if (errorStock) showError(`Gagal memuat total stok: ${errorStock.message}`);
     if (errorPurchaseRequests) showError(`Gagal memuat permintaan pembelian tertunda: ${errorPurchaseRequests.message}`);
     if (errorDeliveryOrders) showError(`Gagal memuat pesanan pengiriman tertunda: ${errorDeliveryOrders.message}`);
-  }, [errorInvoices, errorSchedules, errorStock, errorPurchaseRequests, errorDeliveryOrders]);
+    if (errorInvoicesForChart) showError(`Gagal memuat data faktur untuk grafik: ${errorInvoicesForChart.message}`);
+  }, [errorInvoices, errorSchedules, errorStock, errorPurchaseRequests, errorDeliveryOrders, errorInvoicesForChart]);
 
-  const isLoadingAny = isLoadingInvoices || isLoadingSchedules || isLoadingStock || isLoadingPurchaseRequests || isLoadingDeliveryOrders;
+  const isLoadingAny = isLoadingInvoices || isLoadingSchedules || isLoadingStock || isLoadingPurchaseRequests || isLoadingDeliveryOrders || isLoadingInvoicesForChart;
 
   if (isLoadingAny) {
     return (
@@ -93,6 +121,11 @@ const DashboardOverviewPage: React.FC = () => {
           <p className="text-3xl font-bold text-blue-600">{pendingDeliveryOrders ?? 0}</p>
         </div>
       </div>
+      
+      <div className="mt-8">
+        <InvoiceAmountChart data={chartData} />
+      </div>
+
       <div className="mt-8 bg-card p-6 rounded-lg shadow-md">
         <h2 className="text-xl font-semibold mb-4">Recent Activities</h2>
         <ul className="space-y-2 text-muted-foreground">
