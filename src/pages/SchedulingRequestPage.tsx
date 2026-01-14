@@ -13,6 +13,7 @@ import {
 } from '@/api/schedulingRequests';
 import AddSchedulingRequestForm from '@/components/AddSchedulingRequestForm';
 import SchedulingRequestTable from '@/components/SchedulingRequestTable';
+import SchedulingRequestDetailDialog from '@/components/SchedulingRequestDetailDialog'; // Import the new dialog component
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
@@ -23,6 +24,8 @@ const SchedulingRequestPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = React.useState<string>('view');
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [editingRequest, setEditingRequest] = React.useState<SchedulingRequest | null>(null); // State for editing request
+  const [viewingRequest, setViewingRequest] = React.useState<SchedulingRequest | null>(null); // State for viewing request
 
   const { data: schedulingRequests, isLoading, error } = useQuery({
     queryKey: ['schedulingRequests', userId],
@@ -43,6 +46,20 @@ const SchedulingRequestPage: React.FC = () => {
     },
   });
 
+  const updateSchedulingRequestMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<SchedulingRequest> }) =>
+      updateSchedulingRequest(id, updates, userId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['schedulingRequests', userId] });
+      showSuccess('Permintaan penjadwalan berhasil diperbarui!');
+      setEditingRequest(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui permintaan penjadwalan: ${err.message}`);
+    },
+  });
+
   const deleteSchedulingRequestMutation = useMutation({
     mutationFn: ({ id }: { id: string }) => deleteSchedulingRequest(id, userId!),
     onSuccess: () => {
@@ -57,16 +74,22 @@ const SchedulingRequestPage: React.FC = () => {
     },
   });
 
-  const handleAddSchedulingRequest = (values: any) => {
+  const handleAddOrUpdateSchedulingRequest = (values: any) => {
     if (!userId) {
-      showError('Anda harus login untuk menambahkan permintaan penjadwalan.');
+      showError('Anda harus login untuk menambahkan/memperbarui permintaan penjadwalan.');
       return;
     }
 
-    addSchedulingRequestMutation.mutate({
+    const requestData = {
       ...values,
       requested_date: values.requested_date.toISOString().split('T')[0], // Format date to YYYY-MM-DD
-    });
+    };
+
+    if (editingRequest) {
+      updateSchedulingRequestMutation.mutate({ id: editingRequest.id, updates: requestData });
+    } else {
+      addSchedulingRequestMutation.mutate(requestData);
+    }
   };
 
   const handleDeleteSchedulingRequest = (id: string) => {
@@ -80,15 +103,17 @@ const SchedulingRequestPage: React.FC = () => {
   };
 
   const handleViewSchedulingRequest = (request: SchedulingRequest) => {
-    // Implementasi untuk melihat detail permintaan penjadwalan
-    console.log('View scheduling request:', request);
-    // Di sini Anda bisa membuka modal atau navigasi ke halaman detail
+    setViewingRequest(request);
   };
 
   const handleEditSchedulingRequest = (request: SchedulingRequest) => {
-    // Implementasi untuk mengedit permintaan penjadwalan
-    console.log('Edit scheduling request:', request);
-    // Di sini Anda bisa membuka modal edit atau navigasi ke halaman edit
+    setEditingRequest(request);
+    setActiveTab('add'); // Switch to the add/edit tab
+  };
+
+  const handleCancelEdit = () => {
+    setEditingRequest(null);
+    setActiveTab('view');
   };
 
   if (isLoading) {
@@ -112,18 +137,20 @@ const SchedulingRequestPage: React.FC = () => {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="view">Lihat Permintaan</TabsTrigger>
-          <TabsTrigger value="add">Tambah Permintaan Baru</TabsTrigger>
+          <TabsTrigger value="add">{editingRequest ? 'Edit Permintaan' : 'Tambah Permintaan Baru'}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="add">
           <Card>
             <CardHeader>
-              <CardTitle>Tambah Permintaan Penjadwalan Baru</CardTitle>
+              <CardTitle>{editingRequest ? 'Edit Permintaan Penjadwalan' : 'Tambah Permintaan Penjadwalan Baru'}</CardTitle>
             </CardHeader>
             <CardContent>
               <AddSchedulingRequestForm 
-                onSubmit={handleAddSchedulingRequest} 
-                isLoading={addSchedulingRequestMutation.isPending} 
+                onSubmit={handleAddOrUpdateSchedulingRequest} 
+                isLoading={addSchedulingRequestMutation.isPending || updateSchedulingRequestMutation.isPending} 
+                existingRequest={editingRequest}
+                onCancelEdit={handleCancelEdit}
               />
             </CardContent>
           </Card>
@@ -141,6 +168,11 @@ const SchedulingRequestPage: React.FC = () => {
           />
         </TabsContent>
       </Tabs>
+
+      <SchedulingRequestDetailDialog
+        request={viewingRequest}
+        onOpenChange={(open) => !open && setViewingRequest(null)}
+      />
     </div>
   );
 };

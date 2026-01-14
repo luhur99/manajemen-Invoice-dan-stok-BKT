@@ -28,7 +28,7 @@ import { format } from 'date-fns';
 import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CalendarIcon } from 'lucide-react';
-import { SchedulingRequestType } from '@/api/schedulingRequests';
+import { SchedulingRequest, SchedulingRequestType } from '@/api/schedulingRequests'; // Import SchedulingRequest type
 
 const formSchema = z.object({
   customer_name: z.string().min(1, { message: 'Nama pelanggan wajib diisi.' }),
@@ -53,9 +53,11 @@ const formSchema = z.object({
 interface AddSchedulingRequestFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingRequest?: SchedulingRequest | null; // New prop for existing request
+  onCancelEdit?: () => void; // New prop to cancel edit
 }
 
-const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({ onSubmit, isLoading }) => {
+const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({ onSubmit, isLoading, existingRequest, onCancelEdit }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -76,6 +78,46 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({ onS
       notes: '',
     },
   });
+
+  React.useEffect(() => {
+    if (existingRequest) {
+      form.reset({
+        customer_name: existingRequest.customer_name,
+        company_name: existingRequest.company_name || '',
+        type: existingRequest.type,
+        vehicle_units: existingRequest.vehicle_units || 0,
+        vehicle_type: existingRequest.vehicle_type || '',
+        vehicle_year: existingRequest.vehicle_year || undefined,
+        full_address: existingRequest.full_address,
+        landmark: existingRequest.landmark || '',
+        requested_date: new Date(existingRequest.requested_date),
+        requested_time: existingRequest.requested_time || '',
+        contact_person: existingRequest.contact_person,
+        phone_number: existingRequest.phone_number,
+        customer_type: existingRequest.customer_type || 'individual',
+        payment_method: existingRequest.payment_method || 'cash',
+        notes: existingRequest.notes || '',
+      });
+    } else {
+      form.reset({
+        customer_name: '',
+        company_name: '',
+        type: 'installation',
+        vehicle_units: 0,
+        vehicle_type: '',
+        vehicle_year: undefined,
+        full_address: '',
+        landmark: '',
+        requested_date: undefined,
+        requested_time: '',
+        contact_person: '',
+        phone_number: '',
+        customer_type: 'individual',
+        payment_method: 'cash',
+        notes: '',
+      });
+    }
+  }, [existingRequest, form]);
 
   return (
     <Form {...form}>
@@ -347,9 +389,16 @@ const AddSchedulingRequestForm: React.FC<AddSchedulingRequestFormProps> = ({ onS
           />
         </div>
 
-        <Button type="submit" disabled={isLoading}>
-          {isLoading ? 'Mengirim Permintaan...' : 'Kirim Permintaan Penjadwalan'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Mengirim Permintaan...' : (existingRequest ? 'Update Permintaan' : 'Kirim Permintaan Penjadwalan')}
+          </Button>
+          {existingRequest && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );
