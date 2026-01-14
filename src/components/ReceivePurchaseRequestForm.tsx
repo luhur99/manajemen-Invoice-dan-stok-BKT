@@ -117,7 +117,9 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
       // 2. Add received quantity to warehouse_inventories and record transaction
       if (values.received_quantity > 0) {
         if (!purchaseRequest.product_id) {
-          throw new Error("Product ID tidak ditemukan untuk pengajuan pembelian ini.");
+          // UPDATED ERROR MESSAGE
+          showError("Produk terkait tidak ditemukan untuk pengajuan pembelian ini. Harap edit pengajuan untuk menautkan produk.");
+          return; // Stop processing if product_id is missing
         }
 
         const { data: existingInventory, error: fetchInventoryError } = await supabase
@@ -184,7 +186,8 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
       // 3. Record transaction for returned items
       if (values.returned_quantity > 0) {
         if (!purchaseRequest.product_id) {
-          throw new Error("Product ID tidak ditemukan untuk pengajuan pembelian ini.");
+          showError("Produk terkait tidak ditemukan untuk pengajuan pembelian ini. Tidak dapat mencatat retur.");
+          return;
         }
         const { error: returnTransactionError } = await supabase
           .from("stock_transactions")
@@ -203,7 +206,8 @@ const ReceivePurchaseRequestForm: React.FC<ReceivePurchaseRequestFormProps> = ({
       // 4. Record transaction for damaged items
       if (values.damaged_quantity > 0) {
         if (!purchaseRequest.product_id) {
-          throw new Error("Product ID tidak ditemukan untuk pengajuan pembelian ini.");
+          showError("Produk terkait tidak ditemukan untuk pengajuan pembelian ini. Tidak dapat mencatat kerusakan.");
+          return;
         }
         const { error: damageTransactionError } = await supabase
           .from("stock_transactions")

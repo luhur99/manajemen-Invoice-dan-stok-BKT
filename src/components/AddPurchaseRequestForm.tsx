@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Product } from "@/types/data"; // Changed from StockItem
+import { Product } from "@/types/data";
 import StockItemCombobox from "@/components/StockItemCombobox";
 
 // Schema validasi menggunakan Zod
@@ -31,6 +31,7 @@ const formSchema = z.object({
   suggested_selling_price: z.coerce.number().min(0, "Harga Jual yang disarankan tidak boleh negatif"),
   supplier: z.string().optional(),
   notes: z.string().optional(),
+  product_id: z.string().uuid("ID Produk harus format UUID yang valid").optional().or(z.literal("")), // ADDED: product_id
 });
 
 interface AddPurchaseRequestFormProps {
@@ -39,8 +40,8 @@ interface AddPurchaseRequestFormProps {
 
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]); // Changed from StockItem[]
-  const [loadingProducts, setLoadingProducts] = useState(true); // Changed from loadingStockItems
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,31 +53,24 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       suggested_selling_price: 0,
       supplier: "",
       notes: "",
+      product_id: "", // ADDED: product_id
     },
   });
 
   useEffect(() => {
-    const fetchProducts = async () => { // Changed from fetchStockItems
-      setLoadingProducts(true); // Changed from setLoadingStockItems
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
       const { data, error } = await supabase
-        .from("products") // Changed from stock_items
-        .select("id, kode_barang, nama_barang, harga_beli, harga_jual, satuan"); // Removed warehouse_category
+        .from("products")
+        .select("id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, safe_stock_limit");
 
       if (error) {
-        showError("Gagal memuat daftar produk."); // Changed message
-        console.error("Error fetching products:", error); // Changed message
+        showError("Gagal memuat daftar produk.");
+        console.error("Error fetching products:", error);
       } else {
-        // Map data to match Product interface property names
-        setProducts(data.map(item => ({
-          id: item.id,
-          kode_barang: item.kode_barang, // Corrected access
-          nama_barang: item.nama_barang, // Corrected access
-          satuan: item.satuan,
-          harga_beli: item.harga_beli,
-          harga_jual: item.harga_jual,
-        })) as Product[]);
+        setProducts(data as Product[]);
       }
-      setLoadingProducts(false); // Changed from setLoadingStockItems
+      setLoadingProducts(false);
     };
 
     fetchProducts();
@@ -98,6 +92,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
         .from("purchase_requests")
         .insert({
           user_id: userId,
+          product_id: values.product_id || null, // ADDED: product_id
           item_name: values.item_name,
           item_code: values.item_code,
           quantity: values.quantity,
@@ -150,15 +145,17 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                       value={field.value}
                       onValueChange={(selectedProduct) => {
                         if (selectedProduct) {
-                          form.setValue("item_name", selectedProduct.nama_barang); // Corrected access
-                          form.setValue("item_code", selectedProduct.kode_barang); // Corrected access
-                          form.setValue("unit_price", selectedProduct.harga_beli); // Corrected access
-                          form.setValue("suggested_selling_price", selectedProduct.harga_jual); // Corrected access
+                          form.setValue("item_name", selectedProduct.nama_barang);
+                          form.setValue("item_code", selectedProduct.kode_barang);
+                          form.setValue("unit_price", selectedProduct.harga_beli);
+                          form.setValue("suggested_selling_price", selectedProduct.harga_jual);
+                          form.setValue("product_id", selectedProduct.id); // ADDED: Set product_id
                         } else {
                           form.setValue("item_name", "");
                           form.setValue("item_code", "");
                           form.setValue("unit_price", 0);
                           form.setValue("suggested_selling_price", 0);
+                          form.setValue("product_id", ""); // ADDED: Clear product_id
                         }
                       }}
                       disabled={loadingProducts}
@@ -242,6 +239,20 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                   <FormLabel>Catatan (Opsional)</FormLabel>
                   <FormControl>
                     <Textarea placeholder="Tambahkan catatan tambahan untuk pengajuan ini..." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* Hidden field for product_id */}
+            <FormField
+              control={form.control}
+              name="product_id"
+              render={({ field }) => (
+                <FormItem className="hidden">
+                  <FormLabel>Product ID</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
