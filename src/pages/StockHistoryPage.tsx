@@ -125,15 +125,15 @@ const StockHistoryPage = () => {
       // Correctly map products to be a single object or null
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        products: item.products || null, // Ensure it's a single object or null
+        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
       }));
 
       // Client-side search filtering
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         const matchesSearch = (
-          item.products?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.products?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
         );
@@ -228,8 +228,8 @@ const StockHistoryPage = () => {
           transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
           created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
           // Corrected access for item_name and item_code
-          item_name: item.products?.["NAMA BARANG"] || "N/A",
-          item_code: item.products?.["KODE BARANG"] || "N/A",
+          item_name: item.products?.[0]?.["NAMA BARANG"] || "N/A",
+          item_code: item.products?.[0]?.["KODE BARANG"] || "N/A",
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           notes: processedNotes,

@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Product, WarehouseInventory, StockTransactionWithItemName } from "@/types/data"; // Changed from StockItem
-import { supabase } from "@/integrations/supabase/client"; // Fixed import syntax
+import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
@@ -92,7 +92,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
 
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        products: item.products || null, // Ensure it's a single object or null
+        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
       }));
 
       setTransactions(processedData);
