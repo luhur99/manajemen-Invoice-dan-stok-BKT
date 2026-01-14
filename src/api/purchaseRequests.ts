@@ -55,7 +55,7 @@ export async function addPurchaseRequest(
 ): Promise<PurchaseRequest> {
   // Hitung total harga
   const totalPrice = purchaseRequest.quantity * purchaseRequest.unit_price;
-  
+
   const { data, error } = await supabase
     .from('purchase_requests')
     .insert({
