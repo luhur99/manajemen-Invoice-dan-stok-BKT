@@ -3,12 +3,19 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import MainLayout from "./components/MainLayout";
+import DashboardOverviewPage from "./pages/DashboardOverviewPage";
+import InvoiceManagementPage from "./pages/InvoiceManagementPage";
+import ScheduleManagementPage from "./pages/ScheduleManagementPage";
+import StockPage from "./pages/StockPage";
+import SalesDetailsPage from "./pages/SalesDetailsPage";
+import ProfilePage from "./pages/ProfilePage";
+import StockHistoryPage from "./pages/StockHistoryPage";
+import StockMovementHistoryPage from "./pages/StockMovementHistoryPage";
+import PurchaseRequestPage from "./pages/PurchaseRequestPage"; // Import new page
 import NotFound from "./pages/NotFound";
-import SchedulesPage from "./pages/SchedulesPage"; // Import SchedulesPage
-import SchedulingRequestPage from "./pages/SchedulingRequestPage"; // Import SchedulingRequestPage
-import DashboardOverviewPage from "./pages/DashboardOverviewPage"; // Import DashboardOverviewPage
-import { SessionContextProvider } from "./components/SessionContextProvider"; // Import SessionContextProvider
+import AuthPage from "./pages/AuthPage";
+import { SessionContextProvider } from "./components/SessionContextProvider";
 
 const queryClient = new QueryClient();
 
@@ -17,15 +24,21 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <SessionContextProvider> {/* Wrap routes with SessionContextProvider */}
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SessionContextProvider>
           <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/dashboard" element={<DashboardOverviewPage />} /> {/* Add Dashboard route */}
-            <Route path="/scheduling-requests" element={<SchedulingRequestPage />} /> {/* Add SchedulingRequest route */}
-            <Route path="/schedules" element={<SchedulesPage />} /> {/* Add SchedulesPage route */}
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
+            <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
+            <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
+            <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
+            <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
+            <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
+            <Route path="/stock-history" element={<MainLayout><StockHistoryPage /></MainLayout>} />
+            <Route path="/stock-movement-history" element={<MainLayout><StockMovementHistoryPage /></MainLayout>} />
+            <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} /> {/* New route */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
+            <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>
         </SessionContextProvider>
       </BrowserRouter>
