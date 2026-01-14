@@ -62,6 +62,7 @@ export async function fetchProducts(userId: string): Promise<Product[]> {
  * @returns Produk yang ditemukan atau null.
  */
 export async function fetchProductByCodeOrName(userId: string, code?: string, name?: string): Promise<Product | null> {
+  console.log("fetchProductByCodeOrName called with:", { userId, code, name }); // Log tambahan
   let query = supabase
     .from('products')
     .select('*')
@@ -72,15 +73,17 @@ export async function fetchProductByCodeOrName(userId: string, code?: string, na
   } else if (name) {
     query = query.eq('nama_barang', name);
   } else {
+    console.log("fetchProductByCodeOrName: No code or name provided, returning null."); // Log tambahan
     return null;
   }
 
   const { data, error } = await query.single();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+    console.error("Error in fetchProductByCodeOrName:", error); // Log error
     throw error;
   }
-
+  console.log("fetchProductByCodeOrName result:", data); // Log hasil
   return data;
 }
 
