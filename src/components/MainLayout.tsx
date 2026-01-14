@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react"; // Import useEffect
 import { useSession } from "./SessionContextProvider";
 import { useNavigate } from "react-router-dom";
 import SidebarNav from "./SidebarNav";
@@ -15,6 +15,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { session, isLoading } = useSession();
   const navigate = useNavigate();
 
+  // Pindahkan logika navigasi ke useEffect
+  useEffect(() => {
+    if (!isLoading && !session) {
+      navigate("/auth");
+    }
+  }, [session, isLoading, navigate]); // Tambahkan dependensi yang relevan
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
@@ -23,9 +30,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     );
   }
 
+  // Jika tidak ada sesi dan tidak sedang memuat, kita sudah mengarahkan di useEffect, jadi tidak perlu render apa-apa di sini.
+  // Ini juga mencegah rendering layout utama sebelum navigasi selesai.
   if (!session) {
-    // Redirect to auth page if not authenticated
-    navigate("/auth");
     return null;
   }
 
