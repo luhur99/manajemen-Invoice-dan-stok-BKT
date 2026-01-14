@@ -54,7 +54,7 @@ export interface StockMovementWithItemName extends StockMovement {
   stock_items: {
     nama_barang: string;
     kode_barang: string;
-  } | null; // Single object or null, as it's a single item being moved
+  }[] | null; // Diperbarui: sekarang array objek atau null
 }
 
 export interface SalesDetailItem {

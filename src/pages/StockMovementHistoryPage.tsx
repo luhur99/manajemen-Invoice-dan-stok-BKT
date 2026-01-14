@@ -126,8 +126,8 @@ const StockMovementHistoryPage = () => {
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         return (
-          item.stock_items?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.stock_items?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.from_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.to_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.reason?.toLowerCase().includes(lowerCaseSearchTerm)
@@ -192,8 +192,8 @@ const StockMovementHistoryPage = () => {
       const flattenedData: FlattenedStockMovementForExport[] = data.map((item: any) => ({
         movement_date: format(new Date(item.movement_date), "yyyy-MM-dd"),
         created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-        item_name: item.stock_items?.nama_barang || "N/A",
-        item_code: item.stock_items?.kode_barang || "N/A",
+        item_name: item.stock_items?.[0]?.nama_barang || "N/A",
+        item_code: item.stock_items?.[0]?.kode_barang || "N/A",
         from_category: getCategoryDisplay(item.from_category),
         to_category: getCategoryDisplay(item.to_category),
         quantity: item.quantity,
@@ -384,8 +384,8 @@ const StockMovementHistoryPage = () => {
                     <TableRow key={movement.id}>
                       <TableCell>{format(new Date(movement.movement_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{movement.stock_items?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{movement.stock_items?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{movement.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
+                      <TableCell>{movement.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
                       <TableCell className="text-right">{movement.quantity}</TableCell>

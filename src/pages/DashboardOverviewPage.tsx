@@ -15,11 +15,12 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { StockItem } from "@/types/data"; // Import StockItem type
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar"; // Import the new component
+import { Link } from "react-router-dom"; // For navigation
 
 // Define a type for combined activities
 interface LatestActivity {
   id: string;
-  type: 'invoice' | 'schedule' | 'stock_transaction';
+  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement'; // Added stock_movement
   description: string;
   date: string; // ISO date string
 }
@@ -30,6 +31,17 @@ interface StockTransactionWithItem {
   transaction_type: string;
   quantity: number;
   notes: string | null;
+  created_at: string;
+  stock_items: { nama_barang: string }[] | null; // Changed to array of objects or null
+}
+
+// Define interface for stock movement data with joined stock_items
+interface StockMovementWithItem {
+  id: string;
+  from_category: string;
+  to_category: string;
+  quantity: number;
+  reason: string | null;
   created_at: string;
   stock_items: { nama_barang: string }[] | null; // Changed to array of objects or null
 }
@@ -55,6 +67,15 @@ const DashboardOverviewPage = () => {
   const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
   const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const getCategoryDisplay = (category: string) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return category;
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -123,8 +144,17 @@ const DashboardOverviewPage = () => {
 
         if (recentStockTransactionsError) throw recentStockTransactionsError;
 
+        const { data: recentStockMovementsData, error: recentStockMovementsError } = await supabase
+          .from("stock_movements")
+          .select("id, from_category, to_category, quantity, reason, created_at, stock_items(nama_barang)")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentStockMovementsError) throw recentStockMovementsError;
+
         // Cast the data to the defined interface
         const recentStockTransactions: StockTransactionWithItem[] = recentStockTransactionsData as StockTransactionWithItem[];
+        const recentStockMovements: StockMovementWithItem[] = recentStockMovementsData as StockMovementWithItem[];
 
         const allActivities: LatestActivity[] = [];
 
@@ -156,12 +186,28 @@ const DashboardOverviewPage = () => {
             desc = `Stok masuk ${trans.quantity} unit untuk ${itemName}`;
           } else if (trans.transaction_type === 'out') {
             desc = `Stok keluar ${trans.quantity} unit dari ${itemName}`;
+          } else if (trans.transaction_type === 'return') {
+            desc = `Retur ${trans.quantity} unit untuk ${itemName}`;
+          } else if (trans.transaction_type === 'damage_loss') {
+            desc = `Rusak/Hilang ${trans.quantity} unit dari ${itemName}`;
           }
           allActivities.push({
             id: trans.id,
             type: 'stock_transaction',
             description: desc,
             date: trans.created_at,
+          });
+        });
+
+        recentStockMovements.forEach(mov => {
+          const itemName = mov.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal"; // Access first element of array
+          const fromCategory = getCategoryDisplay(mov.from_category);
+          const toCategory = getCategoryDisplay(mov.to_category);
+          allActivities.push({
+            id: mov.id,
+            type: 'stock_movement',
+            description: `Pindah ${mov.quantity} unit ${itemName} dari ${fromCategory} ke ${toCategory}`,
+            date: mov.created_at,
           });
         });
 
@@ -265,6 +311,11 @@ const DashboardOverviewPage = () => {
             <p className="text-xs text-muted-foreground">
               {lowStockItems > 0 ? `${lowStockItems} item stok rendah` : "Semua stok aman"}
             </p>
+            {lowStockItems > 0 && (
+              <Link to="/stock" className="text-sm text-blue-500 hover:underline mt-2 block">
+                Lihat Item Stok Rendah
+              </Link>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -14,7 +14,7 @@ import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import StockMovementForm from "@/components/StockMovementForm"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
 import ExportDataButton from "@/components/ExportDataButton";
-import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft } from "lucide-react"; // Import ArrowRightLeft icon
+import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle } from "lucide-react"; // Import ArrowRightLeft and AlertCircle icons
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Toggle } from "@/components/ui/toggle"; // Import Toggle component
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -36,6 +37,7 @@ const StockPage = () => {
   const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
 
   const [isMovementFormOpen, setIsMovementFormOpen] = useState(false); // State for StockMovementForm
+  const [showLowStockOnly, setShowLowStockOnly] = useState(false); // New state for low stock filter
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -140,15 +142,23 @@ const StockPage = () => {
 
   useEffect(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const filtered = stockData.filter(item =>
+    let filtered = stockData.filter(item =>
       item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.warehouse_category?.toLowerCase().includes(lowerCaseSearchTerm) // Include warehouse_category in search
     );
+
+    if (showLowStockOnly) {
+      filtered = filtered.filter(item => {
+        const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
+        return item["STOCK AKHIR"] < limit;
+      });
+    }
+
     setFilteredStockData(filtered);
     setCurrentPage(1);
-  }, [searchTerm, stockData]);
+  }, [searchTerm, stockData, showLowStockOnly]); // Add showLowStockOnly to dependencies
 
   const handleDeleteStockItem = async (stockItemId: string) => {
     if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
@@ -206,6 +216,15 @@ const StockPage = () => {
               fileName="stock_items.csv"
               headers={stockItemHeaders}
             />
+            <Toggle
+              pressed={showLowStockOnly}
+              onPressedChange={setShowLowStockOnly}
+              aria-label="Toggle low stock filter"
+              className="flex items-center gap-2"
+            >
+              <AlertCircle className="h-4 w-4" />
+              Stok Rendah
+            </Toggle>
           </div>
         </div>
         <CardDescription>Informasi mengenai stok barang yang tersedia.</CardDescription>
@@ -241,7 +260,7 @@ const StockPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item) => (
-                    <TableRow key={item.id}>
+                    <TableRow key={item.id} className={item["STOCK AKHIR"] < (item.safe_stock_limit || 10) ? "bg-red-50 dark:bg-red-950" : ""}>
                       <TableCell>{item["KODE BARANG"]}</TableCell>
                       <TableCell>{item["NAMA BARANG"]}</TableCell>
                       <TableCell>{item.SATUAN}</TableCell>
@@ -250,7 +269,11 @@ const StockPage = () => {
                       <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
                       <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={item["STOCK AKHIR"] < (item.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
+                          {item["STOCK AKHIR"]}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
