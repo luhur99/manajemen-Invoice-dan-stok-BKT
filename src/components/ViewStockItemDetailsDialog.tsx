@@ -92,7 +92,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
 
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
+        products: item.products || null, // Ensure it's a single object or null
       }));
 
       setTransactions(processedData);

@@ -120,14 +120,14 @@ const StockMovementHistoryPage = () => {
 
       const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
         ...item,
-        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
+        products: item.products || null, // Ensure it's a single object or null
       }));
 
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         return (
-          item.products?.[0]?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.products?.[0]?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.from_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.to_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.reason?.toLowerCase().includes(lowerCaseSearchTerm)
@@ -192,8 +192,8 @@ const StockMovementHistoryPage = () => {
       const flattenedData: FlattenedStockMovementForExport[] = data.map((item: any) => ({
         movement_date: format(new Date(item.movement_date), "yyyy-MM-dd"),
         created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-        item_name: item.products?.[0]?.["NAMA BARANG"] || "N/A",
-        item_code: item.products?.[0]?.["KODE BARANG"] || "N/A",
+        item_name: item.products?.["NAMA BARANG"] || "N/A",
+        item_code: item.products?.["KODE BARANG"] || "N/A",
         from_category: getCategoryDisplay(item.from_category),
         to_category: getCategoryDisplay(item.to_category),
         quantity: item.quantity,
@@ -398,8 +398,8 @@ const StockMovementHistoryPage = () => {
                     <TableRow key={movement.id}>
                       <TableCell>{format(new Date(movement.movement_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{movement.products?.[0]?.["NAMA BARANG"] || "N/A"}</TableCell>
-                      <TableCell>{movement.products?.[0]?.["KODE BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{movement.products?.["NAMA BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{movement.products?.["KODE BARANG"] || "N/A"}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
                       <TableCell className="text-right">{movement.quantity}</TableCell>
