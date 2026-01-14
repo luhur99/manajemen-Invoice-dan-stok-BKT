@@ -22,12 +22,12 @@ export async function fetchTotalInvoices(userId: string): Promise<number> {
  * @param userId ID pengguna yang diautentikasi.
  * @returns Jumlah jadwal tertunda.
  */
-export async function fetchPendingSchedules(userId: string): Promise<number> {
+export async function fetchScheduledSchedules(userId: string): Promise<number> {
   const { count, error } = await supabase
     .from('schedules')
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('status', 'scheduled'); // Asumsi 'scheduled' adalah status tertunda
+    .eq('status', 'scheduled');
 
   if (error) throw error;
   return count || 0;
@@ -75,6 +75,38 @@ export async function fetchPendingDeliveryOrders(userId: string): Promise<number
     .select('*', { count: 'exact', head: true })
     .eq('user_id', userId)
     .eq('status', 'pending');
+
+  if (error) throw error;
+  return count || 0;
+}
+
+/**
+ * Mengambil jumlah permintaan penjadwalan dengan status 'pending' untuk pengguna tertentu.
+ * @param userId ID pengguna yang diautentikasi.
+ * @returns Jumlah permintaan penjadwalan tertunda.
+ */
+export async function fetchPendingSchedulingRequests(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('scheduling_requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'pending');
+
+  if (error) throw error;
+  return count || 0;
+}
+
+/**
+ * Mengambil jumlah permintaan penjadwalan dengan status 'approved' untuk pengguna tertentu.
+ * @param userId ID pengguna yang diautentikasi.
+ * @returns Jumlah permintaan penjadwalan yang disetujui.
+ */
+export async function fetchApprovedSchedulingRequests(userId: string): Promise<number> {
+  const { count, error } = await supabase
+    .from('scheduling_requests')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('status', 'approved');
 
   if (error) throw error;
   return count || 0;

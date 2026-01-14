@@ -20,6 +20,7 @@ export interface Schedule {
   phone_number: string | null;
   courier_service: string | null;
   document_url: string | null;
+  scheduling_request_id: string | null; // New field
 }
 
 /**
@@ -45,7 +46,7 @@ export async function fetchSchedules(userId: string): Promise<Schedule[]> {
  * @returns Jadwal yang baru ditambahkan.
  */
 export async function addSchedule(
-  schedule: Omit<Schedule, 'id' | 'created_at' | 'user_id'>,
+  schedule: Omit<Schedule, 'id' | 'created_at' | 'user_id' | 'status'>, // Remove status from Omit as it's set by default or trigger
   userId: string
 ): Promise<Schedule> {
   const { data, error } = await supabase
@@ -53,6 +54,7 @@ export async function addSchedule(
     .insert({
       ...schedule,
       user_id: userId,
+      status: 'scheduled', // Default status for new schedules
     })
     .select()
     .single();
