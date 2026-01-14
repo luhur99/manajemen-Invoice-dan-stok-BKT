@@ -43,6 +43,15 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
 
   const selectedItem = items.find((item) => item["NAMA BARANG"] === value);
 
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return "";
+    }
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -57,7 +66,9 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
         >
           {/* Wrap children in a single span to ensure PopoverTrigger asChild receives one child */}
           <span>
-            {selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]})` : placeholder}
+            {selectedItem
+              ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${getCategoryDisplay(selectedItem.warehouse_category)}`
+              : placeholder}
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </span>
         </Button>
@@ -85,7 +96,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
                       selectedItem?.["NAMA BARANG"] === item["NAMA BARANG"] ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {item["NAMA BARANG"]} ({item["KODE BARANG"]})
+                  {item["NAMA BARANG"]} ({item["KODE BARANG"]}) - {getCategoryDisplay(item.warehouse_category)}
                 </CommandItem>
               ))}
             </CommandGroup>
