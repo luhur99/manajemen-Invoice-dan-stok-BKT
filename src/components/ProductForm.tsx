@@ -47,6 +47,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
   });
 
   React.useEffect(() => {
+    console.log("ProductForm - existingProduct in useEffect:", existingProduct);
     if (existingProduct) {
       // Use setValue for more reliable pre-population
       form.setValue('kode_barang', existingProduct.kode_barang);

@@ -56,6 +56,13 @@ const StockPage: React.FC = () => {
   const debouncedProductCode = useDebounce(currentProductCode, 500);
   const debouncedProductName = useDebounce(currentProductName, 500);
 
+  // Log untuk debugging
+  console.log("StockPage - currentProductCode:", currentProductCode);
+  console.log("StockPage - currentProductName:", currentProductName);
+  console.log("StockPage - debouncedProductCode:", debouncedProductCode);
+  console.log("StockPage - debouncedProductName:", debouncedProductName);
+
+
   const { data: prepopulatedProduct, isLoading: isLoadingPrepopulatedProduct } = useQuery<Product | null>({
     queryKey: ['prepopulatedProduct', userId, debouncedProductCode, debouncedProductName],
     queryFn: () => {
@@ -64,6 +71,10 @@ const StockPage: React.FC = () => {
     },
     enabled: !!userId && (!!debouncedProductCode || !!debouncedProductName),
   });
+
+  // Log untuk debugging
+  console.log("StockPage - prepopulatedProduct:", prepopulatedProduct);
+
 
   const addProductMutation = useMutation({
     mutationFn: (newProductData: Parameters<typeof addProduct>[0]) => addProduct(newProductData, userId!),
@@ -189,17 +200,7 @@ const StockPage: React.FC = () => {
           <TabsTrigger value="add">Tambah Produk Baru</TabsTrigger>
           <TabsTrigger value="move">Pindahkan Stok</TabsTrigger>
         </TabsList>
-        <TabsContent value="view">
-          <Card>
-            <CardHeader>
-              <CardTitle>Daftar Produk & Inventaris Gudang</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ProductTable products={productsWithInventories} isLoading={isLoadingAny} error={errorProducts || errorInventories} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="add">
+        <TabsContent value="add"> {/* Pindahkan ProductForm ke sini */}
           <Card>
             <CardHeader>
               <CardTitle>Tambah Produk Baru</CardTitle>
@@ -211,6 +212,16 @@ const StockPage: React.FC = () => {
                 existingProduct={prepopulatedProduct}
                 onInputChange={handleProductInputChange}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="view">
+          <Card>
+            <CardHeader>
+              <CardTitle>Daftar Produk & Inventaris Gudang</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ProductTable products={productsWithInventories} isLoading={isLoadingAny} error={errorProducts || errorInventories} />
             </CardContent>
           </Card>
         </TabsContent>
