@@ -30,13 +30,22 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
         try {
           const { data, error } = await supabase
             .from("invoice_items")
-            .select("*")
+            .select(`
+              *,
+              products (kode_barang)
+            `) // Diperbarui: join products untuk mendapatkan kode_barang
             .eq("invoice_id", invoice.id);
 
           if (error) {
             throw error;
           }
-          setItems(data as InvoiceItem[]);
+          
+          // Map data untuk mengisi item_code dari hasil join
+          const processedItems: InvoiceItem[] = data.map((item: any) => ({
+            ...item,
+            item_code: item.products?.kode_barang || "-", // Ambil kode_barang dari objek products yang di-join
+          }));
+          setItems(processedItems);
         } catch (err: any) {
           showError(`Gagal memuat item invoice: ${err.message}`);
           console.error("Error fetching invoice items:", err);
