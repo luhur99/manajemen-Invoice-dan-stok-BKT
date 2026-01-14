@@ -120,7 +120,7 @@ const StockMovementHistoryPage = () => {
 
       const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
         ...item,
-        products: item.products || null, // Ensure it's a single object or null
+        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
       }));
 
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -253,6 +253,20 @@ const StockMovementHistoryPage = () => {
       default: return category;
     }
   };
+
+  if (loading) {
+    return (
+      <Card className="border shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold">Riwayat Perpindahan Stok</CardTitle>
+          <CardDescription>Memuat daftar perpindahan stok...</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-gray-700 dark:text-gray-300">Memuat data riwayat stok...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border shadow-sm">

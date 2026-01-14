@@ -122,7 +122,7 @@ const StockHistoryPage = () => {
         throw error;
       }
 
-      // Correctly map products to be a single object or null
+      // Correctly map products to be an array of objects or null
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
         products: item.products ? [item.products] : null, // Ensure it's an array of objects or null

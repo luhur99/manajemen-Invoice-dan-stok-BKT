@@ -32,7 +32,7 @@ interface StockTransactionWithProduct {
   quantity: number;
   notes: string | null;
   created_at: string;
-  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects or null
+  products: Product[] | null; // Changed to array of objects or null
 }
 
 // Define interface for stock movement data with joined products
@@ -43,7 +43,7 @@ interface StockMovementWithProduct {
   quantity: number;
   reason: string | null;
   created_at: string;
-  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects or null
+  products: Product[] | null; // Changed to array of objects or null
 }
 
 // Chart configuration
@@ -443,6 +443,7 @@ const DashboardOverviewPage = () => {
                     allowDecimals={false}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend /> {/* Add legend to distinguish bars */}
                   <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
                 </BarChart>
               </ChartContainer>
