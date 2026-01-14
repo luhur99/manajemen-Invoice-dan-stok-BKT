@@ -37,6 +37,21 @@ export interface StockMovement {
   created_at: string;
 }
 
+export interface StockTransaction {
+  id: string;
+  user_id: string;
+  product_id: string;
+  transaction_type: string;
+  quantity: number;
+  notes: string | null;
+  transaction_date: string;
+  created_at: string;
+  product?: {
+    kode_barang: string;
+    nama_barang: string;
+  };
+}
+
 /**
  * Mengambil semua produk untuk pengguna tertentu.
  * @param userId ID pengguna yang diautentikasi.
@@ -256,5 +271,25 @@ export async function fetchStockMovements(userId: string): Promise<StockMovement
     ...movement,
     product_name: movement.products?.nama_barang, // Tambahkan nama_barang ke objek movement
     product_code: movement.products?.kode_barang, // Tambahkan kode_barang ke objek movement
+  }));
+}
+
+/**
+ * Mengambil riwayat transaksi stok untuk pengguna tertentu.
+ * @param userId ID pengguna yang diautentikasi.
+ * @returns Array riwayat transaksi stok.
+ */
+export async function fetchStockTransactions(userId: string): Promise<StockTransaction[]> {
+  const { data, error } = await supabase
+    .from('stock_transactions')
+    .select('*, products(kode_barang, nama_barang)')
+    .eq('user_id', userId)
+    .order('transaction_date', { ascending: false });
+
+  if (error) throw error;
+
+  return data.map(transaction => ({
+    ...transaction,
+    product: transaction.products || undefined,
   }));
 }
