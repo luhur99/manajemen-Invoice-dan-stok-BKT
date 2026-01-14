@@ -31,7 +31,8 @@ const formSchema = z.object({
   suggested_selling_price: z.coerce.number().min(0, "Harga Jual yang disarankan tidak boleh negatif"),
   supplier: z.string().optional(),
   notes: z.string().optional(),
-  product_id: z.string().uuid("ID Produk harus format UUID yang valid").optional().or(z.literal("")), // ADDED: product_id
+  // product_id_internal is used to store the selected product ID from combobox
+  product_id_internal: z.string().optional(), 
 });
 
 interface AddPurchaseRequestFormProps {
@@ -53,7 +54,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       suggested_selling_price: 0,
       supplier: "",
       notes: "",
-      product_id: "", // ADDED: product_id
+      product_id_internal: "", // Initialize internal field
     },
   });
 
@@ -86,13 +87,62 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
     }
 
     try {
+      let finalProductId: string;
+      const currentProductIdFromCombobox = form.getValues("product_id_internal");
+
+      if (currentProductIdFromCombobox) {
+        // If a product was selected from the combobox, use its ID
+        finalProductId = currentProductIdFromCombobox;
+      } else {
+        // If no product was selected from combobox (user typed manually)
+        // Check if a product with the entered item_code already exists
+        const { data: existingProduct, error: fetchProductError } = await supabase
+          .from("products")
+          .select("id")
+          .eq("kode_barang", values.item_code)
+          .single();
+
+        if (fetchProductError && fetchProductError.code !== 'PGRST116') { // PGRST116 means no rows found
+          throw fetchProductError;
+        }
+
+        if (existingProduct) {
+          finalProductId = existingProduct.id;
+        } else {
+          // Create a new product if it doesn't exist
+          const { data: newProductData, error: newProductError } = await supabase
+            .from("products")
+            .insert({
+              user_id: userId,
+              kode_barang: values.item_code,
+              nama_barang: values.item_name,
+              satuan: "PCS", // Default unit, can be made configurable
+              harga_beli: values.unit_price,
+              harga_jual: values.suggested_selling_price,
+              safe_stock_limit: 0, // Default safe stock limit for new products
+            })
+            .select("id")
+            .single();
+
+          if (newProductError) {
+            throw newProductError;
+          }
+          finalProductId = newProductData.id;
+        }
+      }
+
+      if (!finalProductId) {
+        showError("Gagal menentukan ID produk untuk pengajuan pembelian.");
+        return;
+      }
+
       const total_price = values.quantity * values.unit_price;
 
       const { error } = await supabase
         .from("purchase_requests")
         .insert({
           user_id: userId,
-          product_id: values.product_id || null, // ADDED: product_id
+          product_id: finalProductId, // Use the determined product ID
           item_name: values.item_name,
           item_code: values.item_code,
           quantity: values.quantity,
@@ -149,13 +199,13 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                           form.setValue("item_code", selectedProduct.kode_barang);
                           form.setValue("unit_price", selectedProduct.harga_beli);
                           form.setValue("suggested_selling_price", selectedProduct.harga_jual);
-                          form.setValue("product_id", selectedProduct.id); // ADDED: Set product_id
+                          form.setValue("product_id_internal", selectedProduct.id); // Set internal product_id
                         } else {
                           form.setValue("item_name", "");
                           form.setValue("item_code", "");
                           form.setValue("unit_price", 0);
                           form.setValue("suggested_selling_price", 0);
-                          form.setValue("product_id", ""); // ADDED: Clear product_id
+                          form.setValue("product_id_internal", ""); // Clear internal product_id
                         }
                       }}
                       disabled={loadingProducts}
@@ -244,13 +294,13 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                 </FormItem>
               )}
             />
-            {/* Hidden field for product_id */}
+            {/* Hidden field for product_id_internal */}
             <FormField
               control={form.control}
-              name="product_id"
+              name="product_id_internal"
               render={({ field }) => (
                 <FormItem className="hidden">
-                  <FormLabel>Product ID</FormLabel>
+                  <FormLabel>Product ID Internal</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>

@@ -180,7 +180,7 @@ export interface Profile {
 export interface PurchaseRequest {
   id: string;
   user_id: string;
-  product_id?: string; // New: Link to products table
+  product_id: string; // Changed to be REQUIRED
   item_name: string;
   item_code: string;
   quantity: number;
