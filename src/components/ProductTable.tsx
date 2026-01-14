@@ -10,7 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Product, WarehouseInventory } from '@/api/stock';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Eye, Edit } from 'lucide-react'; // Import Eye and Edit icons
+import { Button } from '@/components/ui/button'; // Import Button component
 
 interface ProductWithInventory extends Product {
   inventories: WarehouseInventory[];
@@ -20,9 +21,11 @@ interface ProductTableProps {
   products: ProductWithInventory[];
   isLoading: boolean;
   error: Error | null;
+  onView: (product: ProductWithInventory) => void; // New prop for view action
+  onEdit: (product: ProductWithInventory) => void; // New prop for edit action
 }
 
-const ProductTable: React.FC<ProductTableProps> = ({ products, isLoading, error }) => {
+const ProductTable: React.FC<ProductTableProps> = ({ products, isLoading, error, onView, onEdit }) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-4">
@@ -64,10 +67,11 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, isLoading, error 
             <TableHead className="text-right">Harga Beli</TableHead>
             <TableHead className="text-right">Harga Jual</TableHead>
             <TableHead className="text-right">Batas Stok Aman</TableHead>
-            <TableHead className="text-right">Stok Siap Jual</TableHead>
+            <TableHead className="text-right">Stok Siap Jaka</TableHead>
             <TableHead className="text-right">Stok Riset</TableHead>
             <TableHead className="text-right">Stok Retur</TableHead>
             <TableHead className="text-right">Total Stok</TableHead>
+            <TableHead className="text-right">Aksi</TableHead> {/* New column for actions */}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -89,6 +93,24 @@ const ProductTable: React.FC<ProductTableProps> = ({ products, isLoading, error 
                 <TableCell className="text-right">{stockRiset}</TableCell>
                 <TableCell className="text-right">{stockRetur}</TableCell>
                 <TableCell className="text-right font-bold">{totalStock}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onView(product)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onEdit(product)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
               </TableRow>
             );
           })}

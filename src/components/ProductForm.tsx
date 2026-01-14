@@ -15,7 +15,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-// Product type tidak lagi diperlukan di sini karena existingProduct dihapus
+import { Product } from '@/api/stock'; // Import Product type
+import { Loader2 } from 'lucide-react';
 
 const formSchema = z.object({
   kode_barang: z.string().min(1, { message: 'Kode barang wajib diisi.' }),
@@ -29,11 +30,13 @@ const formSchema = z.object({
 interface ProductFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
-  isDuplicate: boolean; // Sekarang menerima boolean isDuplicate
-  onInputChange?: (field: 'kode_barang' | 'nama_barang', value: string) => void; // Callback untuk perubahan input
+  isDuplicate: boolean;
+  existingProduct?: Product | null; // New prop for existing product
+  onCancelEdit?: () => void; // New prop to cancel edit
+  onInputChange?: (field: 'kode_barang' | 'nama_barang', value: string) => void;
 }
 
-const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, isDuplicate, onInputChange }) => {
+const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, isDuplicate, existingProduct, onCancelEdit, onInputChange }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -45,6 +48,28 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, isDuplic
       safe_stock_limit: 0,
     },
   });
+
+  React.useEffect(() => {
+    if (existingProduct) {
+      form.reset({
+        kode_barang: existingProduct.kode_barang,
+        nama_barang: existingProduct.nama_barang,
+        satuan: existingProduct.satuan,
+        harga_beli: existingProduct.harga_beli,
+        harga_jual: existingProduct.harga_jual,
+        safe_stock_limit: existingProduct.safe_stock_limit,
+      });
+    } else {
+      form.reset({
+        kode_barang: '',
+        nama_barang: '',
+        satuan: 'pcs',
+        harga_beli: 0,
+        harga_jual: 0,
+        safe_stock_limit: 0,
+      });
+    }
+  }, [existingProduct, form]);
 
   return (
     <Form {...form}>
@@ -155,9 +180,16 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, isDuplic
             )}
           />
         </div>
-        <Button type="submit" disabled={isLoading || isDuplicate}>
-          {isLoading ? 'Menambahkan...' : 'Tambah Produk'}
-        </Button>
+        <div className="flex space-x-2">
+          <Button type="submit" disabled={isLoading || isDuplicate}>
+            {isLoading ? 'Menyimpan...' : (existingProduct ? 'Update Produk' : 'Tambah Produk')}
+          </Button>
+          {existingProduct && (
+            <Button type="button" variant="outline" onClick={onCancelEdit} disabled={isLoading}>
+              Batal Edit
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );

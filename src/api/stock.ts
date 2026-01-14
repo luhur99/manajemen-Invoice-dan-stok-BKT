@@ -69,35 +69,58 @@ export async function fetchProducts(userId: string): Promise<Product[]> {
 }
 
 /**
+ * Mengambil produk berdasarkan ID untuk pengguna tertentu.
+ * @param userId ID pengguna yang diautentikasi.
+ * @param productId ID produk.
+ * @returns Produk yang ditemukan atau null.
+ */
+export async function fetchProductById(userId: string, productId: string): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('id', productId)
+    .single();
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+    throw error;
+  }
+  return data;
+}
+
+/**
  * Mencari produk berdasarkan kode barang atau nama barang untuk pengguna tertentu.
  * @param userId ID pengguna yang diautentikasi.
  * @param code Kode barang yang dicari.
  * @param name Nama barang yang dicari.
+ * @param excludeProductId ID produk yang akan dikecualikan dari pencarian (untuk edit).
  * @returns Produk yang ditemukan atau null.
  */
-export async function fetchProductByCodeOrName(userId: string, code?: string, name?: string): Promise<Product | null> {
-  console.log("fetchProductByCodeOrName called with:", { userId, code, name }); // Log tambahan
+export async function fetchProductByCodeOrName(userId: string, code?: string, name?: string, excludeProductId?: string): Promise<Product | null> {
   let query = supabase
     .from('products')
     .select('*')
     .eq('user_id', userId);
 
-  if (code) {
+  if (excludeProductId) {
+    query = query.neq('id', excludeProductId);
+  }
+
+  if (code && name) {
+    query = query.or(`kode_barang.eq.${code},nama_barang.eq.${name}`);
+  } else if (code) {
     query = query.eq('kode_barang', code);
   } else if (name) {
     query = query.eq('nama_barang', name);
   } else {
-    console.log("fetchProductByCodeOrName: No code or name provided, returning null."); // Log tambahan
     return null;
   }
 
   const { data, error } = await query.single();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
-    console.error("Error in fetchProductByCodeOrName:", error); // Log error
     throw error;
   }
-  console.log("fetchProductByCodeOrName result:", data); // Log hasil
   return data;
 }
 
@@ -131,6 +154,30 @@ export async function addProduct(
     user_id: userId,
   });
 
+  return data;
+}
+
+/**
+ * Memperbarui produk yang sudah ada.
+ * @param productId ID produk yang akan diperbarui.
+ * @param updates Data yang akan diperbarui.
+ * @param userId ID pengguna yang diautentikasi.
+ * @returns Produk yang diperbarui.
+ */
+export async function updateProduct(
+  productId: string,
+  updates: Partial<Omit<Product, 'id' | 'created_at' | 'user_id'>>,
+  userId: string
+): Promise<Product> {
+  const { data, error } = await supabase
+    .from('products')
+    .update(updates)
+    .eq('id', productId)
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) throw error;
   return data;
 }
 

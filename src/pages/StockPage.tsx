@@ -5,7 +5,9 @@ import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
 import AddProductForm from '@/components/AddProductForm';
 import ProductTable from '@/components/ProductTable';
-import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, WarehouseCategory, Product } from '@/api/stock';
+import ProductForm from '@/components/ProductForm'; // Import ProductForm
+import ProductDetailDialog from '@/components/ProductDetailDialog'; // Import ProductDetailDialog
+import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, updateProduct, fetchProductByCodeOrName, WarehouseCategory, Product, WarehouseInventory } from '@/api/stock'; // Import WarehouseInventory
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -14,14 +16,55 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
+import * as z from 'zod'; // Import Zod for form schema
+
+// Helper hook for debouncing values
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
+
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+interface ProductWithInventory extends Product {
+  inventories: WarehouseInventory[];
+}
+
+const productFormSchema = z.object({
+  kode_barang: z.string().min(1, { message: 'Kode barang wajib diisi.' }),
+  nama_barang: z.string().min(1, { message: 'Nama barang wajib diisi.' }),
+  satuan: z.string().min(1, { message: 'Satuan wajib diisi.' }),
+  harga_beli: z.coerce.number().min(0, { message: 'Harga beli harus positif.' }),
+  harga_jual: z.coerce.number().min(0, { message: 'Harga jual harus positif.' }),
+  safe_stock_limit: z.coerce.number().min(0, { message: 'Batas stok aman harus positif.' }),
+});
+
+const addProductFormSchema = productFormSchema.extend({
+  initial_stock: z.coerce.number().min(0, { message: 'Stok awal tidak boleh negatif.' }).default(0),
+  initial_stock_warehouse: z.enum(['siap_jual', 'riset', 'retur'], {
+    required_error: "Silakan pilih gudang untuk stok awal.",
+  }).default('siap_jual'),
+});
+
 
 const StockPage: React.FC = () => {
   const { session } = useSession();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = React.useState<string>('add');
-  
+  const [activeTab, setActiveTab] = React.useState<string>('view');
+  const [editingProduct, setEditingProduct] = React.useState<ProductWithInventory | null>(null);
+  const [viewingProduct, setViewingProduct] = React.useState<ProductWithInventory | null>(null);
+
   const { data: products, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
     queryKey: ['products', userId],
     queryFn: () => fetchProducts(userId!),
@@ -48,6 +91,20 @@ const StockPage: React.FC = () => {
     },
   });
 
+  const updateProductMutation = useMutation({
+    mutationFn: ({ productId, updates }: { productId: string; updates: Partial<Omit<Product, 'id' | 'created_at' | 'user_id'>> }) =>
+      updateProduct(productId, updates, userId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products', userId] });
+      showSuccess('Produk berhasil diperbarui!');
+      setEditingProduct(null);
+      setActiveTab('view');
+    },
+    onError: (err) => {
+      showError(`Gagal memperbarui produk: ${err.message}`);
+    },
+  });
+
   const recordStockMovementMutation = useMutation({
     mutationFn: ({ productId, fromCategory, toCategory, quantity, reason }: { productId: string; fromCategory: WarehouseCategory | null; toCategory: WarehouseCategory; quantity: number; reason: string; }) =>
       recordStockMovement(productId, fromCategory, toCategory, quantity, reason, userId!),
@@ -62,19 +119,37 @@ const StockPage: React.FC = () => {
     },
   });
 
-  const handleAddProduct = (values: any) => { // Gunakan 'any' untuk sementara karena tipe Zod berbeda
+  const handleAddProduct = (values: z.infer<typeof addProductFormSchema>) => {
     if (!userId) {
       showError('Anda harus login untuk menambahkan produk.');
       return;
     }
 
-    const { initial_stock, initial_stock_warehouse, ...productData } = values;
+    const { initial_stock, initial_stock_warehouse, ...restOfValues } = values;
+    
+    // Explicitly construct productData to match the required type
+    const productData: Omit<Product, 'id' | 'created_at' | 'user_id'> = {
+      kode_barang: restOfValues.kode_barang,
+      nama_barang: restOfValues.nama_barang,
+      satuan: restOfValues.satuan,
+      harga_beli: restOfValues.harga_beli,
+      harga_jual: restOfValues.harga_jual,
+      safe_stock_limit: restOfValues.safe_stock_limit,
+    };
 
     addProductMutation.mutate({
       newProductData: productData,
       initialStock: initial_stock,
       initialStockWarehouse: initial_stock_warehouse,
     });
+  };
+
+  const handleUpdateProduct = (values: z.infer<typeof productFormSchema>) => {
+    if (!userId || !editingProduct) {
+      showError('Anda harus login atau memilih produk untuk diperbarui.');
+      return;
+    }
+    updateProductMutation.mutate({ productId: editingProduct.id, updates: values });
   };
 
   const [selectedProductForMovement, setSelectedProductForMovement] = React.useState<string>('');
@@ -120,6 +195,20 @@ const StockPage: React.FC = () => {
     }));
   }, [products, inventories]);
 
+  const handleViewProduct = (product: ProductWithInventory) => {
+    setViewingProduct(product);
+  };
+
+  const handleEditProduct = (product: ProductWithInventory) => {
+    setEditingProduct(product);
+    setActiveTab('edit'); // Switch to the edit tab
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProduct(null);
+    setActiveTab('view');
+  };
+
   const isLoadingAny = isLoadingProducts || isLoadingInventories;
 
   if (isLoadingAny) {
@@ -140,9 +229,10 @@ const StockPage: React.FC = () => {
       <p className="text-lg text-muted-foreground mb-8">Kelola inventaris stok produk Anda di sini.</p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4"> {/* Adjusted grid-cols */}
           <TabsTrigger value="view">Lihat Stok</TabsTrigger>
           <TabsTrigger value="add">Tambah Produk Baru</TabsTrigger>
+          <TabsTrigger value="edit">{editingProduct ? 'Edit Produk' : 'Pilih Produk untuk Edit'}</TabsTrigger> {/* New tab for edit */}
           <TabsTrigger value="move">Pindahkan Stok</TabsTrigger>
         </TabsList>
 
@@ -157,13 +247,40 @@ const StockPage: React.FC = () => {
           </Card>
         </TabsContent>
 
+        <TabsContent value="edit">
+          <Card>
+            <CardHeader>
+              <CardTitle>Edit Produk</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {editingProduct ? (
+                <ProductForm
+                  onSubmit={handleUpdateProduct}
+                  isLoading={updateProductMutation.isPending}
+                  isDuplicate={false} // Duplication check will be handled by the form itself
+                  existingProduct={editingProduct}
+                  onCancelEdit={handleCancelEdit}
+                />
+              ) : (
+                <p className="text-muted-foreground">Pilih produk dari tabel "Lihat Stok" untuk mengedit.</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="view">
           <Card>
             <CardHeader>
               <CardTitle>Daftar Produk & Inventaris Gudang</CardTitle>
             </CardHeader>
             <CardContent>
-              <ProductTable products={productsWithInventories} isLoading={isLoadingAny} error={errorProducts || errorInventories} />
+              <ProductTable 
+                products={productsWithInventories} 
+                isLoading={isLoadingAny} 
+                error={errorProducts || errorInventories} 
+                onView={handleViewProduct}
+                onEdit={handleEditProduct}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -267,6 +384,11 @@ const StockPage: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <ProductDetailDialog
+        product={viewingProduct}
+        onOpenChange={(open) => !open && setViewingProduct(null)}
+      />
     </div>
   );
 };

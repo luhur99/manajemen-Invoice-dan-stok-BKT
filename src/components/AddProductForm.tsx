@@ -32,6 +32,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import ProductForm from './ProductForm'; // Import ProductForm
 
 // Helper hook for debouncing values
 function useDebounce<T>(value: T, delay: number): T {
@@ -113,13 +114,13 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
   const [openKodeBarang, setOpenKodeBarang] = React.useState(false);
   const [openNamaBarang, setOpenNamaBarang] = React.useState(false);
 
-  const handleSubmit = (values: z.infer<typeof formSchema>) => {
+  const handleProductFormSubmit = (values: Omit<z.infer<typeof formSchema>, 'initial_stock' | 'initial_stock_warehouse'>) => {
     if (isDuplicate) {
       form.setError('kode_barang', { type: 'manual', message: 'Produk dengan kode atau nama ini sudah ada.' });
       form.setError('nama_barang', { type: 'manual', message: 'Produk dengan kode atau nama ini sudah ada.' });
       return;
     }
-    onSubmit(values);
+    onSubmit({ ...values, initial_stock: form.getValues('initial_stock'), initial_stock_warehouse: form.getValues('initial_stock_warehouse') });
     form.reset({
       kode_barang: '',
       nama_barang: '',
@@ -132,220 +133,25 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
     }); // Reset form ke default setelah submit
   };
 
+  const handleInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
+    if (field === 'kode_barang') {
+      form.setValue('kode_barang', value);
+    } else {
+      form.setValue('nama_barang', value);
+    }
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleProductFormSubmit)} className="space-y-4">
+        <ProductForm
+          onSubmit={handleProductFormSubmit}
+          isLoading={isLoading}
+          isDuplicate={isDuplicate}
+          onInputChange={handleInputChange}
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Input Kode Barang dengan Autocomplete */}
-          <FormField
-            control={form.control}
-            name="kode_barang"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Kode Barang</FormLabel>
-                <Popover open={openKodeBarang} onOpenChange={setOpenKodeBarang}>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <div className="relative">
-                        <Input
-                          placeholder="Ex: BRG001"
-                          {...field}
-                          className="pr-10"
-                        />
-                        <Button
-                          variant="ghost"
-                          role="combobox"
-                          className="absolute right-0 top-0 h-full px-3 py-2"
-                          onClick={() => setOpenKodeBarang((prev) => !prev)}
-                        >
-                          <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </div>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
-                      <CommandInput placeholder="Cari kode barang..." />
-                      <CommandEmpty>Tidak ada kode barang ditemukan.</CommandEmpty>
-                      <CommandGroup>
-                        {isLoadingAllProducts ? (
-                          <CommandItem disabled className="flex items-center justify-center">
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
-                          </CommandItem>
-                        ) : (
-                          allProducts?.filter(p => p.kode_barang.toLowerCase().includes(kodeBarangWatch.toLowerCase()))
-                          .map((product) => (
-                            <CommandItem
-                              value={product.kode_barang}
-                              key={product.id}
-                              onSelect={() => {
-                                form.setValue('kode_barang', product.kode_barang);
-                                setOpenKodeBarang(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  product.kode_barang === field.value
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
-                              {product.kode_barang}
-                            </CommandItem>
-                          ))
-                        )}
-                      </CommandGroup>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {isLoadingExistingProduct && debouncedKodeBarang && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Memeriksa duplikat...</p>}
-                {isDuplicate && form.formState.errors.kode_barang && <FormMessage className="text-orange-500">{form.formState.errors.kode_barang.message}</FormMessage>}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Input Nama Barang dengan Autocomplete */}
-          <FormField
-            control={form.control}
-            name="nama_barang"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Nama Barang</FormLabel>
-                <Popover open={openNamaBarang} onOpenChange={setOpenNamaBarang}>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <div className="relative">
-                        <Input
-                          placeholder="Ex: Kipas Angin"
-                          {...field}
-                          className="pr-10"
-                        />
-                        <Button
-                          variant="ghost"
-                          role="combobox"
-                          className="absolute right-0 top-0 h-full px-3 py-2"
-                          onClick={() => setOpenNamaBarang((prev) => !prev)}
-                        >
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </div>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
-                      <CommandInput placeholder="Cari nama barang..." />
-                      <CommandEmpty>Tidak ada nama barang ditemukan.</CommandEmpty>
-                      <CommandGroup>
-                        {isLoadingAllProducts ? (
-                          <CommandItem disabled className="flex items-center justify-center">
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
-                          </CommandItem>
-                        ) : (
-                          allProducts?.filter(p => p.nama_barang.toLowerCase().includes(namaBarangWatch.toLowerCase()))
-                          .map((product) => (
-                            <CommandItem
-                              value={product.nama_barang}
-                              key={product.id}
-                              onSelect={() => {
-                                form.setValue('nama_barang', product.nama_barang);
-                                setOpenNamaBarang(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  product.nama_barang === field.value
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
-                              {product.nama_barang}
-                            </CommandItem>
-                          ))
-                        )}
-                      </CommandGroup>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {isLoadingExistingProduct && debouncedNamaBarang && <p className="text-sm text-muted-foreground flex items-center"><Loader2 className="h-4 w-4 animate-spin mr-2" /> Memeriksa duplikat...</p>}
-                {isDuplicate && form.formState.errors.nama_barang && <FormMessage className="text-orange-500">{form.formState.errors.nama_barang.message}</FormMessage>}
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Input Satuan */}
-          <FormField
-            control={form.control}
-            name="satuan"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Satuan</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih satuan" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="pcs">Pcs</SelectItem>
-                    <SelectItem value="unit">Unit</SelectItem>
-                    <SelectItem value="box">Box</SelectItem>
-                    <SelectItem value="set">Set</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Input Harga Beli */}
-          <FormField
-            control={form.control}
-            name="harga_beli"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Harga Beli</FormLabel>
-                <FormControl>
-                  <Input type="number" placeholder="0" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Input Harga Jual */}
-          <FormField
-            control={form.control}
-            name="harga_jual"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Harga Jual</FormLabel>
-                <FormControl>
-                  <Input type="number" placeholder="0" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {/* Input Batas Stok Aman */}
-          <FormField
-            control={form.control}
-            name="safe_stock_limit"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Batas Stok Aman</FormLabel>
-                <FormControl>
-                  <Input type="number" placeholder="0" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           {/* Input Stok Awal */}
           <FormField
             control={form.control}
@@ -385,9 +191,6 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
             )}
           />
         </div>
-        <Button type="submit" disabled={isLoading || isDuplicate || isLoadingExistingProduct || isLoadingAllProducts}>
-          {isLoading ? 'Menambahkan...' : 'Tambah Produk'}
-        </Button>
       </form>
     </Form>
   );
