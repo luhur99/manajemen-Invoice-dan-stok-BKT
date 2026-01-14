@@ -11,9 +11,10 @@ import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
+import StockMovementForm from "@/components/StockMovementForm"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
-import ExportDataButton from "@/components/ExportDataButton"; // Import new component
-import { Loader2, Edit, Trash2, PlusCircle, Settings } from "lucide-react";
+import ExportDataButton from "@/components/ExportDataButton";
+import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft } from "lucide-react"; // Import ArrowRightLeft icon
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,8 @@ const StockPage = () => {
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
 
+  const [isMovementFormOpen, setIsMovementFormOpen] = useState(false); // State for StockMovementForm
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -43,7 +46,7 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, created_at")
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at") // Include warehouse_category
         .order("nama_barang", { ascending: true });
 
       if (error) {
@@ -64,6 +67,7 @@ const StockPage = () => {
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
         safe_stock_limit: item.safe_stock_limit,
+        warehouse_category: item.warehouse_category, // Assign warehouse_category
         created_at: item.created_at,
       }));
 
@@ -85,7 +89,7 @@ const StockPage = () => {
     try {
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, created_at")
+        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at") // Include warehouse_category
         .order("nama_barang", { ascending: true });
 
       if (error) {
@@ -105,6 +109,7 @@ const StockPage = () => {
         "STOCK KELUAR": item.stock_keluar,
         "STOCK AKHIR": item.stock_akhir,
         safe_stock_limit: item.safe_stock_limit,
+        warehouse_category: item.warehouse_category, // Assign warehouse_category
         created_at: item.created_at,
       })) as StockItem[];
     } catch (err: any) {
@@ -125,6 +130,7 @@ const StockPage = () => {
     { key: "STOCK KELUAR", label: "Stok Keluar" },
     { key: "STOCK AKHIR", label: "Stok Akhir" },
     { key: "safe_stock_limit", label: "Batas Aman" },
+    { key: "warehouse_category", label: "Kategori Gudang" }, // New header
     { key: "created_at", label: "Created At" },
   ];
 
@@ -137,7 +143,8 @@ const StockPage = () => {
     const filtered = stockData.filter(item =>
       item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm)
+      item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.warehouse_category?.toLowerCase().includes(lowerCaseSearchTerm) // Include warehouse_category in search
     );
     setFilteredStockData(filtered);
     setCurrentPage(1);
@@ -171,11 +178,15 @@ const StockPage = () => {
     setIsEditFormOpen(true);
   };
 
-  // Modified handleTransactionClick to open the form without a specific initial type
   const handleOpenTransactionForm = (item: StockItem) => {
     setSelectedStockItem(item);
-    setTransactionType(undefined); // Let the form's default handle the initial type
+    setTransactionType(undefined);
     setIsTransactionFormOpen(true);
+  };
+
+  const handleOpenMovementForm = (item: StockItem) => {
+    setSelectedStockItem(item);
+    setIsMovementFormOpen(true);
   };
 
   const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
@@ -188,7 +199,7 @@ const StockPage = () => {
       <CardHeader>
         <div className="flex justify-between items-center mb-4">
           <CardTitle className="text-2xl font-semibold">Data Stok Barang</CardTitle>
-          <div className="flex gap-2"> {/* Group buttons */}
+          <div className="flex gap-2">
             <AddStockItemForm onSuccess={fetchStockData} />
             <ExportDataButton
               fetchDataFunction={fetchAllStockDataForExport}
@@ -203,7 +214,7 @@ const StockPage = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan kode, nama barang, atau satuan..."
+          placeholder="Cari berdasarkan kode, nama barang, satuan, atau kategori gudang..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="mb-4"
@@ -224,12 +235,34 @@ const StockPage = () => {
                     <TableHead className="text-right">Stok Keluar</TableHead>
                     <TableHead className="text-right">Stok Akhir</TableHead>
                     <TableHead className="text-right">Batas Aman</TableHead>
+                    <TableHead>Kategori Gudang</TableHead> {/* New TableHead */}
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item) => (
-                    <TableRow key={item.id}><TableCell>{item["KODE BARANG"]}</TableCell><TableCell>{item["NAMA BARANG"]}</TableCell><TableCell>{item.SATUAN}</TableCell><TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell><TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell><TableCell className="text-right">{item["STOCK AWAL"]}</TableCell><TableCell className="text-right">{item["STOCK MASUK"]}</TableCell><TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell><TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell><TableCell className="text-right">{item.safe_stock_limit}</TableCell><TableCell className="text-center">
+                    <TableRow key={item.id}>
+                      <TableCell>{item["KODE BARANG"]}</TableCell>
+                      <TableCell>{item["NAMA BARANG"]}</TableCell>
+                      <TableCell>{item.SATUAN}</TableCell>
+                      <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
+                      <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
+                      <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
+                      <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
+                      <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
+                      <TableCell className="text-right">{item["STOCK AKHIR"]}</TableCell>
+                      <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          item.warehouse_category === 'siap_jual' ? 'bg-blue-100 text-blue-800' :
+                          item.warehouse_category === 'riset' ? 'bg-yellow-100 text-yellow-800' :
+                          item.warehouse_category === 'retur' ? 'bg-orange-100 text-orange-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.warehouse_category?.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') || "-"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="outline" size="sm" className="flex items-center gap-1">
@@ -241,7 +274,10 @@ const StockPage = () => {
                               <Edit className="mr-2 h-4 w-4" /> Edit Item
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
-                              <Settings className="mr-2 h-4 w-4" /> Atur Stok
+                              <Settings className="mr-2 h-4 w-4" /> Atur Stok (Masuk/Keluar)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
+                              <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
@@ -283,7 +319,16 @@ const StockPage = () => {
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
           onSuccess={fetchStockData}
-          initialTransactionType={transactionType} // This will be undefined, letting the form's default
+          initialTransactionType={transactionType}
+        />
+      )}
+
+      {selectedStockItem && isMovementFormOpen && (
+        <StockMovementForm
+          stockItem={selectedStockItem}
+          isOpen={isMovementFormOpen}
+          onOpenChange={setIsMovementFormOpen}
+          onSuccess={fetchStockData}
         />
       )}
     </Card>

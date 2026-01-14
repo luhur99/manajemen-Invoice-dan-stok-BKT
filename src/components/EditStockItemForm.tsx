@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
@@ -30,7 +31,10 @@ const formSchema = z.object({
   stock_awal: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
   stock_masuk: z.coerce.number().min(0, "Stok Masuk tidak boleh negatif").default(0),
   stock_keluar: z.coerce.number().min(0, "Stok Keluar tidak boleh negatif").default(0),
-  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0), // New field
+  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
+  warehouse_category: z.enum(["siap_jual", "riset", "retur"], { // New field
+    required_error: "Kategori Gudang wajib dipilih",
+  }).default("siap_jual"),
 });
 
 interface EditStockItemFormProps {
@@ -52,7 +56,8 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
       stock_awal: stockItem["STOCK AWAL"],
       stock_masuk: stockItem["STOCK MASUK"],
       stock_keluar: stockItem["STOCK KELUAR"],
-      safe_stock_limit: stockItem.safe_stock_limit || 0, // Default value for new field
+      safe_stock_limit: stockItem.safe_stock_limit || 0,
+      warehouse_category: stockItem.warehouse_category || "siap_jual", // Default value for new field
     },
   });
 
@@ -72,7 +77,8 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
         stock_awal: stockItem["STOCK AWAL"],
         stock_masuk: stockItem["STOCK MASUK"],
         stock_keluar: stockItem["STOCK KELUAR"],
-        safe_stock_limit: stockItem.safe_stock_limit || 0, // Reset new field
+        safe_stock_limit: stockItem.safe_stock_limit || 0,
+        warehouse_category: stockItem.warehouse_category || "siap_jual", // Reset new field
       });
       // Update ref values when form resets
       initialStockMasuk.current = stockItem["STOCK MASUK"];
@@ -104,7 +110,8 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
           stock_masuk: values.stock_masuk,
           stock_keluar: values.stock_keluar,
           stock_akhir: stock_akhir,
-          safe_stock_limit: values.safe_stock_limit, // Save new field
+          safe_stock_limit: values.safe_stock_limit,
+          warehouse_category: values.warehouse_category, // Save new field
         })
         .eq("id", stockItem.id); // Use 'id' for updating
 
@@ -127,7 +134,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
           stock_item_id: stockItem.id,
           transaction_type: "in",
           quantity: diffStockMasuk,
-          notes: "Penambahan stok melalui edit form",
+          notes: `Penambahan stok melalui edit form di kategori ${values.warehouse_category}`,
         });
       } else if (diffStockMasuk < 0) {
         // This case implies a reduction in 'stock_masuk' which is unusual for a cumulative field
@@ -142,7 +149,7 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
           stock_item_id: stockItem.id,
           transaction_type: "out",
           quantity: diffStockKeluar,
-          notes: "Pengurangan stok melalui edit form",
+          notes: `Pengurangan stok melalui edit form di kategori ${values.warehouse_category}`,
         });
       } else if (diffStockKeluar < 0) {
         // Similar to stock_masuk, a reduction in stock_keluar is a correction.
@@ -290,6 +297,28 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="warehouse_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Gudang</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori gudang" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
+                      <SelectItem value="riset">Riset</SelectItem>
+                      <SelectItem value="retur">Retur</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

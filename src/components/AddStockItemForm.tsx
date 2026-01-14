@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
@@ -27,7 +28,10 @@ const formSchema = z.object({
   harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
   stock_awal: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
-  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0), // New field
+  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
+  warehouse_category: z.enum(["siap_jual", "riset", "retur"], { // New field
+    required_error: "Kategori Gudang wajib dipilih",
+  }).default("siap_jual"),
 });
 
 interface AddStockItemFormProps {
@@ -45,7 +49,8 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
       harga_beli: 0,
       harga_jual: 0,
       stock_awal: 0,
-      safe_stock_limit: 0, // Default value for new field
+      safe_stock_limit: 0,
+      warehouse_category: "siap_jual", // Default value for new field
     },
   });
 
@@ -72,7 +77,8 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           stock_masuk: 0, // Default to 0 for new item
           stock_keluar: 0, // Default to 0 for new item
           stock_akhir: stock_akhir,
-          safe_stock_limit: values.safe_stock_limit, // Save new field
+          safe_stock_limit: values.safe_stock_limit,
+          warehouse_category: values.warehouse_category, // Save new field
           user_id: userId,
         })
         .select("id")
@@ -91,7 +97,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
             stock_item_id: stockItemData.id,
             transaction_type: "initial",
             quantity: values.stock_awal,
-            notes: "Stok awal saat penambahan item",
+            notes: `Stok awal saat penambahan item di kategori ${values.warehouse_category}`,
           });
 
         if (transactionError) {
@@ -211,6 +217,28 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="warehouse_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Gudang</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori gudang" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
+                      <SelectItem value="riset">Riset</SelectItem>
+                      <SelectItem value="retur">Retur</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
