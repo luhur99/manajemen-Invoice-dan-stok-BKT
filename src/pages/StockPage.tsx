@@ -61,13 +61,6 @@ const StockPage: React.FC = () => {
   const debouncedProductCode = useDebounce(currentProductCode, 500);
   const debouncedProductName = useDebounce(currentProductName, 500);
 
-  // Log untuk debugging
-  console.log("StockPage - currentProductCode:", currentProductCode);
-  console.log("StockPage - currentProductName:", currentProductName);
-  console.log("StockPage - debouncedProductCode:", debouncedProductCode);
-  console.log("StockPage - debouncedProductName:", debouncedProductName);
-
-
   const { data: prepopulatedProduct, isLoading: isLoadingPrepopulatedProduct } = useQuery<Product | null>({
     queryKey: ['prepopulatedProduct', userId, debouncedProductCode, debouncedProductName],
     queryFn: () => {
@@ -77,9 +70,10 @@ const StockPage: React.FC = () => {
     enabled: !!userId && (!!debouncedProductCode || !!debouncedProductName),
   });
 
-  // Log untuk debugging
-  console.log("StockPage - prepopulatedProduct:", prepopulatedProduct);
-
+  // Hitung isDuplicate di StockPage
+  const isDuplicate = React.useMemo(() => {
+    return !!prepopulatedProduct;
+  }, [prepopulatedProduct]);
 
   const addProductMutation = useMutation({
     mutationFn: (newProductData: Parameters<typeof addProduct>[0]) => addProduct(newProductData, userId!),
@@ -122,7 +116,8 @@ const StockPage: React.FC = () => {
       showError('Anda harus login untuk menambahkan produk.');
       return;
     }
-    if (prepopulatedProduct && (values.kode_barang === prepopulatedProduct.kode_barang || values.nama_barang === prepopulatedProduct.nama_barang)) {
+    // Gunakan isDuplicate yang dihitung di StockPage
+    if (isDuplicate) {
       showError('Produk dengan kode atau nama ini sudah ada. Tidak dapat menambahkan duplikat.');
       return;
     }
@@ -130,13 +125,10 @@ const StockPage: React.FC = () => {
   };
 
   const handleProductInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
-    console.log(`StockPage - handleProductInputChange called: field=${field}, value=${value}`);
     if (field === 'kode_barang') {
       setCurrentProductCode(value);
-      // Hapus baris ini: setCurrentProductName('');
     } else { // field === 'nama_barang'
       setCurrentProductName(value);
-      // Hapus baris ini: setCurrentProductCode('');
     }
   };
 
@@ -219,7 +211,7 @@ const StockPage: React.FC = () => {
                 key={productFormKey} // Tambahkan key di sini
                 onSubmit={handleAddProduct}
                 isLoading={addProductMutation.isPending}
-                existingProduct={prepopulatedProduct}
+                isDuplicate={isDuplicate} // Teruskan isDuplicate sebagai boolean
                 onInputChange={handleProductInputChange}
               />
             </CardContent>

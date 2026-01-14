@@ -15,7 +15,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Product } from '@/api/stock'; // Import Product type
+// Product type tidak lagi diperlukan di sini karena existingProduct dihapus
 
 const formSchema = z.object({
   kode_barang: z.string().min(1, { message: 'Kode barang wajib diisi.' }),
@@ -29,11 +29,11 @@ const formSchema = z.object({
 interface ProductFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
-  existingProduct?: Product | null; // Produk yang sudah ada untuk pre-populasi
+  isDuplicate: boolean; // Sekarang menerima boolean isDuplicate
   onInputChange?: (field: 'kode_barang' | 'nama_barang', value: string) => void; // Callback untuk perubahan input
 }
 
-const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existingProduct, onInputChange }) => {
+const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, isDuplicate, onInputChange }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -45,16 +45,6 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
       safe_stock_limit: 0,
     },
   });
-
-  // Hapus useEffect yang mengisi formulir berdasarkan existingProduct
-  // Ini akan mencegah input menghilang saat existingProduct berubah (misalnya, dari undefined ke null)
-  // dan memastikan input pengguna tetap ada saat mengetik.
-  // existingProduct masih akan digunakan untuk logika isDuplicate.
-
-  const isDuplicate = existingProduct && (
-    form.watch('kode_barang') === existingProduct.kode_barang ||
-    form.watch('nama_barang') === existingProduct.nama_barang
-  );
 
   return (
     <Form {...form}>
@@ -72,13 +62,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
                     {...field}
                     onChange={(e) => {
                       field.onChange(e);
-                      console.log("ProductForm - kode_barang onChange (field.value):", field.value); // Log field.value
-                      console.log("ProductForm - kode_barang onChange (e.target.value):", e.target.value); // Log e.target.value
                       onInputChange?.('kode_barang', e.target.value);
                     }}
                   />
                 </FormControl>
-                {isDuplicate && <FormMessage className="text-orange-500">Produk dengan kode ini sudah ada.</FormMessage>}
+                {isDuplicate && <FormMessage className="text-orange-500">Produk dengan kode atau nama ini sudah ada.</FormMessage>}
                 <FormMessage />
               </FormItem>
             )}
@@ -95,13 +83,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existing
                     {...field}
                     onChange={(e) => {
                       field.onChange(e);
-                      console.log("ProductForm - nama_barang onChange (field.value):", field.value); // Log field.value
-                      console.log("ProductForm - nama_barang onChange (e.target.value):", e.target.value); // Log e.target.value
                       onInputChange?.('nama_barang', e.target.value);
                     }}
                   />
                 </FormControl>
-                {isDuplicate && <FormMessage className="text-orange-500">Produk dengan nama ini sudah ada.</FormMessage>}
+                {isDuplicate && <FormMessage className="text-orange-500">Produk dengan kode atau nama ini sudah ada.</FormMessage>}
                 <FormMessage />
               </FormItem>
             )}
