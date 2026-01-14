@@ -12,10 +12,11 @@ import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import StockMovementForm from "@/components/StockMovementForm";
-import StockAdjustmentForm from "@/components/StockAdjustmentForm"; // Import new component
+import StockAdjustmentForm from "@/components/StockAdjustmentForm";
+import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog"; // Import new component
 import PaginationControls from "@/components/PaginationControls";
 import ExportDataButton from "@/components/ExportDataButton";
-import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle, SlidersHorizontal } from "lucide-react"; // Import SlidersHorizontal for adjustment
+import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle, SlidersHorizontal, Eye } from "lucide-react"; // Import Eye icon
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +39,10 @@ const StockPage = () => {
   const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
 
   const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
-  const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false); // New state for StockAdjustmentForm
+  const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // New state for View Details dialog
+  const [stockItemToView, setStockItemToView] = useState<StockItem | null>(null); // New state for item to view
+
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -201,9 +205,14 @@ const StockPage = () => {
     setIsMovementFormOpen(true);
   };
 
-  const handleOpenAdjustmentForm = (item: StockItem) => { // New handler
+  const handleOpenAdjustmentForm = (item: StockItem) => {
     setSelectedStockItem(item);
     setIsAdjustmentFormOpen(true);
+  };
+
+  const handleViewDetailsClick = (item: StockItem) => { // New handler
+    setStockItemToView(item);
+    setIsViewDetailsOpen(true);
   };
 
   const totalPages = Math.ceil(filteredStockData.length / itemsPerPage);
@@ -300,6 +309,9 @@ const StockPage = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewDetailsClick(item)}> {/* New dropdown item */}
+                              <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditClick(item)}>
                               <Edit className="mr-2 h-4 w-4" /> Edit Item
                             </DropdownMenuItem>
@@ -309,7 +321,7 @@ const StockPage = () => {
                             <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
                               <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}> {/* New dropdown item */}
+                            <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
                               <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
@@ -365,12 +377,20 @@ const StockPage = () => {
         />
       )}
 
-      {selectedStockItem && isAdjustmentFormOpen && ( // New form rendering
+      {selectedStockItem && isAdjustmentFormOpen && (
         <StockAdjustmentForm
           stockItem={selectedStockItem}
           isOpen={isAdjustmentFormOpen}
           onOpenChange={setIsAdjustmentFormOpen}
           onSuccess={fetchStockData}
+        />
+      )}
+
+      {stockItemToView && ( // Render new dialog
+        <ViewStockItemDetailsDialog
+          stockItem={stockItemToView}
+          isOpen={isViewDetailsOpen}
+          onOpenChange={setIsViewDetailsOpen}
         />
       )}
     </Card>
