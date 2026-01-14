@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadFile, deleteFile, getFilePathFromPublicUrl } from '@/api/supabase/storage'; // Import storage utilities
 
 const InvoiceManagementPage: React.FC = () => {
   const { session } = useSession();
@@ -109,6 +110,41 @@ const InvoiceManagementPage: React.FC = () => {
       setDeletingId(null);
     },
   });
+
+  const handleFileUpload = async (file: File): Promise<string | null> => {
+    if (!userId) {
+      showError('Anda harus login untuk mengunggah dokumen.');
+      return null;
+    }
+    try {
+      const fileExtension = file.name.split('.').pop();
+      const filePath = `${userId}/${editingInvoice?.id || 'new'}/${Date.now()}.${fileExtension}`;
+      const publicUrl = await uploadFile('invoice-documents', filePath, file);
+      showSuccess('Dokumen berhasil diunggah!');
+      return publicUrl;
+    } catch (err: any) {
+      showError(`Gagal mengunggah dokumen: ${err.message}`);
+      return null;
+    }
+  };
+
+  const handleFileRemove = async (): Promise<void> => {
+    if (!userId || !editingInvoice?.document_url) {
+      showError('Tidak ada dokumen untuk dihapus atau Anda tidak login.');
+      return;
+    }
+    try {
+      const filePath = getFilePathFromPublicUrl(editingInvoice.document_url, 'invoice-documents');
+      if (filePath) {
+        await deleteFile('invoice-documents', filePath);
+        showSuccess('Dokumen berhasil dihapus!');
+      } else {
+        showError('Gagal mendapatkan jalur file dari URL dokumen.');
+      }
+    } catch (err: any) {
+      showError(`Gagal menghapus dokumen: ${err.message}`);
+    }
+  };
 
   const handleAddOrUpdateInvoice = (values: any) => {
     if (!userId) {
@@ -220,6 +256,8 @@ const InvoiceManagementPage: React.FC = () => {
                 isLoading={addInvoiceMutation.isPending || updateInvoiceMutation.isPending} 
                 existingInvoice={editingInvoice}
                 onCancelEdit={handleCancelEdit}
+                onFileUpload={handleFileUpload}
+                onFileRemove={handleFileRemove}
               />
             </CardContent>
           </Card>

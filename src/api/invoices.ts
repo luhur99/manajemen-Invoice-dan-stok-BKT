@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from '@/integrations/supabase/client';
+import { deleteFile, getFilePathFromPublicUrl } from '@/api/supabase/storage'; // Import storage utilities
 
 export type PaymentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
 
@@ -124,6 +125,18 @@ export async function updateInvoice(
  * @param userId ID pengguna yang diautentikasi.
  */
 export async function deleteInvoice(id: string, userId: string): Promise<void> {
+  // Ambil faktur untuk mendapatkan document_url sebelum dihapus
+  const { data: invoiceToDelete, error: fetchError } = await supabase
+    .from('invoices')
+    .select('document_url')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError) {
+    throw fetchError;
+  }
+
   // Hapus item-item faktur terlebih dahulu
   const { error: itemsError } = await supabase
     .from('invoice_items')
@@ -140,6 +153,14 @@ export async function deleteInvoice(id: string, userId: string): Promise<void> {
     .eq('user_id', userId);
 
   if (invoiceError) throw invoiceError;
+
+  // Hapus dokumen terkait dari storage jika ada
+  if (invoiceToDelete?.document_url) {
+    const filePath = getFilePathFromPublicUrl(invoiceToDelete.document_url, 'invoice-documents');
+    if (filePath) {
+      await deleteFile('invoice-documents', filePath);
+    }
+  }
 }
 
 /**

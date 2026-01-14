@@ -29,6 +29,7 @@ import { id } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CalendarIcon, PlusIcon, TrashIcon } from 'lucide-react';
 import { Invoice, InvoiceItem } from '@/api/invoices'; // Import Invoice and InvoiceItem types
+import FileUploadButton from './FileUploadButton'; // Import FileUploadButton
 
 const invoiceItemSchema = z.object({
   id: z.string().optional(), // Add id for existing items
@@ -48,6 +49,7 @@ const formSchema = z.object({
   customer_type: z.string().optional(),
   payment_method: z.string().optional(),
   notes: z.string().optional(),
+  document_url: z.string().url({ message: 'URL dokumen tidak valid.' }).optional().or(z.literal('')), // Add document_url
   items: z.array(invoiceItemSchema).min(1, { message: 'Minimal harus ada 1 item.' }),
 });
 
@@ -56,9 +58,11 @@ interface AddInvoiceFormProps {
   isLoading: boolean;
   existingInvoice?: (Invoice & { items: InvoiceItem[] }) | null; // New prop for existing invoice
   onCancelEdit?: () => void; // New prop to cancel edit
+  onFileUpload: (file: File) => Promise<string | null>; // New prop for file upload
+  onFileRemove: () => Promise<void>; // New prop for file removal
 }
 
-const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, existingInvoice, onCancelEdit }) => {
+const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, existingInvoice, onCancelEdit, onFileUpload, onFileRemove }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -71,6 +75,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, ex
       customer_type: '',
       payment_method: '',
       notes: '',
+      document_url: '', // Default document_url
       items: [
         {
           item_name: '',
@@ -94,6 +99,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, ex
         customer_type: existingInvoice.customer_type || '',
         payment_method: existingInvoice.payment_method || '',
         notes: existingInvoice.notes || '',
+        document_url: existingInvoice.document_url || '', // Set existing document_url
         items: existingInvoice.items.map(item => ({
           id: item.id,
           item_name: item.item_name,
@@ -113,6 +119,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, ex
         customer_type: '',
         payment_method: '',
         notes: '',
+        document_url: '',
         items: [
           {
             item_name: '',
@@ -143,6 +150,19 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, ex
     if (fields.length > 1) {
       remove(index);
     }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    const url = await onFileUpload(file);
+    if (url) {
+      form.setValue('document_url', url, { shouldValidate: true });
+    }
+    return url;
+  };
+
+  const handleFileRemove = async () => {
+    await onFileRemove();
+    form.setValue('document_url', '', { shouldValidate: true });
   };
 
   return (
@@ -455,6 +475,25 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSubmit, isLoading, ex
               <FormControl>
                 <Textarea placeholder="Catatan tambahan" {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="document_url"
+          render={({ field }) => (
+            <FormItem>
+              <FileUploadButton
+                label="Unggah Dokumen Faktur (Opsional)"
+                onFileUpload={handleFileUpload}
+                onFileRemove={handleFileRemove}
+                currentFileUrl={field.value}
+                isLoading={isLoading}
+                disabled={isLoading}
+                accept="application/pdf,image/*"
+              />
               <FormMessage />
             </FormItem>
           )}
