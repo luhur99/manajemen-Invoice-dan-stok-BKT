@@ -15,7 +15,7 @@ import AddScheduleForm from "@/components/AddScheduleForm";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Edit, Trash2, Eye, CalendarPlus } from "lucide-react";
+import { Loader2, Edit, Trash2, PlusCircle, Eye, CalendarPlus } from "lucide-react"; // Import Eye icon
 import InvoiceUpload from "@/components/InvoiceUpload"; // Import InvoiceUpload component
 
 // Extend Invoice type to include derived schedule status
