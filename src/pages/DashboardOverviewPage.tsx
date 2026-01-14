@@ -13,7 +13,7 @@ import {
   ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts"; // Import Legend
-import { Product } from "@/types/data"; // Import Product type
+import { Product, WarehouseInventory } from "@/types/data"; // Import Product and WarehouseInventory types
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar"; // Import the new component
 import { Link } from "react-router-dom"; // For navigation
 
@@ -32,7 +32,7 @@ interface StockTransactionWithProduct {
   quantity: number;
   notes: string | null;
   created_at: string;
-  products: { nama_barang: string } | null; // Changed to single object or null
+  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects
 }
 
 // Define interface for stock movement data with joined products
@@ -43,7 +43,7 @@ interface StockMovementWithProduct {
   quantity: number;
   reason: string | null;
   created_at: string;
-  products: { nama_barang: string } | null; // Changed to single object or null
+  products: { "NAMA BARANG": string }[] | null; // Changed to array of objects
 }
 
 // Chart configuration
@@ -109,7 +109,7 @@ const DashboardOverviewPage = () => {
           .from("warehouse_inventories")
           .select(`
             quantity,
-            products (safe_stock_limit)
+            products ("safe_stock_limit")
           `);
 
         if (stockError) throw stockError;
@@ -117,7 +117,8 @@ const DashboardOverviewPage = () => {
         let lowStockCount = 0;
         if (warehouseInventoriesData) {
           warehouseInventoriesData.forEach((item) => {
-            const limit = item.products?.safe_stock_limit !== undefined && item.products?.safe_stock_limit !== null ? item.products.safe_stock_limit : 10; // Default to 10 if limit not set
+            // Access safe_stock_limit from the first element of the products array
+            const limit = item.products?.[0]?.safe_stock_limit !== undefined && item.products?.[0]?.safe_stock_limit !== null ? item.products[0].safe_stock_limit : 10; // Default to 10 if limit not set
             if (item.quantity < limit) {
               lowStockCount++;
             }
@@ -153,7 +154,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
           .from("stock_transactions")
-          .select("id, transaction_type, quantity, notes, created_at, products(nama_barang)") // Changed to products
+          .select(`id, transaction_type, quantity, notes, created_at, products("NAMA BARANG")`) // Changed to products("NAMA BARANG")
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -161,7 +162,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockMovementsData, error: recentStockMovementsError } = await supabase
           .from("stock_movements")
-          .select("id, from_category, to_category, quantity, reason, created_at, products(nama_barang)") // Changed to products
+          .select(`id, from_category, to_category, quantity, reason, created_at, products("NAMA BARANG")`) // Changed to products("NAMA BARANG")
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -175,7 +176,7 @@ const DashboardOverviewPage = () => {
 
         if (recentPurchaseRequestsError) throw recentPurchaseRequestsError;
 
-        // Cast the data to the defined interface
+        // Cast the data to the defined interface and adjust products access
         const recentStockTransactions: StockTransactionWithProduct[] = recentStockTransactionsData as StockTransactionWithProduct[];
         const recentStockMovements: StockMovementWithProduct[] = recentStockMovementsData as StockMovementWithProduct[];
 
@@ -200,8 +201,8 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockTransactions.forEach(trans => {
-          // Access the products object directly
-          const itemName = trans.products?.nama_barang || "Item Tidak Dikenal";
+          // Access the products object directly from the first element of the array
+          const itemName = trans.products?.[0]?.["NAMA BARANG"] || "Item Tidak Dikenal";
           let desc = "";
           if (trans.transaction_type === 'initial') {
             desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
@@ -225,7 +226,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.products?.nama_barang || "Item Tidak Dikenal"; // Access products object directly
+          const itemName = mov.products?.[0]?.["NAMA BARANG"] || "Item Tidak Dikenal"; // Access products object directly from the first element of the array
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({

@@ -47,7 +47,7 @@ export interface StockTransactionWithItemName extends StockTransaction {
     "NAMA BARANG": string;
     "KODE BARANG": string;
     safe_stock_limit?: number;
-  } | null; // Diperbaiki: sekarang objek tunggal atau null
+  }[] | null; // Diperbaiki: sekarang array objek atau null
 }
 
 // New interface for Stock Movement
@@ -68,7 +68,7 @@ export interface StockMovementWithItemName extends StockMovement {
   products: { // Changed from stock_items
     "NAMA BARANG": string;
     "KODE BARANG": string;
-  } | null; // Diperbarui: sekarang objek tunggal atau null
+  }[] | null; // Diperbarui: sekarang array objek atau null
 }
 
 export interface SalesDetailItem {

@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StockItem } from "@/types/data";
+import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
-import EditStockItemForm from "@/components/EditStockItemForm";
+import EditProductForm from "@/components/EditStockItemForm"; // Changed import name
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import StockMovementForm from "@/components/StockMovementForm";
 import StockAdjustmentForm from "@/components/StockAdjustmentForm";
@@ -26,14 +26,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Toggle } from "@/components/ui/toggle";
 
+// Define a combined type for display in the table
+interface ProductWithInventory extends Product {
+  total_stock_akhir: number;
+  warehouse_inventories: WarehouseInventory[];
+}
+
 const StockPage = () => {
-  const [stockData, setStockData] = useState<StockItem[]>([]);
-  const [filteredStockData, setFilteredStockData] = useState<StockItem[]>([]);
+  const [stockData, setStockData] = useState<ProductWithInventory[]>([]);
+  const [filteredStockData, setFilteredStockData] = useState<ProductWithInventory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
-  const [selectedStockItem, setSelectedStockItem] = useState<StockItem | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null); // Changed from selectedStockItem
 
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
@@ -41,7 +47,7 @@ const StockPage = () => {
   const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
   const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // New state for View Details dialog
-  const [stockItemToView, setStockItemToView] = useState<StockItem | null>(null); // New state for item to view
+  const [productToView, setProductToView] = useState<Product | null>(null); // New state for item to view
 
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
@@ -52,32 +58,46 @@ const StockPage = () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
-        .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at")
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          warehouse_inventories (
+            id,
+            warehouse_category,
+            quantity
+          )
+        `)
         .order("nama_barang", { ascending: true });
 
-      if (error) {
-        throw error;
+      if (productsError) {
+        throw productsError;
       }
 
-      const fetchedStock: StockItem[] = data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        NO: 0, // This will be assigned sequentially for display if needed, but not stored in DB
-        "KODE BARANG": item.kode_barang,
-        "NAMA BARANG": item.nama_barang,
-        SATUAN: item.satuan || "",
-        "HARGA BELI": item.harga_beli,
-        "HARGA JUAL": item.harga_jual,
-        "STOCK AWAL": item.stock_awal,
-        "STOCK MASUK": item.stock_masuk,
-        "STOCK KELUAR": item.stock_keluar,
-        "STOCK AKHIR": item.stock_akhir,
-        safe_stock_limit: item.safe_stock_limit,
-        warehouse_category: item.warehouse_category,
-        created_at: item.created_at,
-      }));
+      const fetchedStock: ProductWithInventory[] = productsData.map((product: any) => {
+        const totalStockAkhir = product.warehouse_inventories.reduce((sum: number, inv: WarehouseInventory) => sum + inv.quantity, 0);
+        return {
+          id: product.id,
+          user_id: product.user_id,
+          "KODE BARANG": product.kode_barang,
+          "NAMA BARANG": product.nama_barang,
+          SATUAN: product.satuan || "",
+          "HARGA BELI": product.harga_beli,
+          "HARGA JUAL": product.harga_jual,
+          safe_stock_limit: product.safe_stock_limit,
+          created_at: product.created_at,
+          total_stock_akhir: totalStockAkhir,
+          warehouse_inventories: product.warehouse_inventories,
+        };
+      });
 
       setStockData(fetchedStock);
       setFilteredStockData(fetchedStock);
@@ -95,31 +115,57 @@ const StockPage = () => {
 
   const fetchAllStockDataForExport = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at")
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
+        `)
         .order("nama_barang", { ascending: true });
 
-      if (error) {
-        throw error;
+      if (productsError) {
+        throw productsError;
       }
-      return data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        NO: 0, // Placeholder, actual NO might be assigned during export if needed
-        "KODE BARANG": item.kode_barang,
-        "NAMA BARANG": item.nama_barang,
-        SATUAN: item.satuan || "",
-        "HARGA BELI": item.harga_beli,
-        "HARGA JUAL": item.harga_jual,
-        "STOCK AWAL": item.stock_awal,
-        "STOCK MASUK": item.stock_masuk,
-        "STOCK KELUAR": item.stock_keluar,
-        "STOCK AKHIR": item.stock_akhir,
-        safe_stock_limit: item.safe_stock_limit,
-        warehouse_category: item.warehouse_category,
-        created_at: item.created_at,
-      })) as StockItem[];
+
+      // Flatten the data for CSV export
+      const flattenedData = productsData.flatMap((product: any) => {
+        if (product.warehouse_inventories.length === 0) {
+          return [{
+            "KODE BARANG": product.kode_barang,
+            "NAMA BARANG": product.nama_barang,
+            SATUAN: product.satuan || "",
+            "HARGA BELI": product.harga_beli,
+            "HARGA JUAL": product.harga_jual,
+            "KATEGORI GUDANG": "Tidak Ada",
+            "KUANTITAS": 0,
+            "BATAS AMAN": product.safe_stock_limit || 0,
+            "CREATED AT": product.created_at,
+          }];
+        }
+        return product.warehouse_inventories.map((inventory: any) => ({
+          "KODE BARANG": product.kode_barang,
+          "NAMA BARANG": product.nama_barang,
+          SATUAN: product.satuan || "",
+          "HARGA BELI": product.harga_beli,
+          "HARGA JUAL": product.harga_jual,
+          "KATEGORI GUDANG": getCategoryDisplay(inventory.warehouse_category),
+          "KUANTITAS": inventory.quantity,
+          "BATAS AMAN": product.safe_stock_limit || 0,
+          "CREATED AT": product.created_at,
+        }));
+      });
+      return flattenedData;
     } catch (err: any) {
       console.error("Error fetching all stock data for export:", err);
       showError("Gagal memuat semua data stok untuk ekspor.");
@@ -127,19 +173,16 @@ const StockPage = () => {
     }
   }, []);
 
-  const stockItemHeaders: { key: keyof StockItem; label: string }[] = [
+  const stockItemHeaders = [
     { key: "KODE BARANG", label: "Kode Barang" },
     { key: "NAMA BARANG", label: "Nama Barang" },
     { key: "SATUAN", label: "Satuan" },
     { key: "HARGA BELI", label: "Harga Beli" },
     { key: "HARGA JUAL", label: "Harga Jual" },
-    { key: "STOCK AWAL", label: "Stok Awal" },
-    { key: "STOCK MASUK", label: "Stok Masuk" },
-    { key: "STOCK KELUAR", label: "Stok Keluar" },
-    { key: "STOCK AKHIR", label: "Stok Akhir" },
-    { key: "safe_stock_limit", label: "Batas Aman" },
-    { key: "warehouse_category", label: "Kategori Gudang" },
-    { key: "created_at", label: "Created At" },
+    { key: "KATEGORI GUDANG", label: "Kategori Gudang" },
+    { key: "KUANTITAS", label: "Kuantitas" },
+    { key: "BATAS AMAN", label: "Batas Aman" },
+    { key: "CREATED AT", label: "Created At" },
   ];
 
   useEffect(() => {
@@ -152,13 +195,14 @@ const StockPage = () => {
       item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.warehouse_category?.toLowerCase().includes(lowerCaseSearchTerm)
+      item.warehouse_inventories.some(inv => inv.warehouse_category.toLowerCase().includes(lowerCaseSearchTerm))
     );
 
     if (showLowStockOnly) {
       filtered = filtered.filter(item => {
         const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
-        return item["STOCK AKHIR"] < limit;
+        // Check if any inventory category for this product is below the safe stock limit
+        return item.warehouse_inventories.some(inv => inv.quantity < limit);
       });
     }
 
@@ -166,52 +210,52 @@ const StockPage = () => {
     setCurrentPage(1);
   }, [searchTerm, stockData, showLowStockOnly]);
 
-  const handleDeleteStockItem = async (stockItemId: string) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
+  const handleDeleteStockItem = async (productId: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus produk ini? Ini akan menghapus semua entri inventaris dan riwayat transaksi terkait.")) {
       return;
     }
 
     try {
       const { error } = await supabase
-        .from("stock_items")
+        .from("products")
         .delete()
-        .eq("id", stockItemId);
+        .eq("id", productId);
 
       if (error) {
         throw error;
       }
 
-      showSuccess("Item stok berhasil dihapus!");
+      showSuccess("Produk berhasil dihapus!");
       fetchStockData();
     } catch (err: any) {
-      showError(`Gagal menghapus item stok: ${err.message}`);
-      console.error("Error deleting stock item:", err);
+      showError(`Gagal menghapus produk: ${err.message}`);
+      console.error("Error deleting product:", err);
     }
   };
 
-  const handleEditClick = (item: StockItem) => {
-    setSelectedStockItem(item);
+  const handleEditClick = (product: Product) => {
+    setSelectedProduct(product);
     setIsEditFormOpen(true);
   };
 
-  const handleOpenTransactionForm = (item: StockItem) => {
-    setSelectedStockItem(item);
+  const handleOpenTransactionForm = (product: Product) => {
+    setSelectedProduct(product);
     setTransactionType(undefined);
     setIsTransactionFormOpen(true);
   };
 
-  const handleOpenMovementForm = (item: StockItem) => {
-    setSelectedStockItem(item);
+  const handleOpenMovementForm = (product: Product) => {
+    setSelectedProduct(product);
     setIsMovementFormOpen(true);
   };
 
-  const handleOpenAdjustmentForm = (item: StockItem) => {
-    setSelectedStockItem(item);
+  const handleOpenAdjustmentForm = (product: Product) => {
+    setSelectedProduct(product);
     setIsAdjustmentFormOpen(true);
   };
 
-  const handleViewDetailsClick = (item: StockItem) => { // New handler
-    setStockItemToView(item);
+  const handleViewDetailsClick = (product: Product) => { // New handler
+    setProductToView(product);
     setIsViewDetailsOpen(true);
   };
 
@@ -219,6 +263,15 @@ const StockPage = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentItems = filteredStockData.slice(startIndex, endIndex);
+
+  const getCategoryDisplay = (category: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return category;
+    }
+  };
 
   return (
     <Card className="border shadow-sm">
@@ -265,10 +318,7 @@ const StockPage = () => {
                     <TableHead>Satuan</TableHead>
                     <TableHead className="text-right">Harga Beli</TableHead>
                     <TableHead className="text-right">Harga Jual</TableHead>
-                    <TableHead className="text-right">Stok Awal</TableHead>
-                    <TableHead className="text-right">Stok Masuk</TableHead>
-                    <TableHead className="text-right">Stok Keluar</TableHead>
-                    <TableHead className="text-right">Stok Akhir</TableHead>
+                    <TableHead className="text-right">Total Stok</TableHead>
                     <TableHead className="text-right">Batas Aman</TableHead>
                     <TableHead>Kategori Gudang</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
@@ -276,30 +326,37 @@ const StockPage = () => {
                 </TableHeader>
                 <TableBody>
                   {currentItems.map((item) => (
-                    <TableRow key={item.id} className={item["STOCK AKHIR"] < (item.safe_stock_limit || 10) ? "bg-red-50 dark:bg-red-950" : ""}>
+                    <TableRow key={item.id} className={item.total_stock_akhir < (item.safe_stock_limit || 10) ? "bg-red-50 dark:bg-red-950" : ""}>
                       <TableCell>{item["KODE BARANG"]}</TableCell>
                       <TableCell>{item["NAMA BARANG"]}</TableCell>
                       <TableCell>{item.SATUAN}</TableCell>
                       <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
                       <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
-                      <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
                       <TableCell className="text-right">
-                        <span className={item["STOCK AKHIR"] < (item.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
-                          {item["STOCK AKHIR"]}
+                        <span className={item.total_stock_akhir < (item.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
+                          {item.total_stock_akhir}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
                       <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.warehouse_category === 'siap_jual' ? 'bg-blue-100 text-blue-800' :
-                          item.warehouse_category === 'riset' ? 'bg-yellow-100 text-yellow-800' :
-                          item.warehouse_category === 'retur' ? 'bg-orange-100 text-orange-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {item.warehouse_category?.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') || "-"}
-                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {item.warehouse_inventories.length > 0 ? (
+                            item.warehouse_inventories.map(inv => (
+                              <span key={inv.id} className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                inv.warehouse_category === 'siap_jual' ? 'bg-blue-100 text-blue-800' :
+                                inv.warehouse_category === 'riset' ? 'bg-yellow-100 text-yellow-800' :
+                                inv.warehouse_category === 'retur' ? 'bg-orange-100 text-orange-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {getCategoryDisplay(inv.warehouse_category)} ({inv.quantity})
+                              </span>
+                            ))
+                          ) : (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              Tidak Ada Stok
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <DropdownMenu>
@@ -313,7 +370,7 @@ const StockPage = () => {
                               <Eye className="mr-2 h-4 w-4" /> Lihat Detail
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleEditClick(item)}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit Item
+                              <Edit className="mr-2 h-4 w-4" /> Edit Produk
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
                               <Settings className="mr-2 h-4 w-4" /> Atur Stok (Masuk/Keluar)
@@ -326,7 +383,7 @@ const StockPage = () => {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" /> Hapus Item
+                              <Trash2 className="mr-2 h-4 w-4" /> Hapus Produk
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -349,18 +406,18 @@ const StockPage = () => {
         )}
       </CardContent>
 
-      {selectedStockItem && (
-        <EditStockItemForm
-          stockItem={selectedStockItem}
+      {selectedProduct && (
+        <EditProductForm
+          product={selectedProduct}
           isOpen={isEditFormOpen}
           onOpenChange={setIsEditFormOpen}
           onSuccess={fetchStockData}
         />
       )}
 
-      {selectedStockItem && isTransactionFormOpen && (
+      {selectedProduct && isTransactionFormOpen && (
         <AddStockTransactionForm
-          stockItem={selectedStockItem}
+          product={selectedProduct}
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
           onSuccess={fetchStockData}
@@ -368,27 +425,27 @@ const StockPage = () => {
         />
       )}
 
-      {selectedStockItem && isMovementFormOpen && (
+      {selectedProduct && isMovementFormOpen && (
         <StockMovementForm
-          stockItem={selectedStockItem}
+          product={selectedProduct}
           isOpen={isMovementFormOpen}
           onOpenChange={setIsMovementFormOpen}
           onSuccess={fetchStockData}
         />
       )}
 
-      {selectedStockItem && isAdjustmentFormOpen && (
+      {selectedProduct && isAdjustmentFormOpen && (
         <StockAdjustmentForm
-          stockItem={selectedStockItem}
+          product={selectedProduct}
           isOpen={isAdjustmentFormOpen}
           onOpenChange={setIsAdjustmentFormOpen}
           onSuccess={fetchStockData}
         />
       )}
 
-      {stockItemToView && ( // Render new dialog
+      {productToView && ( // Render new dialog
         <ViewStockItemDetailsDialog
-          stockItem={stockItemToView}
+          product={productToView}
           isOpen={isViewDetailsOpen}
           onOpenChange={setIsViewDetailsOpen}
         />

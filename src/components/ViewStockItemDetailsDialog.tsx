@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StockItem, StockTransactionWithItemName } from "@/types/data";
+import { Product, WarehouseInventory, StockTransactionWithItemName } from "@/types/data"; // Changed from StockItem
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
@@ -13,18 +13,21 @@ import { Button } from "@/components/ui/button";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
 
 interface ViewStockItemDetailsDialogProps {
-  stockItem: StockItem;
+  product: Product; // Changed from stockItem: StockItem
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
-  stockItem,
+  product, // Changed from stockItem
   isOpen,
   onOpenChange,
 }) => {
+  const [inventories, setInventories] = useState<WarehouseInventory[]>([]);
   const [transactions, setTransactions] = useState<StockTransactionWithItemName[]>([]);
+  const [loadingInventories, setLoadingInventories] = useState(true);
   const [loadingTransactions, setLoadingTransactions] = useState(true);
+  const [inventoriesError, setInventoriesError] = useState<string | null>(null);
   const [transactionsError, setTransactionsError] = useState<string | null>(null);
 
   const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
@@ -33,8 +36,33 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5; // Fewer items per page for a dialog
 
+  const fetchWarehouseInventories = useCallback(async () => {
+    if (!product?.id) return;
+
+    setLoadingInventories(true);
+    setInventoriesError(null);
+    try {
+      const { data, error } = await supabase
+        .from("warehouse_inventories")
+        .select("*")
+        .eq("product_id", product.id)
+        .order("warehouse_category", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+      setInventories(data as WarehouseInventory[]);
+    } catch (err: any) {
+      setInventoriesError(`Gagal memuat inventaris gudang: ${err.message}`);
+      console.error("Error fetching warehouse inventories:", err);
+      setInventories([]);
+    } finally {
+      setLoadingInventories(false);
+    }
+  }, [product?.id]);
+
   const fetchStockTransactions = useCallback(async () => {
-    if (!stockItem?.id) return;
+    if (!product?.id) return;
 
     setLoadingTransactions(true);
     setTransactionsError(null);
@@ -48,13 +76,14 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
           notes,
           transaction_date,
           created_at,
-          stock_items (
-            nama_barang,
-            kode_barang,
-            warehouse_category
-          )
+          products (
+            "NAMA BARANG",
+            "KODE BARANG",
+            safe_stock_limit
+          ),
+          warehouse_category
         `)
-        .eq("stock_item_id", stockItem.id)
+        .eq("product_id", product.id)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -63,7 +92,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
 
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null,
+        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
       }));
 
       setTransactions(processedData);
@@ -75,16 +104,19 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     } finally {
       setLoadingTransactions(false);
     }
-  }, [stockItem?.id]);
+  }, [product?.id]);
 
   useEffect(() => {
     if (isOpen) {
+      fetchWarehouseInventories();
       fetchStockTransactions();
     } else {
+      setInventories([]);
+      setInventoriesError(null);
       setTransactions([]); // Clear transactions when dialog closes
       setTransactionsError(null);
     }
-  }, [isOpen, fetchStockTransactions]);
+  }, [isOpen, fetchWarehouseInventories, fetchStockTransactions]);
 
   const getTransactionTypeDisplay = (type: string) => {
     switch (type) {
@@ -137,33 +169,62 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     setCurrentPage(page);
   };
 
-  if (!stockItem) return null;
+  if (!product) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Item Stok: {stockItem["NAMA BARANG"]}</DialogTitle>
-          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk item stok ini.</DialogDescription>
+          <DialogTitle>Detail Produk: {product["NAMA BARANG"]}</DialogTitle>
+          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
-            <p><strong>Kode Barang:</strong> {stockItem["KODE BARANG"]}</p>
-            <p><strong>Nama Barang:</strong> {stockItem["NAMA BARANG"]}</p>
-            <p><strong>Satuan:</strong> {stockItem.SATUAN || "-"}</p>
-            <p><strong>Kategori Gudang:</strong> {getCategoryDisplay(stockItem.warehouse_category)}</p>
-            <p><strong>Batas Stok Aman:</strong> {stockItem.safe_stock_limit || 0}</p>
+            <p><strong>Kode Barang:</strong> {product["KODE BARANG"]}</p>
+            <p><strong>Nama Barang:</strong> {product["NAMA BARANG"]}</p>
+            <p><strong>Satuan:</strong> {product.SATUAN || "-"}</p>
+            <p><strong>Batas Stok Aman:</strong> {product.safe_stock_limit || 0}</p>
           </div>
           <div>
-            <p><strong>Harga Beli:</strong> {stockItem["HARGA BELI"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Harga Jual:</strong> {stockItem["HARGA JUAL"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Stok Awal:</strong> {stockItem["STOCK AWAL"]}</p>
-            <p><strong>Stok Masuk:</strong> {stockItem["STOCK MASUK"]}</p>
-            <p><strong>Stok Keluar:</strong> {stockItem["STOCK KELUAR"]}</p>
-            <p><strong>Stok Akhir:</strong> <span className={stockItem["STOCK AKHIR"] < (stockItem.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>{stockItem["STOCK AKHIR"]}</span></p>
+            <p><strong>Harga Beli:</strong> {product["HARGA BELI"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+            <p><strong>Harga Jual:</strong> {product["HARGA JUAL"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
           </div>
         </div>
+
+        <h3 className="text-lg font-semibold mt-6 mb-2">Inventaris Gudang</h3>
+        {loadingInventories ? (
+          <div className="flex justify-center items-center h-24">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : inventoriesError ? (
+          <p className="text-red-500 dark:text-red-400">{inventoriesError}</p>
+        ) : inventories.length > 0 ? (
+          <div className="overflow-x-auto">
+            <Table className="min-w-full">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kategori Gudang</TableHead>
+                  <TableHead className="text-right">Kuantitas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {inventories.map((inventory) => (
+                  <TableRow key={inventory.id}>
+                    <TableCell>{getCategoryDisplay(inventory.warehouse_category)}</TableCell>
+                    <TableCell className="text-right">
+                      <span className={inventory.quantity < (product.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
+                        {inventory.quantity}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600 dark:text-gray-400">Tidak ada inventaris gudang untuk produk ini.</p>
+        )}
 
         <h3 className="text-lg font-semibold mt-6 mb-2">Riwayat Transaksi Stok</h3>
         {loadingTransactions ? (
@@ -182,6 +243,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
                     <TableHead>Waktu Dibuat</TableHead>
                     <TableHead>Tipe Transaksi</TableHead>
                     <TableHead className="text-right">Kuantitas</TableHead>
+                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead>Catatan</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -196,6 +258,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
+                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell>
                       <TableCell>
                         {transaction.notes ? (
                           <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">
@@ -219,7 +282,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
             )}
           </>
         ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat transaksi untuk item ini.</p>
+          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat transaksi untuk produk ini.</p>
         )}
       </DialogContent>
 

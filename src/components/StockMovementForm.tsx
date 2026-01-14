@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data";
+import { Product } from "@/types/data"; // Changed from StockItem
 import { format } from "date-fns"; // Import format
 
 // Define the ENUM type for warehouse categories
@@ -39,39 +39,71 @@ const formSchema = z.object({
 });
 
 interface StockMovementFormProps {
-  stockItem: StockItem;
+  product: Product; // Changed from stockItem: StockItem
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
 const StockMovementForm: React.FC<StockMovementFormProps> = ({
-  stockItem,
+  product, // Changed from stockItem
   isOpen,
   onOpenChange,
   onSuccess,
 }) => {
+  const [currentProductCategory, setCurrentProductCategory] = useState<WarehouseCategory | undefined>(undefined);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      from_category: stockItem.warehouse_category || "siap_jual",
-      to_category: stockItem.warehouse_category === "siap_jual" ? "riset" : "siap_jual", // Suggest a different category
+      from_category: "siap_jual", // Will be updated by useEffect
+      to_category: "riset", // Will be updated by useEffect
       quantity: 1,
       reason: "",
     },
   });
 
-  // Reset form when dialog opens or stockItem changes
+  // Fetch current product's category when dialog opens or product changes
   useEffect(() => {
-    if (isOpen && stockItem) {
-      form.reset({
-        from_category: stockItem.warehouse_category || "siap_jual",
-        to_category: stockItem.warehouse_category === "siap_jual" ? "riset" : "siap_jual",
-        quantity: 1,
-        reason: "",
-      });
+    const fetchProductCategory = async () => {
+      if (!product?.id) return;
+
+      const { data, error } = await supabase
+        .from("warehouse_inventories")
+        .select("warehouse_category")
+        .eq("product_id", product.id)
+        .limit(1) // Assuming a product is primarily in one category for "from_category" context
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+        showError(`Gagal memuat kategori produk saat ini: ${error.message}`);
+        console.error("Error fetching product category:", error);
+        setCurrentProductCategory(undefined);
+      } else if (data) {
+        setCurrentProductCategory(data.warehouse_category);
+        form.reset({
+          from_category: data.warehouse_category,
+          to_category: data.warehouse_category === "siap_jual" ? "riset" : "siap_jual", // Suggest a different category
+          quantity: 1,
+          reason: "",
+        });
+      } else {
+        // If no inventory entry, assume it's not in any category or default to 'siap_jual'
+        setCurrentProductCategory("siap_jual"); // Default if not found
+        form.reset({
+          from_category: "siap_jual",
+          to_category: "riset",
+          quantity: 1,
+          reason: "",
+        });
+      }
+    };
+
+    if (isOpen) {
+      fetchProductCategory();
     }
-  }, [isOpen, stockItem, form]);
+  }, [isOpen, product, form]);
+
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -88,65 +120,74 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
     }
 
     try {
-      // Fetch current stock item to get the latest stock_akhir for the 'from_category'
-      const { data: currentStockItem, error: fetchError } = await supabase
-        .from("stock_items")
-        .select("stock_akhir, warehouse_category")
-        .eq("id", stockItem.id)
+      // 1. Check stock in the 'from_category'
+      const { data: fromInventory, error: fetchFromError } = await supabase
+        .from("warehouse_inventories")
+        .select("id, quantity")
+        .eq("product_id", product.id)
+        .eq("warehouse_category", values.from_category)
         .single();
 
-      if (fetchError || !currentStockItem) {
-        throw new Error("Gagal memuat data stok saat ini.");
+      if (fetchFromError && fetchFromError.code === 'PGRST116') {
+        showError(`Tidak ada stok item "${product["NAMA BARANG"]}" di kategori "${getCategoryDisplay(values.from_category)}".`);
+        return;
+      } else if (fetchFromError) {
+        throw fetchFromError;
       }
 
-      if (currentStockItem.warehouse_category !== values.from_category) {
-        showError(`Item ini saat ini berada di kategori "${currentStockItem.warehouse_category}", bukan "${values.from_category}". Harap perbarui kategori asal.`);
+      if (!fromInventory || fromInventory.quantity < values.quantity) {
+        showError(`Stok tidak mencukupi di kategori "${getCategoryDisplay(values.from_category)}". Tersedia: ${fromInventory?.quantity || 0}, Diminta: ${values.quantity}`);
         return;
       }
 
-      if (currentStockItem.stock_akhir < values.quantity) {
-        showError(`Stok tidak mencukupi di kategori "${values.from_category}". Tersedia: ${currentStockItem.stock_akhir}, Diminta: ${values.quantity}`);
-        return;
+      // 2. Decrease stock in 'from_category'
+      const newFromQuantity = fromInventory.quantity - values.quantity;
+      const { error: updateFromError } = await supabase
+        .from("warehouse_inventories")
+        .update({ quantity: newFromQuantity, updated_at: new Date().toISOString() })
+        .eq("id", fromInventory.id);
+
+      if (updateFromError) {
+        throw updateFromError;
       }
 
-      // Update stock_items: decrease from 'from_category' and increase in 'to_category'
-      // This requires two updates if the item is conceptually "moving" categories.
-      // For simplicity, we'll update the existing item's category and adjust its stock_akhir.
-      // If we were tracking separate stock counts per category for the *same* item, it would be more complex.
-      // Given the current schema, `stock_akhir` is a single value for the item.
-      // The `stock_movements` table tracks the *event* of moving, not separate stock levels.
+      // 3. Increase stock in 'to_category'
+      const { data: toInventory, error: fetchToError } = await supabase
+        .from("warehouse_inventories")
+        .select("id, quantity")
+        .eq("product_id", product.id)
+        .eq("warehouse_category", values.to_category)
+        .single();
 
-      // So, the `stock_akhir` of the item itself will remain the same,
-      // but its `warehouse_category` will change.
-      // The `stock_movements` table will record the historical event.
-
-      const { error: updateError } = await supabase
-        .from("stock_items")
-        .update({
-          warehouse_category: values.to_category,
-          // stock_akhir is not directly changed by a *movement* between categories for the same item.
-          // It's changed by 'in'/'out' transactions.
-          // If the intent is to *transfer* stock, then the stock_akhir should remain the same.
-          // If the intent is to *reduce* stock from one category and *add* to another,
-          // then we need to adjust stock_akhir.
-          // For now, let's assume `stock_akhir` represents the total available stock for the item,
-          // regardless of its current category. The movement just changes its classification.
-          // If the requirement is to have separate `stock_akhir` per category, the `stock_items` schema needs to change.
-          // For this implementation, we'll just change the `warehouse_category` of the item.
-          // The `quantity` in `stock_movements` will represent the amount *moved* conceptually.
-        })
-        .eq("id", stockItem.id);
-
-      if (updateError) {
-        throw updateError;
+      if (fetchToError && fetchToError.code === 'PGRST116') {
+        // If no entry in 'to_category', create one
+        const { error: createToError } = await supabase
+          .from("warehouse_inventories")
+          .insert({
+            product_id: product.id,
+            warehouse_category: values.to_category,
+            quantity: values.quantity,
+            user_id: userId,
+          });
+        if (createToError) throw createToError;
+      } else if (fetchToError) {
+        throw fetchToError;
+      } else if (toInventory) {
+        // Update existing entry in 'to_category'
+        const newToQuantity = toInventory.quantity + values.quantity;
+        const { error: updateToError } = await supabase
+          .from("warehouse_inventories")
+          .update({ quantity: newToQuantity, updated_at: new Date().toISOString() })
+          .eq("id", toInventory.id);
+        if (updateToError) throw updateToError;
       }
 
-      // Insert into stock_movements table
+      // 4. Insert into stock_movements table
       const { error: movementError } = await supabase
         .from("stock_movements")
         .insert({
           user_id: userId,
-          stock_item_id: stockItem.id,
+          product_id: product.id,
           from_category: values.from_category,
           to_category: values.to_category,
           quantity: values.quantity,
@@ -158,7 +199,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         throw movementError;
       }
 
-      showSuccess(`Stok item "${stockItem["NAMA BARANG"]}" berhasil dipindahkan dari ${values.from_category} ke ${values.to_category}!`);
+      showSuccess(`Stok item "${product["NAMA BARANG"]}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`);
       onOpenChange(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
@@ -167,12 +208,21 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
     }
   };
 
+  const getCategoryDisplay = (category: WarehouseCategory) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return category;
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Pindahkan Stok Barang</DialogTitle>
-          <DialogDescription>Pindahkan item stok "{stockItem["NAMA BARANG"]}" antar kategori gudang.</DialogDescription>
+          <DialogDescription>Pindahkan item stok "{product["NAMA BARANG"]}" antar kategori gudang.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -182,7 +232,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Dari Kategori</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled> {/* Disabled as it's the item's current category */}
+                  <Select onValueChange={field.onChange} value={field.value} disabled={true}> {/* Disabled as it's the item's current category */}
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih kategori asal" />

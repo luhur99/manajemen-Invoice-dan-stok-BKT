@@ -82,16 +82,16 @@ const StockMovementHistoryPage = () => {
         .select(`
           id,
           user_id,
-          stock_item_id,
+          product_id,
           from_category,
           to_category,
           quantity,
           reason,
           movement_date,
           created_at,
-          stock_items (
-            nama_barang,
-            kode_barang
+          products (
+            "NAMA BARANG",
+            "KODE BARANG"
           )
         `);
 
@@ -120,14 +120,14 @@ const StockMovementHistoryPage = () => {
 
       const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null, // Ensure it's an array of objects or null
+        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
       }));
 
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         return (
-          item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.from_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.to_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.reason?.toLowerCase().includes(lowerCaseSearchTerm)
@@ -160,9 +160,9 @@ const StockMovementHistoryPage = () => {
           reason,
           movement_date,
           created_at,
-          stock_items (
-            nama_barang,
-            kode_barang
+          products (
+            "NAMA BARANG",
+            "KODE BARANG"
           )
         `);
 
@@ -192,8 +192,294 @@ const StockMovementHistoryPage = () => {
       const flattenedData: FlattenedStockMovementForExport[] = data.map((item: any) => ({
         movement_date: format(new Date(item.movement_date), "yyyy-MM-dd"),
         created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-        item_name: item.stock_items?.[0]?.nama_barang || "N/A",
-        item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+        item_name: item.products?.[0]?.["NAMA BARANG"] || "N/A",
+        item_code: item.products?.[0]?.["KODE BARANG"] || "N/A",
+        from_category: getCategoryDisplay(item.from_category),
+        to_category: getCategoryDisplay(item.to_category),
+        quantity: item.quantity,
+        reason: item.reason || "",
+      }));
+      return flattenedData;
+    } catch (err: any) {
+      console.error("Error fetching all stock movements for export:", err);
+      showError("Gagal memuat semua data perpindahan stok untuk ekspor.");
+      return null;
+    }
+  }, [startDate, endDate, filterFromCategory, filterToCategory]);
+
+  const stockMovementHeaders: { key: keyof FlattenedStockMovementForExport; label: string }[] = [
+    { key: "movement_date", label: "Tanggal Perpindahan" },
+    { key: "created_at", label: "Waktu Dibuat" },
+    { key: "item_name", label: "Nama Barang" },
+    { key: "item_code", label: "Kode Barang" },
+    { key: "from_category", label: "Dari Kategori" },
+    { key: "to_category", label: "Ke Kategori" },
+    { key: "quantity", label: "Kuantitas" },
+    { key: "reason", label: "Alasan" },
+  ];
+
+  useEffect(() => {
+    fetchStockMovements();
+  }, [fetchStockMovements]);
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setFilterFromCategory("all");
+    setFilterToCategory("all");
+    setSelectedDatePreset("all");
+    setStartDate(undefined);
+    setEndDate(undefined);
+  };
+
+  const handleViewNotes = (notes: string) => {
+    setNotesToView(notes);
+    setIsViewNotesOpen(true);
+  };
+
+  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredMovements.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const getCategoryDisplay = (category: string) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return category;
+    }
+  };
+
+  return (
+    <Card className="border shadow-sm">
+      <CardHeader>
+        <div className="flex justify-between items-center mb-4">
+          <CardTitle className="<dyad-problem-report summary="5 problems">
+<problem file="src/pages/StockMovementHistoryPage.tsx" line="129" column="16" code="2339">Property 'stock_items' does not exist on type 'StockMovementWithItemName'.</problem>
+<problem file="src/pages/StockMovementHistoryPage.tsx" line="130" column="16" code="2339">Property 'stock_items' does not exist on type 'StockMovementWithItemName'.</problem>
+<problem file="src/pages/StockMovementHistoryPage.tsx" line="387" column="44" code="2339">Property 'stock_items' does not exist on type 'StockMovementWithItemName'.</problem>
+<problem file="src/pages/StockMovementHistoryPage.tsx" line="388" column="44" code="2339">Property 'stock_items' does not exist on type 'StockMovementWithItemName'.</problem>
+<problem file="src/components/AddPurchaseRequestForm.tsx" line="22" column="10" code="2305">Module '&quot;@/types/data&quot;' has no exported member 'StockItem'.</problem>
+</dyad-problem-report><think>**Troubleshooting TypeScript Errors**
+
+I'm currently focused on the five TypeScript compile-time errors. They're all stemming from the recent database schema refactor; specifically the renaming of the `stock_items` table to `products`. I'm starting to break down each error to diagnose and plan individual fixes within the `StockMovementHistoryPage`. I'll keep you updated as I make progress with these corrections.
+
+
+**Analyzing Compile-Time Failures**
+
+I've made headway on the TypeScript errors. The first four stem from the table rename from `stock_items` to `products`, specifically in `StockMovementHistoryPage.tsx`. It looks like the updated interface in `src/types/data.ts` now uses `products`, so I'll adjust the property access accordingly. Error 5 in `AddPurchaseRequestForm.tsx` is simple - just a rename from `StockItem` to `Product` in the import and usage. I'm updating them.
+
+
+**Resolving Database Schema Mismatch**
+
+Right now, I'm focusing on the `StockMovementHistoryPage.tsx` file. The original `stock_items` access points are now failing. I'll change how the code accesses the `products` property to align with the new schema in `src/types/data.ts`. Next, I'll move on to `AddPurchaseRequestForm.tsx` to rename its references to `StockItem` with `Product`.
+
+
+</think>Baik, saya akan memperbaiki kesalahan-kesalahan TypeScript yang Anda laporkan. Ini terutama disebabkan oleh perubahan nama tipe dari `StockItem` menjadi `Product` dan penyesuaian properti `products` yang sekarang menjadi array objek.
+
+Berikut adalah perbaikan untuk file-file yang terpengaruh:
+
+<dyad-write path="src/pages/StockMovementHistoryPage.tsx" description="Memperbarui kueri pengambilan data dan akses properti untuk mencerminkan perubahan skema database dari stock_items ke products.">
+"use client";
+
+import React, { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StockMovementWithItemName } from "@/types/data";
+import { supabase } from "@/integrations/supabase/client";
+import { showError } from "@/utils/toast";
+import PaginationControls from "@/components/PaginationControls";
+import { format, startOfMonth, endOfMonth, subMonths, addDays } from "date-fns";
+import { Loader2, CalendarIcon, Eye } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import ExportDataButton from "@/components/ExportDataButton";
+import ViewNotesDialog from "@/components/ViewNotesDialog";
+
+// Define a flattened type for export
+interface FlattenedStockMovementForExport {
+  movement_date: string;
+  created_at: string;
+  item_name: string;
+  item_code: string;
+  from_category: string;
+  to_category: string;
+  quantity: number;
+  reason: string;
+}
+
+const StockMovementHistoryPage = () => {
+  const [movements, setMovements] = useState<StockMovementWithItemName[]>([]);
+  const [filteredMovements, setFilteredMovements] = useState<StockMovementWithItemName[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterFromCategory, setFilterFromCategory] = useState<string>("all");
+  const [filterToCategory, setFilterToCategory] = useState<string>("all");
+
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+  const [selectedDatePreset, setSelectedDatePreset] = useState<string>("all");
+
+  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
+  const [notesToView, setNotesToView] = useState<string>("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const calculateDateRange = useCallback((preset: string) => {
+    const now = new Date();
+    let newStartDate: Date | undefined;
+    let newEndDate: Date | undefined;
+
+    if (preset === "current_month") {
+      newStartDate = startOfMonth(now);
+      newEndDate = endOfMonth(now);
+    } else if (preset === "last_3_months") {
+      newStartDate = startOfMonth(subMonths(now, 2));
+      newEndDate = endOfMonth(now);
+    } else if (preset === "all") {
+      newStartDate = undefined;
+      newEndDate = undefined;
+    }
+
+    setStartDate(newStartDate);
+    setEndDate(newEndDate);
+  }, []);
+
+  useEffect(() => {
+    calculateDateRange(selectedDatePreset);
+  }, [selectedDatePreset, calculateDateRange]);
+
+  const fetchStockMovements = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      let query = supabase
+        .from("stock_movements")
+        .select(`
+          id,
+          user_id,
+          product_id,
+          from_category,
+          to_category,
+          quantity,
+          reason,
+          movement_date,
+          created_at,
+          products (
+            "NAMA BARANG",
+            "KODE BARANG"
+          )
+        `);
+
+      if (startDate) {
+        query = query.gte("movement_date", format(startDate, "yyyy-MM-dd"));
+      }
+      if (endDate) {
+        const adjustedEndDate = addDays(endDate, 1);
+        query = query.lte("movement_date", format(adjustedEndDate, "yyyy-MM-dd"));
+      }
+
+      if (filterFromCategory !== "all") {
+        query = query.eq("from_category", filterFromCategory);
+      }
+      if (filterToCategory !== "all") {
+        query = query.eq("to_category", filterToCategory);
+      }
+
+      query = query.order("created_at", { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
+        ...item,
+        products: item.products ? [item.products] : null, // Ensure it's an array of objects or null
+      }));
+
+      const lowerCaseSearchTerm = searchTerm.toLowerCase();
+      const filteredBySearch = processedData.filter(item => {
+        return (
+          item.products?.[0]?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.from_category.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.to_category.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.reason?.toLowerCase().includes(lowerCaseSearchTerm)
+        );
+      });
+
+      setMovements(processedData);
+      setFilteredMovements(filteredBySearch);
+      setCurrentPage(1);
+    } catch (err: any) {
+      setError(`Gagal memuat riwayat perpindahan stok: ${err.message}`);
+      console.error("Error fetching stock movements:", err);
+      showError("Gagal memuat riwayat perpindahan stok.");
+      setMovements([]);
+      setFilteredMovements([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [startDate, endDate, filterFromCategory, filterToCategory, searchTerm]);
+
+  const fetchAllStockMovementsForExport = useCallback(async () => {
+    try {
+      let query = supabase
+        .from("stock_movements")
+        .select(`
+          id,
+          from_category,
+          to_category,
+          quantity,
+          reason,
+          movement_date,
+          created_at,
+          products (
+            "NAMA BARANG",
+            "KODE BARANG"
+          )
+        `);
+
+      if (startDate) {
+        query = query.gte("movement_date", format(startDate, "yyyy-MM-dd"));
+      }
+      if (endDate) {
+        const adjustedEndDate = addDays(endDate, 1);
+        query = query.lte("movement_date", format(adjustedEndDate, "yyyy-MM-dd"));
+      }
+
+      if (filterFromCategory !== "all") {
+        query = query.eq("from_category", filterFromCategory);
+      }
+      if (filterToCategory !== "all") {
+        query = query.eq("to_category", filterToCategory);
+      }
+
+      query = query.order("created_at", { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      const flattenedData: FlattenedStockMovementForExport[] = data.map((item: any) => ({
+        movement_date: format(new Date(item.movement_date), "yyyy-MM-dd"),
+        created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
+        item_name: item.products?.[0]?.["NAMA BARANG"] || "N/A",
+        item_code: item.products?.[0]?.["KODE BARANG"] || "N/A",
         from_category: getCategoryDisplay(item.from_category),
         to_category: getCategoryDisplay(item.to_category),
         quantity: item.quantity,
@@ -384,8 +670,8 @@ const StockMovementHistoryPage = () => {
                     <TableRow key={movement.id}>
                       <TableCell>{format(new Date(movement.movement_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{movement.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{movement.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{movement.products?.[0]?.["NAMA BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{movement.products?.[0]?.["KODE BARANG"] || "N/A"}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
                       <TableCell className="text-right">{movement.quantity}</TableCell>

@@ -85,17 +85,18 @@ const StockHistoryPage = () => {
         .select(`
           id,
           user_id,
-          stock_item_id,
+          product_id,
           transaction_type,
           quantity,
           notes,
           transaction_date,
           created_at,
-          stock_items (
-            nama_barang,
-            kode_barang,
-            warehouse_category
-          )
+          products (
+            "NAMA BARANG",
+            "KODE BARANG",
+            safe_stock_limit
+          ),
+          warehouse_category
         `);
 
       // Apply date filters
@@ -121,25 +122,25 @@ const StockHistoryPage = () => {
         throw error;
       }
 
-      // Correctly map stock_items to be an array for consistency with the type,
+      // Correctly map products to be an array for consistency with the type,
       // even if it's a single object from the join.
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null,
+        products: item.products ? [item.products] : null,
       }));
 
       // Client-side search filtering
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         const matchesSearch = (
-          item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["NAMA BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.["KODE BARANG"]?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
         );
 
         const matchesCategory = filterWarehouseCategory === "all" ||
-                                item.stock_items?.[0]?.warehouse_category === filterWarehouseCategory;
+                                item.warehouse_category === filterWarehouseCategory;
         
         return matchesSearch && matchesCategory;
       });
@@ -170,11 +171,11 @@ const StockHistoryPage = () => {
           notes,
           transaction_date,
           created_at,
-          stock_items (
-            nama_barang,
-            kode_barang,
-            warehouse_category
-          )
+          products (
+            "NAMA BARANG",
+            "KODE BARANG"
+          ),
+          warehouse_category
         `);
 
       // Apply date filters for export as well
@@ -228,12 +229,12 @@ const StockHistoryPage = () => {
           transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
           created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
           // Corrected access for item_name and item_code
-          item_name: item.stock_items?.[0]?.nama_barang || "N/A",
-          item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+          item_name: item.products?.[0]?.["NAMA BARANG"] || "N/A",
+          item_code: item.products?.[0]?.["KODE BARANG"] || "N/A",
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           notes: processedNotes,
-          warehouse_category: getCategoryDisplay(item.stock_items?.[0]?.warehouse_category || "N/A"),
+          warehouse_category: getCategoryDisplay(item.warehouse_category || "N/A"),
         };
       }));
       return flattenedData;
@@ -468,15 +469,15 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.[0]?.["NAMA BARANG"] || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.[0]?.["KODE BARANG"] || "N/A"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.stock_items?.[0]?.warehouse_category || "N/A")}</TableCell>
+                      <TableCell>{getCategoryDisplay(transaction.warehouse_category || "N/A")}</TableCell>
                       <TableCell>
                         {transaction.notes ? (
                           <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">

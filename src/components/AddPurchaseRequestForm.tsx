@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data";
+import { Product } from "@/types/data"; // Changed from StockItem
 import StockItemCombobox from "@/components/StockItemCombobox";
 
 // Schema validasi menggunakan Zod
@@ -39,8 +39,8 @@ interface AddPurchaseRequestFormProps {
 
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
-  const [loadingStockItems, setLoadingStockItems] = useState(true);
+  const [products, setProducts] = useState<Product[]>([]); // Changed from StockItem[]
+  const [loadingProducts, setLoadingProducts] = useState(true); // Changed from loadingStockItems
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -56,32 +56,22 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
   });
 
   useEffect(() => {
-    const fetchStockItems = async () => {
-      setLoadingStockItems(true);
+    const fetchProducts = async () => { // Changed from fetchStockItems
+      setLoadingProducts(true); // Changed from setLoadingStockItems
       const { data, error } = await supabase
-        .from("stock_items")
-        .select("id, kode_barang, nama_barang, harga_beli, harga_jual, satuan, warehouse_category");
+        .from("products") // Changed from stock_items
+        .select("id, kode_barang, nama_barang, harga_beli, harga_jual, satuan"); // Removed warehouse_category
 
       if (error) {
-        showError("Gagal memuat daftar item stok.");
-        console.error("Error fetching stock items:", error);
+        showError("Gagal memuat daftar produk."); // Changed message
+        console.error("Error fetching products:", error); // Changed message
       } else {
-        setStockItems(data.map(item => ({
-          id: item.id,
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          "HARGA BELI": item.harga_beli,
-          "HARGA JUAL": item.harga_jual,
-          SATUAN: item.satuan || "",
-          warehouse_category: item.warehouse_category,
-          // Default values for other StockItem fields not used here
-          NO: 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
-        })) as StockItem[]);
+        setProducts(data as Product[]); // Changed from StockItem[]
       }
-      setLoadingStockItems(false);
+      setLoadingProducts(false); // Changed from setLoadingStockItems
     };
 
-    fetchStockItems();
+    fetchProducts();
   }, []);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -148,14 +138,14 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                   <FormControl>
                     <StockItemCombobox
                       name={field.name}
-                      items={stockItems}
+                      items={products}
                       value={field.value}
-                      onValueChange={(selectedStock) => {
-                        if (selectedStock) {
-                          form.setValue("item_name", selectedStock["NAMA BARANG"]);
-                          form.setValue("item_code", selectedStock["KODE BARANG"]);
-                          form.setValue("unit_price", selectedStock["HARGA BELI"]);
-                          form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
+                      onValueChange={(selectedProduct) => {
+                        if (selectedProduct) {
+                          form.setValue("item_name", selectedProduct["NAMA BARANG"]);
+                          form.setValue("item_code", selectedProduct["KODE BARANG"]);
+                          form.setValue("unit_price", selectedProduct["HARGA BELI"]);
+                          form.setValue("suggested_selling_price", selectedProduct["HARGA JUAL"]);
                         } else {
                           form.setValue("item_name", "");
                           form.setValue("item_code", "");
@@ -163,8 +153,8 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                           form.setValue("suggested_selling_price", 0);
                         }
                       }}
-                      disabled={loadingStockItems}
-                      placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item yang sudah ada atau ketik baru..."}
+                      disabled={loadingProducts}
+                      placeholder={loadingProducts ? "Memuat item produk..." : "Pilih item yang sudah ada atau ketik baru..."}
                     />
                   </FormControl>
                   <FormMessage />
