@@ -55,6 +55,36 @@ export async function fetchProducts(userId: string): Promise<Product[]> {
 }
 
 /**
+ * Mencari produk berdasarkan kode barang atau nama barang untuk pengguna tertentu.
+ * @param userId ID pengguna yang diautentikasi.
+ * @param code Kode barang yang dicari.
+ * @param name Nama barang yang dicari.
+ * @returns Produk yang ditemukan atau null.
+ */
+export async function fetchProductByCodeOrName(userId: string, code?: string, name?: string): Promise<Product | null> {
+  let query = supabase
+    .from('products')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (code) {
+    query = query.eq('kode_barang', code);
+  } else if (name) {
+    query = query.eq('nama_barang', name);
+  } else {
+    return null;
+  }
+
+  const { data, error } = await query.single();
+
+  if (error && error.code !== 'PGRST116') { // PGRST116 means no rows found
+    throw error;
+  }
+
+  return data;
+}
+
+/**
  * Menambahkan produk baru dan menginisialisasi stok di gudang 'siap_jual'.
  * @param product Data produk baru.
  * @param userId ID pengguna yang diautentikasi.
@@ -158,7 +188,7 @@ export async function updateWarehouseStock(
       .from('warehouse_inventories')
       .insert({
         product_id: productId,
-        warehouse_category: warehouseCategory, // Perbaikan di sini
+        warehouse_category: warehouseCategory,
         quantity,
         user_id: userId,
       });

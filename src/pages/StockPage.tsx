@@ -6,7 +6,7 @@ import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
 import ProductForm from '@/components/ProductForm';
 import ProductTable from '@/components/ProductTable';
-import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, WarehouseCategory } from '@/api/stock';
+import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, WarehouseCategory, fetchProductByCodeOrName, Product } from '@/api/stock';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,23 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
+
+// Helper hook for debouncing values
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
+
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 const StockPage: React.FC = () => {
   const { session } = useSession();
@@ -33,12 +50,30 @@ const StockPage: React.FC = () => {
     enabled: !!userId,
   });
 
+  // State for pre-populating product form
+  const [currentProductCode, setCurrentProductCode] = React.useState<string>('');
+  const [currentProductName, setCurrentProductName] = React.useState<string>('');
+  const debouncedProductCode = useDebounce(currentProductCode, 500);
+  const debouncedProductName = useDebounce(currentProductName, 500);
+
+  const { data: prepopulatedProduct, isLoading: isLoadingPrepopulatedProduct } = useQuery<Product | null>({
+    queryKey: ['prepopulatedProduct', userId, debouncedProductCode, debouncedProductName],
+    queryFn: () => {
+      if (!userId || (!debouncedProductCode && !debouncedProductName)) return Promise.resolve(null);
+      return fetchProductByCodeOrName(userId, debouncedProductCode, debouncedProductName);
+    },
+    enabled: !!userId && (!!debouncedProductCode || !!debouncedProductName),
+  });
+
   const addProductMutation = useMutation({
     mutationFn: (newProductData: Parameters<typeof addProduct>[0]) => addProduct(newProductData, userId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', userId] });
       queryClient.invalidateQueries({ queryKey: ['warehouseInventories', userId] });
       showSuccess('Produk berhasil ditambahkan!');
+      // Clear input fields after successful addition
+      setCurrentProductCode('');
+      setCurrentProductName('');
     },
     onError: (err) => {
       showError(`Gagal menambahkan produk: ${err.message}`);
@@ -63,12 +98,26 @@ const StockPage: React.FC = () => {
     },
   });
 
-  const handleAddProduct = (values: Parameters<typeof addProduct>[0]) => {
+  const handleAddProduct = (values: Omit<Product, 'id' | 'created_at' | 'user_id'>) => {
     if (!userId) {
       showError('Anda harus login untuk menambahkan produk.');
       return;
     }
+    if (prepopulatedProduct && (values.kode_barang === prepopulatedProduct.kode_barang || values.nama_barang === prepopulatedProduct.nama_barang)) {
+      showError('Produk dengan kode atau nama ini sudah ada. Tidak dapat menambahkan duplikat.');
+      return;
+    }
     addProductMutation.mutate(values);
+  };
+
+  const handleProductInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
+    if (field === 'kode_barang') {
+      setCurrentProductCode(value);
+      setCurrentProductName(''); // Clear other field to prioritize search by current field
+    } else {
+      setCurrentProductName(value);
+      setCurrentProductCode(''); // Clear other field to prioritize search by current field
+    }
   };
 
   const [selectedProductForMovement, setSelectedProductForMovement] = React.useState<string>('');
@@ -115,7 +164,7 @@ const StockPage: React.FC = () => {
     }));
   }, [products, inventories]);
 
-  const isLoadingAny = isLoadingProducts || isLoadingInventories;
+  const isLoadingAny = isLoadingProducts || isLoadingInventories || isLoadingPrepopulatedProduct;
 
   if (isLoadingAny) {
     return (
@@ -156,7 +205,12 @@ const StockPage: React.FC = () => {
               <CardTitle>Tambah Produk Baru</CardTitle>
             </CardHeader>
             <CardContent>
-              <ProductForm onSubmit={handleAddProduct} isLoading={addProductMutation.isPending} />
+              <ProductForm
+                onSubmit={handleAddProduct}
+                isLoading={addProductMutation.isPending}
+                existingProduct={prepopulatedProduct}
+                onInputChange={handleProductInputChange}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -191,7 +245,7 @@ const StockPage: React.FC = () => {
                     <Label htmlFor="from-warehouse-select">Dari Gudang (Opsional, untuk penerimaan awal biarkan kosong)</Label>
                     <Select
                       value={fromWarehouse}
-                      onValueChange={(value) => setFromWarehouse(value as WarehouseCategory | '')} // Perbaikan di sini
+                      onValueChange={(value) => setFromWarehouse(value as WarehouseCategory | '')}
                       disabled={recordStockMovementMutation.isPending}
                     >
                       <SelectTrigger id="from-warehouse-select">
@@ -208,7 +262,7 @@ const StockPage: React.FC = () => {
                     <Label htmlFor="to-warehouse-select">Ke Gudang</Label>
                     <Select
                       value={toWarehouse}
-                      onValueChange={(value) => setToWarehouse(value as WarehouseCategory | '')} // Perbaikan di sini
+                      onValueChange={(value) => setToWarehouse(value as WarehouseCategory | '')}
                       disabled={recordStockMovementMutation.isPending}
                     >
                       <SelectTrigger id="to-warehouse-select">

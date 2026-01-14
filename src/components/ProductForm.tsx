@@ -15,6 +15,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Product } from '@/api/stock'; // Import Product type
 
 const formSchema = z.object({
   kode_barang: z.string().min(1, { message: 'Kode barang wajib diisi.' }),
@@ -28,9 +29,11 @@ const formSchema = z.object({
 interface ProductFormProps {
   onSubmit: (values: z.infer<typeof formSchema>) => void;
   isLoading: boolean;
+  existingProduct?: Product | null; // Produk yang sudah ada untuk pre-populasi
+  onInputChange?: (field: 'kode_barang' | 'nama_barang', value: string) => void; // Callback untuk perubahan input
 }
 
-const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading }) => {
+const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading, existingProduct, onInputChange }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -43,6 +46,34 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading }) => {
     },
   });
 
+  React.useEffect(() => {
+    if (existingProduct) {
+      form.reset({
+        kode_barang: existingProduct.kode_barang,
+        nama_barang: existingProduct.nama_barang,
+        satuan: existingProduct.satuan,
+        harga_beli: existingProduct.harga_beli,
+        harga_jual: existingProduct.harga_jual,
+        safe_stock_limit: existingProduct.safe_stock_limit,
+      });
+    } else {
+      // Reset form to default values if no existing product is found
+      form.reset({
+        kode_barang: '',
+        nama_barang: '',
+        satuan: 'pcs',
+        harga_beli: 0,
+        harga_jual: 0,
+        safe_stock_limit: 0,
+      });
+    }
+  }, [existingProduct, form]);
+
+  const isDuplicate = existingProduct && (
+    form.watch('kode_barang') === existingProduct.kode_barang ||
+    form.watch('nama_barang') === existingProduct.nama_barang
+  );
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -54,8 +85,16 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading }) => {
               <FormItem>
                 <FormLabel>Kode Barang</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ex: BRG001" {...field} />
+                  <Input
+                    placeholder="Ex: BRG001"
+                    {...field}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      onInputChange?.('kode_barang', e.target.value);
+                    }}
+                  />
                 </FormControl>
+                {isDuplicate && <FormMessage className="text-orange-500">Produk dengan kode ini sudah ada.</FormMessage>}
                 <FormMessage />
               </FormItem>
             )}
@@ -67,8 +106,16 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading }) => {
               <FormItem>
                 <FormLabel>Nama Barang</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ex: Kipas Angin" {...field} />
+                  <Input
+                    placeholder="Ex: Kipas Angin"
+                    {...field}
+                    onChange={(e) => {
+                      field.onChange(e);
+                      onInputChange?.('nama_barang', e.target.value);
+                    }}
+                  />
                 </FormControl>
+                {isDuplicate && <FormMessage className="text-orange-500">Produk dengan nama ini sudah ada.</FormMessage>}
                 <FormMessage />
               </FormItem>
             )}
@@ -79,7 +126,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading }) => {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Satuan</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih satuan" />
@@ -136,7 +183,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ onSubmit, isLoading }) => {
             )}
           />
         </div>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading || isDuplicate}>
           {isLoading ? 'Menambahkan...' : 'Tambah Produk'}
         </Button>
       </form>
