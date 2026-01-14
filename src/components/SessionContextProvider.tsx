@@ -39,6 +39,15 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
               await supabase.auth.updateUser({
                 data: { role: profile.role }
               });
+              // IMPORTANT: After updating user metadata, explicitly get the latest session
+              // to ensure the client-side session object reflects the new role.
+              const { data: { session: updatedSession }, error: sessionRefreshError } = await supabase.auth.getSession();
+              if (sessionRefreshError) {
+                console.error("Error refreshing session after profile update:", sessionRefreshError);
+                showError("Gagal menyegarkan sesi setelah pembaruan profil.");
+              } else if (updatedSession) {
+                setSession(updatedSession);
+              }
             }
           }
           setIsLoading(false);
@@ -47,6 +56,7 @@ export const SessionContextProvider: React.FC<{ children: React.ReactNode }> = (
           setIsLoading(false);
           navigate('/auth');
         } else if (event === 'USER_UPDATED') {
+          // When user metadata is updated, the session object in this event should be the latest.
           setSession(currentSession);
         } else if (event === 'PASSWORD_RECOVERY') {
           // Handle password recovery if needed
