@@ -12,7 +12,7 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts"; // Import Legend
 import { StockItem } from "@/types/data"; // Import StockItem type
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar"; // Import the new component
 import { Link } from "react-router-dom"; // For navigation
@@ -52,6 +52,14 @@ const chartConfig = {
     label: "Invoices",
     color: "hsl(var(--primary))",
   },
+  stock_in: {
+    label: "Stok Masuk",
+    color: "hsl(142.1 76.2% 36.3%)", // Green
+  },
+  stock_out: {
+    label: "Stok Keluar",
+    color: "hsl(0 84.2% 60.2%)", // Red
+  },
 } satisfies ChartConfig;
 
 // Define a specific interface for the data fetched for low stock check
@@ -66,6 +74,7 @@ const DashboardOverviewPage = () => {
   const [lowStockItems, setLowStockItems] = useState(0);
   const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
   const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
+  const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]); // New state for stock chart
   const [loading, setLoading] = useState(true);
 
   const getCategoryDisplay = (category: string) => {
@@ -190,6 +199,8 @@ const DashboardOverviewPage = () => {
             desc = `Retur ${trans.quantity} unit untuk ${itemName}`;
           } else if (trans.transaction_type === 'damage_loss') {
             desc = `Rusak/Hilang ${trans.quantity} unit dari ${itemName}`;
+          } else if (trans.transaction_type === 'adjustment') {
+            desc = `Penyesuaian stok ${trans.quantity} unit untuk ${itemName}`;
           }
           allActivities.push({
             id: trans.id,
@@ -239,14 +250,48 @@ const DashboardOverviewPage = () => {
           }
         });
 
-        const sortedMonthlyData = Object.keys(monthlyCounts)
+        const sortedMonthlyInvoiceData = Object.keys(monthlyCounts)
           .sort((a, b) => parseISO(`01 ${a}`).getTime() - parseISO(`01 ${b}`).getTime())
           .map(month => ({
             month,
             invoices: monthlyCounts[month],
           }));
         
-        setMonthlyInvoiceData(sortedMonthlyData);
+        setMonthlyInvoiceData(sortedMonthlyInvoiceData);
+
+        // Fetch data for monthly stock transactions chart
+        const { data: allStockTransactionsForChart, error: chartStockTransactionsError } = await supabase
+          .from("stock_transactions")
+          .select("transaction_type, quantity, created_at")
+          .gte("created_at", format(startDate, "yyyy-MM-dd"));
+
+        if (chartStockTransactionsError) throw chartStockTransactionsError;
+
+        const monthlyStockAggregates: { [key: string]: { stock_in: number; stock_out: number } } = {};
+        for (let i = 0; i < 6; i++) {
+          const month = format(subMonths(new Date(), i), "MMM yyyy");
+          monthlyStockAggregates[month] = { stock_in: 0, stock_out: 0 };
+        }
+
+        allStockTransactionsForChart.forEach(transaction => {
+          const month = format(parseISO(transaction.created_at), "MMM yyyy");
+          if (monthlyStockAggregates[month]) {
+            if (['in', 'initial', 'return'].includes(transaction.transaction_type)) {
+              monthlyStockAggregates[month].stock_in += transaction.quantity;
+            } else if (['out', 'damage_loss', 'adjustment'].includes(transaction.transaction_type)) {
+              monthlyStockAggregates[month].stock_out += transaction.quantity;
+            }
+          }
+        });
+
+        const sortedMonthlyStockData = Object.keys(monthlyStockAggregates)
+          .sort((a, b) => parseISO(`01 ${a}`).getTime() - parseISO(`01 ${b}`).getTime())
+          .map(month => ({
+            month,
+            ...monthlyStockAggregates[month],
+          }));
+        
+        setMonthlyStockData(sortedMonthlyStockData);
 
       } catch (error: any) {
         showError(`Gagal memuat data dashboard: ${error.message}`);
@@ -354,7 +399,43 @@ const DashboardOverviewPage = () => {
           </CardContent>
         </Card>
 
+        {/* New Card for Monthly Stock Transactions Chart */}
         <Card>
+          <CardHeader>
+            <CardTitle>Pergerakan Stok per Bulan</CardTitle>
+            <CardDescription>Total stok masuk dan keluar selama 6 bulan terakhir.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-[300px] w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+            ) : (
+              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+                <BarChart accessibilityLayer data={monthlyStockData}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    tickFormatter={(value) => value.slice(0, 3)}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    tickMargin={10}
+                    axisLine={false}
+                    allowDecimals={false}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Legend /> {/* Add legend to distinguish bars */}
+                  <Bar dataKey="stock_in" fill="var(--color-stock_in)" radius={4} />
+                  <Bar dataKey="stock_out" fill="var(--color-stock_out)" radius={4} />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2"> {/* Span two columns for better layout */}
           <CardHeader>
             <CardTitle>Aktivitas Terbaru</CardTitle>
             <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
