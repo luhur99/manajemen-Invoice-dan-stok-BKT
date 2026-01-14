@@ -1,5 +1,4 @@
 "use client";
-
 import { supabase } from '@/integrations/supabase/client';
 
 export type WarehouseCategory = 'siap_jual' | 'riset' | 'retur';
@@ -88,13 +87,17 @@ export async function fetchProductByCodeOrName(userId: string, code?: string, na
 }
 
 /**
- * Menambahkan produk baru dan menginisialisasi stok di gudang 'siap_jual'.
+ * Menambahkan produk baru dan menginisialisasi stok di gudang yang ditentukan.
  * @param product Data produk baru.
+ * @param initialStock Stok awal untuk produk.
+ * @param warehouseCategory Kategori gudang untuk stok awal.
  * @param userId ID pengguna yang diautentikasi.
  * @returns Produk yang baru ditambahkan.
  */
 export async function addProduct(
   product: Omit<Product, 'id' | 'created_at' | 'user_id'>,
+  initialStock: number,
+  warehouseCategory: WarehouseCategory,
   userId: string
 ): Promise<Product> {
   const { data, error } = await supabase
@@ -105,11 +108,11 @@ export async function addProduct(
 
   if (error) throw error;
 
-  // Inisialisasi stok di gudang 'siap_jual' dengan 0 saat produk baru dibuat
+  // Inisialisasi stok di gudang yang ditentukan dengan jumlah stok awal
   await supabase.from('warehouse_inventories').insert({
     product_id: data.id,
-    warehouse_category: 'siap_jual',
-    quantity: 0,
+    warehouse_category: warehouseCategory,
+    quantity: initialStock,
     user_id: userId,
   });
 
@@ -220,7 +223,6 @@ export async function recordStockMovement(
   if (fromCategory) {
     await updateWarehouseStock(productId, fromCategory, -quantity, userId);
   }
-
   // Tambahkan stok ke gudang tujuan
   await updateWarehouseStock(productId, toCategory, quantity, userId);
 
@@ -233,7 +235,6 @@ export async function recordStockMovement(
     quantity,
     reason,
   });
-
   if (error) throw error;
 }
 
@@ -250,6 +251,7 @@ export async function fetchStockMovements(userId: string): Promise<StockMovement
     .order('created_at', { ascending: false });
 
   if (error) throw error;
+
   return data.map(movement => ({
     ...movement,
     product_name: movement.products?.nama_barang, // Tambahkan nama_barang ke objek movement

@@ -50,6 +50,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+// Schema validasi Zod yang diperbarui
 const formSchema = z.object({
   kode_barang: z.string().min(1, { message: 'Kode barang wajib diisi.' }),
   nama_barang: z.string().min(1, { message: 'Nama barang wajib diisi.' }),
@@ -57,6 +58,10 @@ const formSchema = z.object({
   harga_beli: z.coerce.number().min(0, { message: 'Harga beli harus positif.' }),
   harga_jual: z.coerce.number().min(0, { message: 'Harga jual harus positif.' }),
   safe_stock_limit: z.coerce.number().min(0, { message: 'Batas stok aman harus positif.' }),
+  initial_stock: z.coerce.number().min(0, { message: 'Stok awal tidak boleh negatif.' }).default(0),
+  initial_stock_warehouse: z.enum(['siap_jual', 'riset', 'retur'], {
+    required_error: "Silakan pilih gudang untuk stok awal.",
+  }).default('siap_jual'),
 });
 
 interface AddProductFormProps {
@@ -77,6 +82,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
       harga_beli: 0,
       harga_jual: 0,
       safe_stock_limit: 0,
+      initial_stock: 0, // Default stok awal
+      initial_stock_warehouse: 'siap_jual', // Default gudang
     },
   });
 
@@ -113,13 +120,23 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
       return;
     }
     onSubmit(values);
-    form.reset();
+    form.reset({
+      kode_barang: '',
+      nama_barang: '',
+      satuan: 'pcs',
+      harga_beli: 0,
+      harga_jual: 0,
+      safe_stock_limit: 0,
+      initial_stock: 0,
+      initial_stock_warehouse: 'siap_jual',
+    }); // Reset form ke default setelah submit
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Input Kode Barang dengan Autocomplete */}
           <FormField
             control={form.control}
             name="kode_barang"
@@ -132,8 +149,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                       <div className="relative">
                         <Input
                           placeholder="Ex: BRG001"
-                          {...field} // Bind field props directly to Input
-                          className="pr-10" // Memberi ruang untuk ikon
+                          {...field}
+                          className="pr-10"
                         />
                         <Button
                           variant="ghost"
@@ -188,6 +205,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
               </FormItem>
             )}
           />
+
+          {/* Input Nama Barang dengan Autocomplete */}
           <FormField
             control={form.control}
             name="nama_barang"
@@ -200,8 +219,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                       <div className="relative">
                         <Input
                           placeholder="Ex: Kipas Angin"
-                          {...field} // Bind field props directly to Input
-                          className="pr-10" // Memberi ruang untuk ikon
+                          {...field}
+                          className="pr-10"
                         />
                         <Button
                           variant="ghost"
@@ -256,6 +275,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
               </FormItem>
             )}
           />
+
+          {/* Input Satuan */}
           <FormField
             control={form.control}
             name="satuan"
@@ -279,6 +300,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
               </FormItem>
             )}
           />
+
+          {/* Input Harga Beli */}
           <FormField
             control={form.control}
             name="harga_beli"
@@ -292,6 +315,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
               </FormItem>
             )}
           />
+
+          {/* Input Harga Jual */}
           <FormField
             control={form.control}
             name="harga_jual"
@@ -305,6 +330,8 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
               </FormItem>
             )}
           />
+
+          {/* Input Batas Stok Aman */}
           <FormField
             control={form.control}
             name="safe_stock_limit"
@@ -314,6 +341,45 @@ const AddProductForm: React.FC<AddProductFormProps> = ({ onSubmit, isLoading }) 
                 <FormControl>
                   <Input type="number" placeholder="0" {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Input Stok Awal */}
+          <FormField
+            control={form.control}
+            name="initial_stock"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Stok Awal</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="0" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Pilihan Gudang untuk Stok Awal */}
+          <FormField
+            control={form.control}
+            name="initial_stock_warehouse"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gudang Stok Awal</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih gudang" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="siap_jual">Siap Jual</SelectItem>
+                    <SelectItem value="riset">Riset</SelectItem>
+                    <SelectItem value="retur">Retur</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

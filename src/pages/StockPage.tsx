@@ -1,10 +1,9 @@
 "use client";
-
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/components/SessionContextProvider';
 import { showError, showSuccess } from '@/utils/toast';
-import AddProductForm from '@/components/AddProductForm'; // Mengganti ProductForm dengan AddProductForm
+import AddProductForm from '@/components/AddProductForm';
 import ProductTable from '@/components/ProductTable';
 import { fetchProducts, addProduct, fetchWarehouseInventories, recordStockMovement, WarehouseCategory, Product } from '@/api/stock';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,31 +15,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 
-// Helper hook for debouncing values (tidak lagi digunakan di sini, dipindahkan ke AddProductForm)
-// function useDebounce<T>(value: T, delay: number): T {
-//   const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
-
-//   React.useEffect(() => {
-//     const handler = setTimeout(() => {
-//       setDebouncedValue(value);
-//     }, delay);
-
-//     return () => {
-//       clearTimeout(handler);
-//     };
-//   }, [value, delay]);
-
-//   return debouncedValue;
-// }
-
 const StockPage: React.FC = () => {
   const { session } = useSession();
   const userId = session?.user?.id;
   const queryClient = useQueryClient();
 
-  // State untuk mengontrol tab yang aktif
   const [activeTab, setActiveTab] = React.useState<string>('add');
-
+  
   const { data: products, isLoading: isLoadingProducts, error: errorProducts } = useQuery({
     queryKey: ['products', userId],
     queryFn: () => fetchProducts(userId!),
@@ -53,32 +34,14 @@ const StockPage: React.FC = () => {
     enabled: !!userId,
   });
 
-  // Hapus semua state dan logika terkait pemeriksaan duplikat dari StockPage
-  // const [currentProductCode, setCurrentProductCode] = React.useState<string>('');
-  // const [currentProductName, setCurrentProductName] = React.useState<string>('');
-  // const debouncedProductCode = useDebounce(currentProductCode, 500);
-  // const debouncedProductName = useDebounce(currentProductName, 500);
-
-  // const { data: prepopulatedProduct, isLoading: isLoadingPrepopulatedProduct } = useQuery<Product | null>({
-  //   queryKey: ['prepopulatedProduct', userId, debouncedProductCode, debouncedProductName],
-  //   queryFn: () => {
-  //     if (!userId || (!debouncedProductCode && !debouncedProductName)) return Promise.resolve(null);
-  //     return fetchProductByCodeOrName(userId, debouncedProductCode, debouncedProductName);
-  //   },
-  //   enabled: !!userId && (!!debouncedProductCode || !!debouncedProductName),
-  // });
-
-  // const isDuplicate = React.useMemo(() => {
-  //   return !!prepopulatedProduct;
-  // }, [prepopulatedProduct]);
-
   const addProductMutation = useMutation({
-    mutationFn: (newProductData: Omit<Product, 'id' | 'created_at' | 'user_id'>) => addProduct(newProductData, userId!),
+    mutationFn: ({ newProductData, initialStock, initialStockWarehouse }: { newProductData: Omit<Product, 'id' | 'created_at' | 'user_id'>; initialStock: number; initialStockWarehouse: WarehouseCategory }) =>
+      addProduct(newProductData, initialStock, initialStockWarehouse, userId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', userId] });
       queryClient.invalidateQueries({ queryKey: ['warehouseInventories', userId] });
       showSuccess('Produk berhasil ditambahkan!');
-      setActiveTab('view'); // Pindah ke tab 'Lihat Stok' setelah berhasil menambahkan produk
+      setActiveTab('view');
     },
     onError: (err) => {
       showError(`Gagal menambahkan produk: ${err.message}`);
@@ -86,40 +49,33 @@ const StockPage: React.FC = () => {
   });
 
   const recordStockMovementMutation = useMutation({
-    mutationFn: ({ productId, fromCategory, toCategory, quantity, reason }: {
-      productId: string;
-      fromCategory: WarehouseCategory | null;
-      toCategory: WarehouseCategory;
-      quantity: number;
-      reason: string;
-    }) => recordStockMovement(productId, fromCategory, toCategory, quantity, reason, userId!),
+    mutationFn: ({ productId, fromCategory, toCategory, quantity, reason }: { productId: string; fromCategory: WarehouseCategory | null; toCategory: WarehouseCategory; quantity: number; reason: string; }) =>
+      recordStockMovement(productId, fromCategory, toCategory, quantity, reason, userId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['warehouseInventories', userId] });
-      queryClient.invalidateQueries({ queryKey: ['stockMovements', userId] }); // Invalidate stock movements history
+      queryClient.invalidateQueries({ queryKey: ['stockMovements', userId] });
       showSuccess('Pergerakan stok berhasil dicatat!');
-      setActiveTab('view'); // Pindah ke tab 'Lihat Stok' setelah berhasil memindahkan stok
+      setActiveTab('view');
     },
     onError: (err) => {
       showError(`Gagal mencatat pergerakan stok: ${err.message}`);
     },
   });
 
-  const handleAddProduct = (values: Omit<Product, 'id' | 'created_at' | 'user_id'>) => {
+  const handleAddProduct = (values: any) => { // Gunakan 'any' untuk sementara karena tipe Zod berbeda
     if (!userId) {
       showError('Anda harus login untuk menambahkan produk.');
       return;
     }
-    addProductMutation.mutate(values);
-  };
 
-  // Hapus handleProductInputChange karena tidak lagi diperlukan di sini
-  // const handleProductInputChange = (field: 'kode_barang' | 'nama_barang', value: string) => {
-  //   if (field === 'kode_barang') {
-  //     setCurrentProductCode(value);
-  //   } else { // field === 'nama_barang'
-  //     setCurrentProductName(value);
-  //   }
-  // };
+    const { initial_stock, initial_stock_warehouse, ...productData } = values;
+
+    addProductMutation.mutate({
+      newProductData: productData,
+      initialStock: initial_stock,
+      initialStockWarehouse: initial_stock_warehouse,
+    });
+  };
 
   const [selectedProductForMovement, setSelectedProductForMovement] = React.useState<string>('');
   const [fromWarehouse, setFromWarehouse] = React.useState<WarehouseCategory | ''>('');
@@ -149,7 +105,6 @@ const StockPage: React.FC = () => {
       reason: movementReason,
     });
 
-    // Reset form
     setSelectedProductForMovement('');
     setFromWarehouse('');
     setToWarehouse('');
@@ -165,7 +120,6 @@ const StockPage: React.FC = () => {
     }));
   }, [products, inventories]);
 
-  // isLoadingPrepopulatedProduct dihapus dari sini
   const isLoadingAny = isLoadingProducts || isLoadingInventories;
 
   if (isLoadingAny) {
@@ -191,19 +145,18 @@ const StockPage: React.FC = () => {
           <TabsTrigger value="add">Tambah Produk Baru</TabsTrigger>
           <TabsTrigger value="move">Pindahkan Stok</TabsTrigger>
         </TabsList>
+
         <TabsContent value="add">
           <Card>
             <CardHeader>
               <CardTitle>Tambah Produk Baru</CardTitle>
             </CardHeader>
             <CardContent>
-              <AddProductForm
-                onSubmit={handleAddProduct}
-                isLoading={addProductMutation.isPending}
-              />
+              <AddProductForm onSubmit={handleAddProduct} isLoading={addProductMutation.isPending} />
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="view">
           <Card>
             <CardHeader>
@@ -214,6 +167,7 @@ const StockPage: React.FC = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="move">
           <Card>
             <CardHeader>
@@ -241,6 +195,7 @@ const StockPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="from-warehouse-select">Dari Gudang (Opsional, untuk penerimaan awal biarkan kosong)</Label>
                     <Select
@@ -258,6 +213,7 @@ const StockPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="to-warehouse-select">Ke Gudang</Label>
                     <Select
@@ -275,6 +231,7 @@ const StockPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="quantity-input">Kuantitas</Label>
                     <Input
@@ -287,6 +244,7 @@ const StockPage: React.FC = () => {
                     />
                   </div>
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="reason-textarea">Alasan (Opsional)</Label>
                   <Textarea
@@ -297,6 +255,7 @@ const StockPage: React.FC = () => {
                     disabled={recordStockMovementMutation.isPending}
                   />
                 </div>
+
                 <Button
                   onClick={handleStockMovement}
                   disabled={recordStockMovementMutation.isPending || !selectedProductForMovement || !toWarehouse || movementQuantity <= 0 || fromWarehouse === toWarehouse}
