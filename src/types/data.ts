@@ -154,3 +154,20 @@ export interface Profile {
   updated_at?: string;
   role?: string;
 }
+
+// New interface for PurchaseRequest
+export interface PurchaseRequest {
+  id: string;
+  user_id: string;
+  item_name: string;
+  item_code: string;
+  quantity: number;
+  unit_price: number; // This will be the purchase price (harga_beli)
+  suggested_selling_price: number; // This will be the suggested selling price (harga_jual)
+  total_price: number;
+  supplier?: string;
+  notes?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string;
+  no?: number; // For display purposes
+}
