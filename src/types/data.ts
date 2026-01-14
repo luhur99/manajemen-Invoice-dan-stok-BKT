@@ -164,6 +164,7 @@ export interface Schedule {
   courier_service?: string;
   document_url?: string;
   no?: number; // Sequential number for display
+  delivery_order_id?: string; // New: Link to related delivery order
 }
 
 export interface Profile {
@@ -199,4 +200,57 @@ export interface PurchaseRequest {
   target_warehouse_category?: 'siap_jual' | 'riset' | 'retur';
   received_notes?: string;
   received_at?: string;
+}
+
+// New interface for SchedulingRequest
+export interface SchedulingRequest {
+  id: string;
+  user_id: string;
+  customer_name: string;
+  company_name?: string;
+  type: 'instalasi' | 'service' | 'kirim';
+  vehicle_units?: number;
+  vehicle_type?: string;
+  vehicle_year?: number;
+  full_address: string;
+  landmark?: string;
+  requested_date: string; // YYYY-MM-DD
+  requested_time?: string;
+  contact_person: string;
+  phone_number: string;
+  customer_type?: string; // 'lama' | 'baru'
+  payment_method?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  created_at: string;
+  no?: number; // For display purposes
+}
+
+// New interface for DeliveryOrder
+export interface DeliveryOrder {
+  id: string;
+  request_id: string;
+  user_id: string;
+  do_number: string;
+  items_json?: Array<{
+    item_name: string;
+    quantity: number;
+    unit_price: number;
+    subtotal: number;
+  }>;
+  delivery_date: string; // YYYY-MM-DD
+  delivery_time?: string;
+  status: 'pending' | 'in progress' | 'completed' | 'cancelled';
+  notes?: string;
+  created_at: string;
+  no?: number; // For display purposes
+  // Joined request details for display
+  scheduling_requests?: {
+    customer_name: string;
+    type: 'instalasi' | 'service' | 'kirim';
+    requested_date: string;
+    requested_time?: string;
+    full_address: string;
+    phone_number: string;
+  } | null;
 }
