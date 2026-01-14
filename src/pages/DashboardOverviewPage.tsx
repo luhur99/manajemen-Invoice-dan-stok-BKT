@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReceiptText, CalendarDays, Package } from "lucide-react";
+import { ReceiptText, CalendarDays, Package, ShoppingCart } from "lucide-react"; // Import ShoppingCart icon
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { format, parseISO, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -20,7 +20,7 @@ import { Link } from "react-router-dom"; // For navigation
 // Define a type for combined activities
 interface LatestActivity {
   id: string;
-  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement'; // Added stock_movement
+  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement' | 'purchase_request'; // Added purchase_request
   description: string;
   date: string; // ISO date string
 }
@@ -72,6 +72,7 @@ const DashboardOverviewPage = () => {
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [todaySchedules, setTodaySchedules] = useState(0);
   const [lowStockItems, setLowStockItems] = useState(0);
+  const [pendingPurchaseRequests, setPendingPurchaseRequests] = useState(0); // New state for pending purchase requests
   const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
   const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
   const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]); // New state for stock chart
@@ -128,6 +129,15 @@ const DashboardOverviewPage = () => {
         }
         setLowStockItems(lowStockCount);
 
+        // Fetch Pending Purchase Requests
+        const { count: purchaseRequestsCount, error: purchaseRequestsError } = await supabase
+          .from("purchase_requests")
+          .select("id", { count: "exact" })
+          .eq("status", "pending");
+
+        if (purchaseRequestsError) throw purchaseRequestsError;
+        setPendingPurchaseRequests(purchaseRequestsCount || 0);
+
         // Fetch Latest Activities
         const { data: recentInvoices, error: recentInvoicesError } = await supabase
           .from("invoices")
@@ -160,6 +170,14 @@ const DashboardOverviewPage = () => {
           .limit(5);
 
         if (recentStockMovementsError) throw recentStockMovementsError;
+
+        const { data: recentPurchaseRequestsData, error: recentPurchaseRequestsError } = await supabase
+          .from("purchase_requests")
+          .select("id, item_name, quantity, status, created_at")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (recentPurchaseRequestsError) throw recentPurchaseRequestsError;
 
         // Cast the data to the defined interface
         const recentStockTransactions: StockTransactionWithItem[] = recentStockTransactionsData as StockTransactionWithItem[];
@@ -219,6 +237,15 @@ const DashboardOverviewPage = () => {
             type: 'stock_movement',
             description: `Pindah ${mov.quantity} unit ${itemName} dari ${fromCategory} ke ${toCategory}`,
             date: mov.created_at,
+          });
+        });
+
+        recentPurchaseRequestsData.forEach(req => {
+          allActivities.push({
+            id: req.id,
+            type: 'purchase_request',
+            description: `Pengajuan pembelian ${req.quantity} unit ${req.item_name} (${req.status})`,
+            date: req.created_at,
           });
         });
 
@@ -309,7 +336,7 @@ const DashboardOverviewPage = () => {
       <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Dashboard Budi Karya Teknologi</h1>
       <p className="text-gray-600 dark:text-gray-300">Selamat datang di aplikasi manajemen penjualan dan stok Anda. Berikut adalah ringkasan aktivitas terbaru.</p>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"> {/* Changed to lg:grid-cols-4 */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Invoice Pending</CardTitle>
@@ -359,6 +386,27 @@ const DashboardOverviewPage = () => {
             {lowStockItems > 0 && (
               <Link to="/stock" className="text-sm text-blue-500 hover:underline mt-2 block">
                 Lihat Item Stok Rendah
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+        <Card> {/* New Card for Pending Purchase Requests */}
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pengajuan Pembelian Pending</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
+            ) : (
+              <div className="text-2xl font-bold">{pendingPurchaseRequests}</div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {pendingPurchaseRequests > 0 ? `${pendingPurchaseRequests} pengajuan menunggu persetujuan` : "Tidak ada pengajuan pembelian pending"}
+            </p>
+            {pendingPurchaseRequests > 0 && (
+              <Link to="/purchase-requests" className="text-sm text-blue-500 hover:underline mt-2 block">
+                Lihat Pengajuan
               </Link>
             )}
           </CardContent>
