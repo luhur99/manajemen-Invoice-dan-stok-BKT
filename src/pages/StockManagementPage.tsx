@@ -12,7 +12,7 @@ import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
 import StockMovementForm from "@/components/StockMovementForm";
 import StockAdjustmentForm from "@/components/StockAdjustmentForm"; // Added for stock adjustment
-import { Product as ProductType, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data";
+import { Product as ProductType, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,7 +26,7 @@ interface ProductWithDetails extends ProductType {
 const StockManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
-  const [initialTransactionType, setInitialTransactionType] = useState<TransactionType>(TransactionType.OUT);
+  const [initialEventType, setInitialEventType] = useState<StockEventType>(StockEventType.OUT); // Changed type
   const [selectedProductForTransaction, setSelectedProductForTransaction] = useState<ProductWithDetails | null>(null);
 
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
@@ -94,9 +94,9 @@ const StockManagementPage = () => {
     },
   });
 
-  const handleOpenTransactionForm = (product: ProductWithDetails, type: TransactionType) => {
+  const handleOpenTransactionForm = (product: ProductWithDetails, type: StockEventType) => { // Changed type
     setSelectedProductForTransaction(product);
-    setInitialTransactionType(type);
+    setInitialEventType(type); // Changed to initialEventType
     setIsTransactionFormOpen(true);
   };
 
@@ -188,10 +188,10 @@ const StockManagementPage = () => {
                   <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok">
                     <ArrowRightLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, TransactionType.IN)} title="Stok Masuk">
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.IN)} title="Stok Masuk">
                     <ArrowUp className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, TransactionType.OUT)} title="Stok Keluar">
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.OUT)} title="Stok Keluar">
                     <ArrowDown className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenAdjustmentForm(product)} title="Sesuaikan Stok">
@@ -209,7 +209,7 @@ const StockManagementPage = () => {
         <AddStockTransactionForm
           products={products}
           initialProductId={selectedProductForTransaction.id}
-          initialTransactionType={initialTransactionType}
+          initialEventType={initialEventType} // Changed to initialEventType
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
           onSuccess={fetchProducts}

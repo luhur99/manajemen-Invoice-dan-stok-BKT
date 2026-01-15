@@ -9,13 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockMovementWithItemName, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
 import { showError } from "@/utils/toast"; // Import showError
 
 const StockMovementHistoryPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [selectedFromCategory, setSelectedFromCategory] = React.useState<string | "all">("all"); // Changed to string
-  const [selectedToCategory, setSelectedToCategory] = React.useState<string | "all">("all"); // Changed to string
+  const [selectedFromCategory, setSelectedFromCategory] = React.useState<string | "all">("all");
+  const [selectedToCategory, setSelectedToCategory] = React.useState<string | "all">("all");
   
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
@@ -38,15 +38,16 @@ const StockMovementHistoryPage = () => {
     return category ? category.name : code;
   };
 
-  const { data: movements, isLoading, error, refetch: fetchMovements } = useQuery<StockMovementWithItemName[], Error>({
+  const { data: movements, isLoading, error, refetch: fetchMovements } = useQuery<StockLedgerWithProduct[], Error>({ // Updated type and query key
     queryKey: ["stockMovements"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("stock_movements")
+        .from("stock_ledger") // Changed table name
         .select(`
           *,
           products (nama_barang, kode_barang)
         `)
+        .eq("event_type", StockEventType.TRANSFER) // Filter for transfer events
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -64,13 +65,13 @@ const StockMovementHistoryPage = () => {
     const matchesSearch =
       item.product_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      getCategoryDisplayName(item.from_category).toLowerCase().includes(lowerCaseSearchTerm) ||
-      getCategoryDisplayName(item.to_category).toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.reason?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      format(new Date(item.movement_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
+      (item.from_warehouse_category && getCategoryDisplayName(item.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+      (item.to_warehouse_category && getCategoryDisplayName(item.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+      item.notes?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from reason to notes
+      format(new Date(item.event_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm); // Changed from movement_date to event_date
 
-    const matchesFromCategory = selectedFromCategory === "all" || item.from_category === selectedFromCategory;
-    const matchesToCategory = selectedToCategory === "all" || item.to_category === selectedToCategory;
+    const matchesFromCategory = selectedFromCategory === "all" || item.from_warehouse_category === selectedFromCategory;
+    const matchesToCategory = selectedToCategory === "all" || item.to_warehouse_category === selectedToCategory;
 
     return matchesSearch && matchesFromCategory && matchesToCategory;
   });
@@ -163,10 +164,10 @@ const StockMovementHistoryPage = () => {
                   <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                   <TableCell>{movement.product_name || "N/A"}</TableCell>
                   <TableCell>{movement.product_code || "N/A"}</TableCell>
-                  <TableCell>{getCategoryDisplayName(movement.from_category)}</TableCell>
-                  <TableCell>{getCategoryDisplayName(movement.to_category)}</TableCell>
+                  <TableCell>{movement.from_warehouse_category ? getCategoryDisplayName(movement.from_warehouse_category) : "-"}</TableCell>
+                  <TableCell>{movement.to_warehouse_category ? getCategoryDisplayName(movement.to_warehouse_category) : "-"}</TableCell>
                   <TableCell className="text-right">{movement.quantity}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{movement.reason || "-"}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{movement.notes || "-"}</TableCell> {/* Changed from reason to notes */}
                 </TableRow>
               ))
             )}

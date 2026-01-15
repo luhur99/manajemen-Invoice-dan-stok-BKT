@@ -10,13 +10,11 @@ export interface WarehouseCategory {
   updated_at?: string;
 }
 
-export enum TransactionType {
+// New enum for unified stock event types
+export enum StockEventType {
   INITIAL = "initial",
   IN = "in",
-  OUT = "out",
-}
-
-export enum StockMovementType {
+    OUT = "out",
   TRANSFER = "transfer",
   ADJUSTMENT = "adjustment",
 }
@@ -103,38 +101,22 @@ export interface WarehouseInventory {
   updated_at: string;
 }
 
-export interface StockTransaction {
+// New interface for the unified stock_ledger table
+export interface StockLedger {
   id: string;
   user_id: string;
   product_id: string;
-  transaction_type: TransactionType;
+  event_type: StockEventType;
   quantity: number;
+  from_warehouse_category?: string; // Nullable for 'in', 'initial'
+  to_warehouse_category?: string;   // Nullable for 'out', 'initial'
   notes?: string;
-  transaction_date: string;
-  created_at: string;
-  warehouse_category?: string; // Changed to string
-}
-
-// New interface for StockTransaction with product name
-export interface StockTransactionWithItemName extends StockTransaction {
-  product_name: string;
-  product_code: string;
-}
-
-export interface StockMovement {
-  id: string;
-  user_id: string;
-  product_id: string;
-  from_category: string; // Changed to string
-  to_category: string; // Changed to string
-  quantity: number;
-  reason?: string;
-  movement_date: string;
+  event_date: string; // Date of the event
   created_at: string;
 }
 
-// New interface for StockMovement with product name
-export interface StockMovementWithItemName extends StockMovement {
+// New interface for StockLedger with product name for display
+export interface StockLedgerWithProduct extends StockLedger {
   product_name: string;
   product_code: string;
 }

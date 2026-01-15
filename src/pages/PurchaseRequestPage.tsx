@@ -13,7 +13,7 @@ import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm";
 import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { PurchaseRequestWithDetails, PurchaseRequestStatus, TransactionType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { PurchaseRequestWithDetails, PurchaseRequestStatus, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
 import PurchaseRequestReceiptUpload from "@/components/PurchaseRequestReceiptUpload";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -161,20 +161,20 @@ const PurchaseRequestPage = () => {
 
   const handleCloseRequest = async (request: PurchaseRequestWithDetails) => {
     try {
-      // Insert into stock_transactions
-      const { error: transactionError } = await supabase
-        .from("stock_transactions")
+      // Insert into stock_ledger
+      const { error: ledgerError } = await supabase
+        .from("stock_ledger") // Changed table name
         .insert({
           user_id: request.user_id,
           product_id: request.product_id,
-          transaction_type: TransactionType.IN,
+          event_type: StockEventType.IN, // Set event type to IN
           quantity: request.quantity,
+          to_warehouse_category: request.target_warehouse_category,
           notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,
-          transaction_date: format(new Date(), "yyyy-MM-dd"),
-          warehouse_category: request.target_warehouse_category,
+          event_date: format(new Date(), "yyyy-MM-dd"),
         });
 
-      if (transactionError) throw transactionError;
+      if (ledgerError) throw ledgerError;
 
       // Update warehouse_inventories
       const { data: existingInventory, error: inventoryFetchError } = await supabase

@@ -20,16 +20,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
 import { format } from "date-fns";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  warehouse_category: z.string({ // Changed to string
+  warehouse_category: z.string({
     required_error: "Kategori Gudang wajib dipilih",
   }).min(1, "Kategori Gudang wajib dipilih"),
   new_quantity: z.coerce.number().min(0, "Kuantitas baru tidak boleh negatif"),
-  reason: z.string().min(1, "Alasan penyesuaian wajib diisi"),
+  notes: z.string().min(1, "Alasan penyesuaian wajib diisi"), // Changed from reason to notes
 });
 
 interface StockAdjustmentFormProps {
@@ -94,7 +94,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     defaultValues: {
       warehouse_category: "", // Default empty string
       new_quantity: 0,
-      reason: "",
+      notes: "", // Changed from reason to notes
     },
   });
 
@@ -109,7 +109,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
           form.reset({
             warehouse_category: defaultCategoryCode,
             new_quantity: initialQuantity,
-            reason: "",
+            notes: "", // Changed from reason to notes
           });
         }
       });
@@ -160,21 +160,22 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
         throw upsertInventoryError;
       }
 
-      // Insert into stock_transactions table with 'adjustment' type
-      const { error: transactionError } = await supabase
-        .from("stock_transactions")
+      // Insert into stock_ledger table with 'adjustment' type
+      const { error: ledgerError } = await supabase
+        .from("stock_ledger") // Changed table name
         .insert({
           user_id: userId,
           product_id: product.id,
-          transaction_type: 'adjustment',
+          event_type: StockEventType.ADJUSTMENT, // Set event type
           quantity: Math.abs(difference),
-          notes: `Penyesuaian stok di kategori ${getCategoryDisplayName(values.warehouse_category)} dari ${oldQuantity} menjadi ${newQuantity}. Alasan: ${values.reason}`,
-          transaction_date: format(new Date(), "yyyy-MM-dd"),
-          warehouse_category: values.warehouse_category,
+          from_warehouse_category: difference < 0 ? values.warehouse_category : null, // If quantity decreased, it's 'from'
+          to_warehouse_category: difference > 0 ? values.warehouse_category : null,   // If quantity increased, it's 'to'
+          notes: `Penyesuaian stok di kategori ${getCategoryDisplayName(values.warehouse_category)} dari ${oldQuantity} menjadi ${newQuantity}. Catatan: ${values.notes}`, // Changed from reason to notes
+          event_date: format(new Date(), "yyyy-MM-dd"),
         });
 
-      if (transactionError) {
-        throw transactionError;
+      if (ledgerError) {
+        throw ledgerError;
       }
 
       showSuccess("Stok berhasil disesuaikan!");
@@ -244,7 +245,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="reason"
+              name="notes" // Changed from reason to notes
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Alasan Penyesuaian</FormLabel>

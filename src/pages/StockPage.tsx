@@ -20,7 +20,7 @@ interface ProductWithDetails extends ProductType {
 
 const StockPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  // isAddModalOpen state is no longer needed here as AddStockItemForm manages its own dialog state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for AddStockItemForm
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductWithDetails | null>(null);
@@ -119,8 +119,11 @@ const StockPage = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        {/* AddStockItemForm now includes its own trigger button */}
-        <AddStockItemForm onSuccess={fetchProducts} />
+        <AddStockItemForm
+          isOpen={isAddModalOpen}
+          onOpenChange={setIsAddModalOpen}
+          onSuccess={fetchProducts}
+        />
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -161,6 +164,9 @@ const StockPage = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Add Product Modal */}
+      {/* This is now handled by the AddStockItemForm's internal DialogTrigger */}
 
       {/* Edit Product Modal */}
       {selectedProduct && (

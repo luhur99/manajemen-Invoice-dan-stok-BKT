@@ -9,22 +9,24 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockTransactionWithItemName, TransactionType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
 import { showError } from "@/utils/toast"; // Import showError
 
-const getTransactionTypeDisplay = (type: TransactionType) => {
+const getEventTypeDisplay = (type: StockEventType) => {
   switch (type) {
-    case TransactionType.INITIAL: return "Stok Awal";
-    case TransactionType.IN: return "Masuk";
-    case TransactionType.OUT: return "Keluar";
+    case StockEventType.INITIAL: return "Stok Awal";
+    case StockEventType.IN: return "Masuk";
+    case StockEventType.OUT: return "Keluar";
+    case StockEventType.TRANSFER: return "Pindah";
+    case StockEventType.ADJUSTMENT: return "Penyesuaian";
     default: return type;
   }
 };
 
 const StockHistoryPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [selectedType, setSelectedType] = React.useState<TransactionType | "all">("all");
-  const [selectedCategory, setSelectedCategory] = React.useState<string | "all">("all"); // Changed to string
+  const [selectedType, setSelectedType] = React.useState<StockEventType | "all">("all"); // Updated type
+  const [selectedCategory, setSelectedCategory] = React.useState<string | "all">("all");
   
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
@@ -47,11 +49,11 @@ const StockHistoryPage = () => {
     return category ? category.name : code;
   };
 
-  const { data: transactions, isLoading, error, refetch: fetchTransactions } = useQuery<StockTransactionWithItemName[], Error>({
-    queryKey: ["stockTransactions"],
+  const { data: ledgerEntries, isLoading, error, refetch: fetchLedgerEntries } = useQuery<StockLedgerWithProduct[], Error>({ // Updated type and query key
+    queryKey: ["stockLedgerEntries"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("stock_transactions")
+        .from("stock_ledger") // Changed table name
         .select(`
           *,
           products (nama_barang, kode_barang)
@@ -68,18 +70,19 @@ const StockHistoryPage = () => {
     },
   });
 
-  const filteredTransactions = transactions?.filter((item) => {
+  const filteredLedgerEntries = ledgerEntries?.filter((item) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     const matchesSearch =
       item.product_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
+      getEventTypeDisplay(item.event_type).toLowerCase().includes(lowerCaseSearchTerm) || // Updated to event_type
       item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (item.warehouse_category && getCategoryDisplayName(item.warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-      format(new Date(item.transaction_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
+      (item.from_warehouse_category && getCategoryDisplayName(item.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+      (item.to_warehouse_category && getCategoryDisplayName(item.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+      format(new Date(item.event_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm); // Updated to event_date
 
-    const matchesType = selectedType === "all" || item.transaction_type === selectedType;
-    const matchesCategory = selectedCategory === "all" || item.warehouse_category === selectedCategory;
+    const matchesType = selectedType === "all" || item.event_type === selectedType;
+    const matchesCategory = selectedCategory === "all" || item.from_warehouse_category === selectedCategory || item.to_warehouse_category === selectedCategory;
 
     return matchesSearch && matchesType && matchesCategory;
   });
@@ -93,16 +96,16 @@ const StockHistoryPage = () => {
   }
 
   if (error || categoriesError) {
-    return <div className="text-red-500">Error loading stock transactions or categories: {error?.message || categoriesError?.message}</div>;
+    return <div className="text-red-500">Error loading stock ledger entries or categories: {error?.message || categoriesError?.message}</div>;
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Riwayat Transaksi Stok</h1>
+      <h1 className="text-3xl font-bold mb-6">Riwayat Stok</h1>
 
       <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
         <Input
-          placeholder="Cari transaksi..."
+          placeholder="Cari riwayat stok..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm flex-grow"
@@ -110,16 +113,16 @@ const StockHistoryPage = () => {
         <div className="flex gap-4">
           <Select
             value={selectedType}
-            onValueChange={(value: TransactionType | "all") => setSelectedType(value)}
+            onValueChange={(value: StockEventType | "all") => setSelectedType(value)}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter Tipe" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Tipe</SelectItem>
-              {Object.values(TransactionType).map((type) => (
+              {Object.values(StockEventType).map((type) => (
                 <SelectItem key={type} value={type}>
-                  {getTransactionTypeDisplay(type)}
+                  {getEventTypeDisplay(type)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -152,35 +155,37 @@ const StockHistoryPage = () => {
               <TableHead>Tanggal & Waktu</TableHead>
               <TableHead>Nama Produk</TableHead>
               <TableHead>Kode Produk</TableHead>
-              <TableHead>Tipe Transaksi</TableHead>
-              <TableHead>Kategori Gudang</TableHead>
+              <TableHead>Tipe Peristiwa</TableHead>
+              <TableHead>Dari Kategori</TableHead>
+              <TableHead>Ke Kategori</TableHead>
               <TableHead className="text-right">Kuantitas</TableHead>
               <TableHead>Catatan</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTransactions?.length === 0 ? (
+            {filteredLedgerEntries?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  Tidak ada riwayat transaksi stok yang ditemukan.
+                <TableCell colSpan={8} className="text-center text-muted-foreground">
+                  Tidak ada riwayat stok yang ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredTransactions?.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                  <TableCell>{transaction.product_name || "N/A"}</TableCell>
-                  <TableCell>{transaction.product_code || "N/A"}</TableCell>
+              filteredLedgerEntries?.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell>{format(new Date(entry.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
+                  <TableCell>{entry.product_name || "N/A"}</TableCell>
+                  <TableCell>{entry.product_code || "N/A"}</TableCell>
                   <TableCell>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      transaction.transaction_type === TransactionType.OUT ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+                      entry.event_type === StockEventType.OUT || entry.event_type === StockEventType.ADJUSTMENT ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
                     }`}>
-                      {getTransactionTypeDisplay(transaction.transaction_type)}
+                      {getEventTypeDisplay(entry.event_type)}
                     </span>
                   </TableCell>
-                  <TableCell>{transaction.warehouse_category ? getCategoryDisplayName(transaction.warehouse_category) : "-"}</TableCell>
-                  <TableCell className="text-right">{transaction.quantity}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{transaction.notes || "-"}</TableCell>
+                  <TableCell>{entry.from_warehouse_category ? getCategoryDisplayName(entry.from_warehouse_category) : "-"}</TableCell>
+                  <TableCell>{entry.to_warehouse_category ? getCategoryDisplayName(entry.to_warehouse_category) : "-"}</TableCell>
+                  <TableCell className="text-right">{entry.quantity}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{entry.notes || "-"}</TableCell>
                 </TableRow>
               ))
             )}

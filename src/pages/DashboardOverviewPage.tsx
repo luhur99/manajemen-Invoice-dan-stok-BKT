@@ -13,7 +13,7 @@ import {
   ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
-import { Product, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { Product, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query"; // Import useQuery
@@ -21,31 +21,9 @@ import { useQuery } from "@tanstack/react-query"; // Import useQuery
 // Define a type for combined activities
 interface LatestActivity {
   id: string;
-  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement' | 'purchase_request';
+  type: 'invoice' | 'schedule' | 'stock_ledger' | 'purchase_request'; // Updated type
   description: string;
   date: string; // ISO date string
-}
-
-// Define interface for stock transaction data with joined products
-interface StockTransactionWithProduct {
-  id: string;
-  transaction_type: string;
-  quantity: number;
-  notes: string | null;
-  created_at: string;
-  warehouse_category: string | null;
-  products: { nama_barang: string }[] | null;
-}
-
-// Define interface for stock movement data with joined products
-interface StockMovementWithProduct {
-  id: string;
-  from_category: string;
-  to_category: string;
-  quantity: number;
-  reason: string | null;
-  created_at: string;
-  products: { nama_barang: string }[] | null;
 }
 
 // Chart configuration
@@ -169,21 +147,13 @@ const DashboardOverviewPage = () => {
 
         if (recentSchedulesError) throw recentSchedulesError;
 
-        const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
-          .from("stock_transactions")
-          .select("id, transaction_type, quantity, notes, created_at, warehouse_category, products(nama_barang)")
+        const { data: recentStockLedgerData, error: recentStockLedgerError } = await supabase
+          .from("stock_ledger") // Changed table name
+          .select("id, event_type, quantity, notes, created_at, from_warehouse_category, to_warehouse_category, products(nama_barang)") // Updated fields
           .order("created_at", { ascending: false })
           .limit(5);
 
-        if (recentStockTransactionsError) throw recentStockTransactionsError;
-
-        const { data: recentStockMovementsData, error: recentStockMovementsError } = await supabase
-          .from("stock_movements")
-          .select("id, from_category, to_category, quantity, reason, created_at, products(nama_barang)")
-          .order("created_at", { ascending: false })
-          .limit(5);
-
-        if (recentStockMovementsError) throw recentStockMovementsError;
+        if (recentStockLedgerError) throw recentStockLedgerError;
 
         const { data: recentPurchaseRequestsData, error: recentPurchaseRequestsError } = await supabase
           .from("purchase_requests")
@@ -192,10 +162,6 @@ const DashboardOverviewPage = () => {
           .limit(5);
 
         if (recentPurchaseRequestsError) throw recentPurchaseRequestsError;
-
-        // Cast the data to the defined interface
-        const recentStockTransactions: StockTransactionWithProduct[] = recentStockTransactionsData as StockTransactionWithProduct[];
-        const recentStockMovements: StockMovementWithProduct[] = recentStockMovementsData as StockMovementWithProduct[];
 
         const allActivities: LatestActivity[] = [];
 
@@ -217,40 +183,31 @@ const DashboardOverviewPage = () => {
           });
         });
 
-        recentStockTransactions.forEach(trans => {
-          const itemName = trans.products?.[0]?.nama_barang || "Item Tidak Dikenal";
-          const category = trans.warehouse_category ? ` di ${getCategoryDisplayName(trans.warehouse_category)}` : "";
+        recentStockLedgerData.forEach(entry => {
+          const itemName = entry.products?.[0]?.nama_barang || "Item Tidak Dikenal";
           let desc = "";
-          if (trans.transaction_type === 'initial') {
-            desc = `Stok awal ${trans.quantity} unit untuk ${itemName}${category}`;
-          } else if (trans.transaction_type === 'in') {
-            desc = `Stok masuk ${trans.quantity} unit untuk ${itemName}${category}`;
-          } else if (trans.transaction_type === 'out') {
-            desc = `Stok keluar ${trans.quantity} unit dari ${itemName}${category}`;
-          } else if (trans.transaction_type === 'return') {
-            desc = `Retur ${trans.quantity} unit untuk ${itemName}${category}`;
-          } else if (trans.transaction_type === 'damage_loss') {
-            desc = `Rusak/Hilang ${trans.quantity} unit dari ${itemName}${category}`;
-          } else if (trans.transaction_type === 'adjustment') {
-            desc = `Penyesuaian stok ${trans.quantity} unit untuk ${itemName}${category}`;
+          if (entry.event_type === StockEventType.INITIAL) {
+            const toCategory = entry.to_warehouse_category ? ` di ${getCategoryDisplayName(entry.to_warehouse_category)}` : "";
+            desc = `Stok awal ${entry.quantity} unit untuk ${itemName}${toCategory}`;
+          } else if (entry.event_type === StockEventType.IN) {
+            const toCategory = entry.to_warehouse_category ? ` di ${getCategoryDisplayName(entry.to_warehouse_category)}` : "";
+            desc = `Stok masuk ${entry.quantity} unit untuk ${itemName}${toCategory}`;
+          } else if (entry.event_type === StockEventType.OUT) {
+            const fromCategory = entry.from_warehouse_category ? ` dari ${getCategoryDisplayName(entry.from_warehouse_category)}` : "";
+            desc = `Stok keluar ${entry.quantity} unit dari ${itemName}${fromCategory}`;
+          } else if (entry.event_type === StockEventType.TRANSFER) {
+            const fromCategory = entry.from_warehouse_category ? getCategoryDisplayName(entry.from_warehouse_category) : "N/A";
+            const toCategory = entry.to_warehouse_category ? getCategoryDisplayName(entry.to_warehouse_category) : "N/A";
+            desc = `Pindah ${entry.quantity} unit ${itemName} dari ${fromCategory} ke ${toCategory}`;
+          } else if (entry.event_type === StockEventType.ADJUSTMENT) {
+            const category = (entry.from_warehouse_category || entry.to_warehouse_category) ? ` di ${getCategoryDisplayName(entry.from_warehouse_category || entry.to_warehouse_category || "")}` : "";
+            desc = `Penyesuaian stok ${entry.quantity} unit untuk ${itemName}${category}`;
           }
           allActivities.push({
-            id: trans.id,
-            type: 'stock_transaction',
+            id: entry.id,
+            type: 'stock_ledger', // Updated type
             description: desc,
-            date: trans.created_at,
-          });
-        });
-
-        recentStockMovements.forEach(mov => {
-          const itemName = mov.products?.[0]?.nama_barang || "Item Tidak Dikenal";
-          const fromCategory = getCategoryDisplayName(mov.from_category);
-          const toCategory = getCategoryDisplayName(mov.to_category);
-          allActivities.push({
-            id: mov.id,
-            type: 'stock_movement',
-            description: `Pindah ${mov.quantity} unit ${itemName} dari ${fromCategory} ke ${toCategory}`,
-            date: mov.created_at,
+            date: entry.created_at,
           });
         });
 
@@ -300,13 +257,13 @@ const DashboardOverviewPage = () => {
         
         setMonthlyInvoiceData(sortedMonthlyInvoiceData);
 
-        // Fetch data for monthly stock transactions chart
-        const { data: allStockTransactionsForChart, error: chartStockTransactionsError } = await supabase
-          .from("stock_transactions")
-          .select("transaction_type, quantity, created_at")
+        // Fetch data for monthly stock ledger chart
+        const { data: allStockLedgerForChart, error: chartStockLedgerError } = await supabase
+          .from("stock_ledger") // Changed table name
+          .select("event_type, quantity, created_at")
           .gte("created_at", format(startDate, "yyyy-MM-dd"));
 
-        if (chartStockTransactionsError) throw chartStockTransactionsError;
+        if (chartStockLedgerError) throw chartStockLedgerError;
 
         const monthlyStockAggregates: { [key: string]: { stock_in: number; stock_out: number } } = {};
         for (let i = 0; i < 6; i++) {
@@ -314,13 +271,17 @@ const DashboardOverviewPage = () => {
           monthlyStockAggregates[month] = { stock_in: 0, stock_out: 0 };
         }
 
-        allStockTransactionsForChart.forEach(transaction => {
-          const month = format(parseISO(transaction.created_at), "MMM yyyy");
+        allStockLedgerForChart.forEach(entry => {
+          const month = format(parseISO(entry.created_at), "MMM yyyy");
           if (monthlyStockAggregates[month]) {
-            if (['in', 'initial', 'return'].includes(transaction.transaction_type)) {
-              monthlyStockAggregates[month].stock_in += transaction.quantity;
-            } else if (['out', 'damage_loss', 'adjustment'].includes(transaction.transaction_type)) {
-              monthlyStockAggregates[month].stock_out += transaction.quantity;
+            if ([StockEventType.IN, StockEventType.INITIAL, StockEventType.ADJUSTMENT].includes(entry.event_type) && entry.quantity > 0) { // IN, INITIAL, and positive ADJUSTMENT are 'in'
+              monthlyStockAggregates[month].stock_in += entry.quantity;
+            } else if ([StockEventType.OUT, StockEventType.ADJUSTMENT].includes(entry.event_type) && entry.quantity > 0) { // OUT and negative ADJUSTMENT are 'out'
+              monthlyStockAggregates[month].stock_out += entry.quantity;
+            } else if (entry.event_type === StockEventType.TRANSFER) {
+              // For transfers, count as both in and out for the respective categories, but for overall chart, it's neutral
+              // For simplicity in this overview chart, we might not count transfers as net in/out
+              // If we want to show gross movement, we could add to both. For now, let's keep it simple.
             }
           }
         });

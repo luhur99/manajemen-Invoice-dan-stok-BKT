@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Product, StockTransactionWithItemName, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data"; // Import the interface
+import { Product, StockLedgerWithProduct, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -48,11 +48,13 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     return category ? category.name : code;
   };
 
-  const getTransactionTypeDisplay = (type: TransactionType) => {
+  const getEventTypeDisplay = (type: StockEventType) => { // Changed from getTransactionTypeDisplay
     switch (type) {
-      case TransactionType.INITIAL: return "Stok Awal";
-      case TransactionType.IN: return "Masuk";
-      case TransactionType.OUT: return "Keluar";
+      case StockEventType.INITIAL: return "Stok Awal";
+      case StockEventType.IN: return "Masuk";
+      case StockEventType.OUT: return "Keluar";
+      case StockEventType.TRANSFER: return "Pindah";
+      case StockEventType.ADJUSTMENT: return "Penyesuaian";
       default: return type;
     }
   };
@@ -70,11 +72,11 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     enabled: isOpen,
   });
 
-  const { data: transactions, isLoading: loadingTransactions, error: transactionsError } = useQuery<StockTransactionWithItemName[], Error>({
-    queryKey: ["productTransactions", product.id],
+  const { data: ledgerEntries, isLoading: loadingLedgerEntries, error: ledgerEntriesError } = useQuery<StockLedgerWithProduct[], Error>({ // Changed to ledgerEntries
+    queryKey: ["productLedgerEntries", product.id], // Changed query key
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("stock_transactions")
+        .from("stock_ledger") // Changed table name
         .select(`
           *,
           products (nama_barang, kode_barang)
@@ -91,7 +93,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     enabled: isOpen,
   });
 
-  if (loadingInventories || loadingTransactions || loadingCategories) {
+  if (loadingInventories || loadingLedgerEntries || loadingCategories) { // Updated loading state
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[700px]">
@@ -107,7 +109,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     );
   }
 
-  if (inventoriesError || transactionsError || categoriesError) {
+  if (inventoriesError || ledgerEntriesError || categoriesError) { // Updated error state
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[700px]">
@@ -115,7 +117,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
             <DialogTitle>Detail Produk Stok</DialogTitle>
             <DialogDescription>Terjadi kesalahan saat memuat detail produk.</DialogDescription>
           </DialogHeader>
-          <div className="text-red-500">Error: {inventoriesError?.message || transactionsError?.message || categoriesError?.message}</div>
+          <div className="text-red-500">Error: {inventoriesError?.message || ledgerEntriesError?.message || categoriesError?.message}</div>
         </DialogContent>
       </Dialog>
     );
@@ -169,33 +171,35 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
             </Table>
           </div>
 
-          <h3 className="text-lg font-semibold mt-4 mb-2">Riwayat Transaksi Stok</h3>
+          <h3 className="text-lg font-semibold mt-4 mb-2">Riwayat Stok</h3> {/* Changed title */}
           <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Tanggal</TableHead>
-                  <TableHead>Tipe Transaksi</TableHead>
-                  <TableHead>Kategori Gudang</TableHead>
+                  <TableHead>Tipe Peristiwa</TableHead> {/* Changed header */}
+                  <TableHead>Dari Kategori</TableHead>
+                  <TableHead>Ke Kategori</TableHead>
                   <TableHead className="text-right">Kuantitas</TableHead>
                   <TableHead>Catatan</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions?.length === 0 ? (
+                {ledgerEntries?.length === 0 ? ( // Changed to ledgerEntries
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      Tidak ada riwayat transaksi stok.
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      Tidak ada riwayat stok.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  transactions?.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell>{format(new Date(t.transaction_date), "dd-MM-yyyy")}</TableCell>
-                      <TableCell>{getTransactionTypeDisplay(t.transaction_type)}</TableCell>
-                      <TableCell>{t.warehouse_category ? getCategoryDisplayName(t.warehouse_category) : "-"}</TableCell>
-                      <TableCell className="text-right">{t.quantity}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{t.notes || "-"}</TableCell>
+                  ledgerEntries?.map((entry) => ( // Changed to entry
+                    <TableRow key={entry.id}>
+                      <TableCell>{format(new Date(entry.event_date), "dd-MM-yyyy")}</TableCell>
+                      <TableCell>{getEventTypeDisplay(entry.event_type)}</TableCell>
+                      <TableCell>{entry.from_warehouse_category ? getCategoryDisplayName(entry.from_warehouse_category) : "-"}</TableCell>
+                      <TableCell>{entry.to_warehouse_category ? getCategoryDisplayName(entry.to_warehouse_category) : "-"}</TableCell>
+                      <TableCell className="text-right">{entry.quantity}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{entry.notes || "-"}</TableCell>
                     </TableRow>
                   ))
                 )}

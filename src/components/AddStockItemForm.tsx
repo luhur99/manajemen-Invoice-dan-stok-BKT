@@ -20,7 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
-import { WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -31,17 +31,18 @@ const formSchema = z.object({
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
   initial_stock_quantity: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
   safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
-  initial_warehouse_category: z.string({ // Changed to string
+  initial_warehouse_category: z.string({
     required_error: "Kategori Gudang Awal wajib dipilih",
   }).min(1, "Kategori Gudang Awal wajib dipilih"),
 });
 
 interface AddStockItemFormProps {
   onSuccess: () => void;
+  isOpen: boolean; // Added isOpen prop
+  onOpenChange: (open: boolean) => void; // Added onOpenChange prop
 }
 
-const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
+const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, onOpenChange }) => {
   const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
 
@@ -138,27 +139,27 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           return;
         }
 
-        // 3. Record initial stock transaction
-        const { error: transactionError } = await supabase
-          .from("stock_transactions")
+        // 3. Record initial stock transaction in stock_ledger
+        const { error: ledgerError } = await supabase
+          .from("stock_ledger") // Changed table name
           .insert({
             user_id: userId,
             product_id: newProductId,
-            transaction_type: "initial",
+            event_type: StockEventType.INITIAL, // Set event type
             quantity: values.initial_stock_quantity,
+            to_warehouse_category: values.initial_warehouse_category, // Initial stock goes to a category
             notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplayName(values.initial_warehouse_category)}`,
-            warehouse_category: values.initial_warehouse_category,
-            transaction_date: format(new Date(), "yyyy-MM-dd"),
+            event_date: format(new Date(), "yyyy-MM-dd"),
           });
 
-        if (transactionError) {
-          console.error("Error recording initial stock transaction:", transactionError);
+        if (ledgerError) {
+          console.error("Error recording initial stock ledger entry:", ledgerError);
         }
       }
 
       showSuccess("Produk berhasil ditambahkan!");
       form.reset();
-      setIsOpen(false);
+      onOpenChange(false);
       onSuccess();
     } catch (error: any) {
       showError(`Gagal menambahkan produk: ${error.message}`);
@@ -167,7 +168,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button className="flex items-center gap-2">
           <PlusCircle className="h-4 w-4" /> Tambah Produk baru

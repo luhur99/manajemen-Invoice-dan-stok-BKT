@@ -21,21 +21,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
-import { WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data"; // Import the interface
+import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
 import { useQuery } from "@tanstack/react-query";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk wajib dipilih"),
-  transaction_type: z.nativeEnum(TransactionType, {
-    required_error: "Tipe Transaksi wajib dipilih",
+  event_type: z.nativeEnum(StockEventType, { // Changed to event_type
+    required_error: "Tipe Peristiwa wajib dipilih",
   }),
   quantity: z.coerce.number().min(1, "Kuantitas harus lebih dari 0"),
   warehouse_category: z.string({ // Changed to string
     required_error: "Kategori Gudang wajib dipilih",
   }).min(1, "Kategori Gudang wajib dipilih"),
   notes: z.string().optional(),
-  transaction_date: z.string().min(1, "Tanggal Transaksi wajib diisi"),
+  event_date: z.string().min(1, "Tanggal Peristiwa wajib diisi"), // Changed to event_date
 });
 
 interface AddStockTransactionFormProps {
@@ -44,7 +44,7 @@ interface AddStockTransactionFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   initialProductId?: string;
-  initialTransactionType?: TransactionType; // Changed type to TransactionType
+  initialEventType?: StockEventType; // Changed type to StockEventType
 }
 
 const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
@@ -53,7 +53,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   isOpen,
   onOpenChange,
   initialProductId,
-  initialTransactionType,
+  initialEventType,
 }) => {
   const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
   const [loadingCategories, setLoadingCategories] = useState(true);
@@ -62,11 +62,11 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       product_id: initialProductId || "",
-      transaction_type: initialTransactionType || TransactionType.OUT, // Ensured type is TransactionType
+      event_type: initialEventType || StockEventType.OUT, // Ensured type is StockEventType
       quantity: 1,
       warehouse_category: "", // Default empty string
       notes: "",
-      transaction_date: format(new Date(), "yyyy-MM-dd"),
+      event_date: format(new Date(), "yyyy-MM-dd"),
     },
   });
 
@@ -95,14 +95,14 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       fetchWarehouseCategories();
       form.reset({
         product_id: initialProductId || "",
-        transaction_type: initialTransactionType || TransactionType.OUT, // Ensured type is TransactionType
+        event_type: initialEventType || StockEventType.OUT, // Ensured type is StockEventType
         quantity: 1,
         warehouse_category: "", // Reset to empty string
         notes: "",
-        transaction_date: format(new Date(), "yyyy-MM-dd"),
+        event_date: format(new Date(), "yyyy-MM-dd"),
       });
     }
-  }, [isOpen, initialProductId, initialTransactionType, form]);
+  }, [isOpen, initialProductId, initialEventType, form]);
 
   const getCategoryDisplayName = (code: string) => {
     const category = warehouseCategories.find(cat => cat.code === code);
@@ -132,13 +132,13 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
 
       let newQuantity = existingInventory ? existingInventory.quantity : 0;
 
-      if (values.transaction_type === TransactionType.OUT) {
+      if (values.event_type === StockEventType.OUT) { // Changed to event_type
         if (newQuantity < values.quantity) {
           showError(`Kuantitas stok tidak mencukupi di kategori '${getCategoryDisplayName(values.warehouse_category)}'. Tersedia: ${newQuantity}, Diminta: ${values.quantity}.`);
           return;
         }
         newQuantity -= values.quantity;
-      } else if (values.transaction_type === TransactionType.INITIAL) {
+      } else if (values.event_type === StockEventType.IN || values.event_type === StockEventType.INITIAL) { // Changed to event_type
         newQuantity += values.quantity;
       }
 
@@ -151,7 +151,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         if (updateError) {
           throw updateError;
         }
-      } else if (values.transaction_type === TransactionType.INITIAL) {
+      } else if (values.event_type === StockEventType.IN || values.event_type === StockEventType.INITIAL) { // Changed to event_type
         const { error: insertError } = await supabase
           .from("warehouse_inventories")
           .insert({
@@ -169,20 +169,22 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         return;
       }
 
-      const { error: transactionError } = await supabase
-        .from("stock_transactions")
+      // Insert into stock_ledger table
+      const { error: ledgerError } = await supabase
+        .from("stock_ledger") // Changed table name
         .insert({
           user_id: userId,
           product_id: values.product_id,
-          transaction_type: values.transaction_type,
+          event_type: values.event_type, // Changed to event_type
           quantity: values.quantity,
-          warehouse_category: values.warehouse_category,
+          from_warehouse_category: values.event_type === StockEventType.OUT ? values.warehouse_category : null, // Set from/to based on event type
+          to_warehouse_category: values.event_type === StockEventType.IN || values.event_type === StockEventType.INITIAL ? values.warehouse_category : null,
           notes: values.notes,
-          transaction_date: values.transaction_date,
+          event_date: values.event_date, // Changed to event_date
         });
 
-      if (transactionError) {
-        throw transactionError;
+      if (ledgerError) {
+        throw ledgerError;
       }
 
       showSuccess("Transaksi stok berhasil ditambahkan!");
@@ -233,19 +235,20 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="transaction_type"
+              name="event_type" // Changed to event_type
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipe Transaksi</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialTransactionType}>
+                  <FormLabel>Tipe Peristiwa</FormLabel> {/* Changed label */}
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialEventType}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih tipe transaksi" />
+                        <SelectValue placeholder="Pilih tipe peristiwa" /> {/* Changed placeholder */}
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={TransactionType.OUT}>Stok Keluar</SelectItem>
-                      <SelectItem value={TransactionType.INITIAL}>Stok Awal</SelectItem>
+                      <SelectItem value={StockEventType.IN}>Stok Masuk</SelectItem> {/* Changed to IN */}
+                      <SelectItem value={StockEventType.OUT}>Stok Keluar</SelectItem>
+                      <SelectItem value={StockEventType.INITIAL}>Stok Awal</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -291,10 +294,10 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="transaction_date"
+              name="event_date" // Changed to event_date
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tanggal Transaksi</FormLabel>
+                  <FormLabel>Tanggal Peristiwa</FormLabel> {/* Changed label */}
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
