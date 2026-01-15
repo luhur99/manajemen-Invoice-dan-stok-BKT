@@ -15,6 +15,7 @@ import StockMovementHistoryPage from "./pages/StockMovementHistoryPage";
 import PurchaseRequestPage from "./pages/PurchaseRequestPage";
 import SupplierManagementPage from "./pages/SupplierManagementPage";
 import WarehouseCategoryPage from "./pages/WarehouseCategoryPage";
+import StockManagementPage from "./pages/StockManagementPage"; // Import the new page
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
@@ -33,7 +34,8 @@ const App = () => (
             <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
             <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
             <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
-            <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
+            <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} /> {/* Product Metadata */}
+            <Route path="/stock-management" element={<MainLayout><StockManagementPage /></MainLayout>} /> {/* New Stock Management */}
             <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
             <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
             <Route path="/stock-history" element={<MainLayout><StockHistoryPage /></MainLayout>} />
