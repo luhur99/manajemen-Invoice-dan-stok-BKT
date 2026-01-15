@@ -35,6 +35,7 @@ const invoiceItemSchema = z.object({
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Satuan tidak boleh negatif"),
   unit_type: z.string().optional(),
+  selected_stock_item_id: z.string().uuid().optional().or(z.literal("")), // Add selected_stock_item_id to item schema
 });
 
 const formSchema = z.object({
@@ -54,6 +55,7 @@ const formSchema = z.object({
   }),
   payment_method: z.string().min(1, "Metode Pembayaran wajib diisi"),
   notes: z.string().optional(),
+  courier_service: z.string().optional(), // Add courier_service to formSchema
   items: z.array(invoiceItemSchema).min(1, "Minimal satu item invoice diperlukan"),
 });
 
@@ -81,6 +83,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       customer_type: invoice.customer_type || undefined,
       payment_method: invoice.payment_method || "",
       notes: invoice.notes || "",
+      courier_service: invoice.courier_service || "", // Initialize new field
       items: [], // Will be populated in useEffect
     },
   });
@@ -132,11 +135,12 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       const items = data.map(item => ({
         id: item.id,
         item_name: item.item_name,
-        item_code: stockItems.find(stock => stock["NAMA BARANG"] === item.item_name)?.["KODE BARANG"] || "", // Populate item_code
+        item_code: item.item_code || "",
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.quantity * item.unit_price,
         unit_type: item.unit_type || "",
+        selected_stock_item_id: stockItems.find(stock => stock["NAMA BARANG"] === item.item_name)?.id || "", // Populate selected_stock_item_id
       }));
       form.reset({
         ...form.getValues(),
@@ -185,6 +189,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           customer_type: values.customer_type,
           payment_method: values.payment_method,
           notes: values.notes,
+          courier_service: values.courier_service || null, // Save new field
         })
         .eq("id", invoice.id);
 
@@ -243,6 +248,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       console.error("Error updating invoice:", error);
     }
   };
+
+  const invoiceType = form.watch("type"); // Watch the type field for conditional rendering
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -336,6 +343,21 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                   </FormItem>
                 )}
               />
+              {invoiceType === "kirim barang" && (
+                <FormField
+                  control={form.control}
+                  name="courier_service"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Jasa Kurir (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., JNE, SiCepat, GoSend" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="customer_type"
@@ -488,10 +510,9 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                           <StockItemCombobox
                             name={field.name}
                             items={stockItems}
-                            value={field.value}
-                            inputValue={field.value} // Pass inputValue
-                            onInputValueChange={field.onChange} // Pass onInputValueChange
-                            onValueChange={(selectedStock) => {
+                            selectedItemId={form.watch(`items.${index}.selected_stock_item_id`)}
+                            onSelectItemId={(selectedStockItemId) => {
+                              const selectedStock = stockItems.find(stock => stock.id === selectedStockItemId);
                               if (selectedStock) {
                                 update(index, {
                                   ...form.getValues().items[index],
@@ -499,17 +520,22 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                                   item_code: selectedStock["KODE BARANG"],
                                   unit_price: selectedStock["HARGA JUAL"],
                                   unit_type: selectedStock.SATUAN || "",
+                                  selected_stock_item_id: selectedStock.id,
                                 });
+                                field.onChange(selectedStock["NAMA BARANG"]); // Update item_name field
                               } else {
                                 update(index, {
                                   ...form.getValues().items[index],
-                                  item_name: "",
+                                  item_name: field.value, // Keep current input value
                                   item_code: "",
                                   unit_price: 0,
                                   unit_type: "",
+                                  selected_stock_item_id: "",
                                 });
                               }
                             }}
+                            inputValue={field.value}
+                            onInputValueChange={field.onChange}
                             disabled={loadingStockItems}
                             placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item..."}
                           />
@@ -588,7 +614,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
             <Button
               type="button"
               variant="outline"
-              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" })}
+              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_stock_item_id: "" })}
               className="w-full flex items-center gap-2"
             >
               <PlusCircle className="h-4 w-4" /> Tambah Item
@@ -602,7 +628,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
               {form.formState.isSubmitting ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                "Simpan Perubahan"
+                "Simpan Invoice"
               )}
             </Button>
           </form>

@@ -18,14 +18,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { StockItem, WarehouseInventory } from "@/types/data"; // Import WarehouseInventory
+import { StockItem, WarehouseInventory } from "@/types/data";
 
 interface StockItemComboboxProps {
   items: StockItem[];
-  value?: string; // The selected item_name (for display in trigger)
-  onValueChange: (item: StockItem | undefined) => void; // For selecting an actual StockItem object
-  inputValue: string; // The current text in the input field
-  onInputValueChange: (value: string) => void; // Callback for raw input text changes
+  selectedItemId?: string; // The ID of the currently selected item
+  onSelectItemId: (id: string | undefined) => void; // Callback when an item is selected by ID
+  inputValue: string; // The text currently in the search input
+  onInputValueChange: (value: string) => void; // Callback for when the search input text changes
   placeholder?: string;
   disabled?: boolean;
   id?: string;
@@ -34,9 +34,9 @@ interface StockItemComboboxProps {
 
 const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   items,
-  value, // This is the `item_name` from the form, used to mark selected item
-  onValueChange,
-  inputValue, // This is the actual text in the CommandInput
+  selectedItemId,
+  onSelectItemId,
+  inputValue,
   onInputValueChange,
   placeholder = "Pilih item...",
   disabled = false,
@@ -45,8 +45,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
 }) => {
   const [open, setOpen] = React.useState(false);
 
-  // Find the selected item based on the `value` prop (item_name from form)
-  const selectedItem = items.find((item) => item["NAMA BARANG"] === value);
+  const selectedItem = items.find((item) => item.id === selectedItemId);
 
   const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
     switch (category) {
@@ -74,8 +73,9 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           id={id}
           name={name}
         >
-          {/* Display the current input value, or the selected item's name if available */}
-          {inputValue || (selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${formatStockInventories(selectedItem.inventories)}` : placeholder)}
+          {selectedItem
+            ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${formatStockInventories(selectedItem.inventories)}`
+            : inputValue || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -83,8 +83,8 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
         <Command>
           <CommandInput
             placeholder="Cari item..."
-            value={inputValue} // Controlled by inputValue prop
-            onValueChange={onInputValueChange} // Updates inputValue in parent form
+            value={inputValue}
+            onValueChange={onInputValueChange}
           />
           <CommandList>
             <CommandEmpty>Tidak ada item ditemukan.</CommandEmpty>
@@ -92,19 +92,17 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
               {items.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item["NAMA BARANG"]} // Use item name for CommandItem value
-                  onSelect={(currentCommandItemValue) => {
-                    // When an item is selected from the list
-                    const selected = items.find(i => i["NAMA BARANG"] === currentCommandItemValue);
-                    onValueChange(selected); // Pass the full StockItem object
-                    onInputValueChange(selected ? selected["NAMA BARANG"] : ""); // Update input text to selected item's name
+                  value={item["NAMA BARANG"]} // Use item name for search/display in list
+                  onSelect={() => {
+                    onSelectItemId(item.id); // Pass the ID of the selected item
+                    onInputValueChange(item["NAMA BARANG"]); // Update input text to selected item's name
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedItem?.["NAMA BARANG"] === item["NAMA BARANG"] ? "opacity-100" : "opacity-0"
+                      selectedItemId === item.id ? "opacity-100" : "opacity-0"
                     )}
                   />
                   {item["NAMA BARANG"]} ({item["KODE BARANG"]}) - {formatStockInventories(item.inventories)}

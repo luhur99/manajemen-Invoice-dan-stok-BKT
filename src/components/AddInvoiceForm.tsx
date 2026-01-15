@@ -34,6 +34,7 @@ const invoiceItemSchema = z.object({
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Satuan tidak boleh negatif"),
   unit_type: z.string().optional(), // New field for unit type
+  selected_stock_item_id: z.string().uuid().optional().or(z.literal("")), // Add selected_stock_item_id to item schema
 });
 
 const formSchema = z.object({
@@ -91,7 +92,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
       payment_method: "",
       notes: "",
       courier_service: "", // Initialize new field
-      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
+      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_stock_item_id: "" }],
     },
   });
 
@@ -204,7 +205,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
         payment_method: "",
         notes: "",
         courier_service: "", // Reset new field
-        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" }],
+        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_stock_item_id: "" }],
       });
       setIsOpen(false);
       onSuccess();
@@ -478,10 +479,9 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                           <StockItemCombobox
                             name={field.name}
                             items={stockItems}
-                            value={field.value}
-                            inputValue={field.value} // Pass inputValue
-                            onInputValueChange={field.onChange} // Pass onInputValueChange
-                            onValueChange={(selectedStock) => {
+                            selectedItemId={form.watch(`items.${index}.selected_stock_item_id`)}
+                            onSelectItemId={(selectedStockItemId) => {
+                              const selectedStock = stockItems.find(stock => stock.id === selectedStockItemId);
                               if (selectedStock) {
                                 update(index, {
                                   ...form.getValues().items[index],
@@ -489,17 +489,22 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                                   item_code: selectedStock["KODE BARANG"],
                                   unit_price: selectedStock["HARGA JUAL"],
                                   unit_type: selectedStock.SATUAN || "",
+                                  selected_stock_item_id: selectedStock.id,
                                 });
+                                field.onChange(selectedStock["NAMA BARANG"]); // Update item_name field
                               } else {
                                 update(index, {
                                   ...form.getValues().items[index],
-                                  item_name: "",
+                                  item_name: field.value, // Keep current input value
                                   item_code: "",
                                   unit_price: 0,
                                   unit_type: "",
+                                  selected_stock_item_id: "",
                                 });
                               }
                             }}
+                            inputValue={field.value}
+                            onInputValueChange={field.onChange}
                             disabled={loadingStockItems}
                             placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item..."}
                           />
@@ -578,7 +583,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "" })}
+              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_stock_item_id: "" })}
               className="w-full flex items-center gap-2"
             >
               <PlusCircle className="h-4 w-4" /> Tambah Item

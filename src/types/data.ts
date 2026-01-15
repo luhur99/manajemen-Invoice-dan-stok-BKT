@@ -19,6 +19,7 @@ export interface Supplier {
   notes?: string;
   created_at: string;
   updated_at?: string;
+  no?: number; // New: Sequential number for display
 }
 
 export interface StockItem {

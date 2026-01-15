@@ -30,10 +30,11 @@ const formSchema = z.object({
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   suggested_selling_price: z.coerce.number().min(0, "Harga Jual yang disarankan tidak boleh negatif"),
-  supplier_id: z.string().uuid("ID Pemasok tidak valid").optional().or(z.literal("")), // Changed to supplier_id
+  supplier_id: z.string().uuid("ID Pemasok tidak valid").optional().or(z.literal("")),
   supplier_name_input: z.string().optional(), // For the combobox input text
   notes: z.string().optional(),
   satuan: z.string().optional(),
+  selected_stock_item_id: z.string().uuid().optional().or(z.literal("")), // New field to hold the selected stock item ID
 });
 
 interface AddPurchaseRequestFormProps {
@@ -59,6 +60,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       supplier_name_input: "",
       notes: "",
       satuan: "",
+      selected_stock_item_id: "", // Initialize new field
     },
   });
 
@@ -116,6 +118,52 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
     fetchStockItems();
     fetchSuppliers();
   }, []);
+
+  // Handler for when a stock item is selected from the combobox
+  const handleStockItemSelect = (selectedItemId: string | undefined) => {
+    form.setValue("selected_stock_item_id", selectedItemId || "");
+    if (selectedItemId) {
+      const selectedStock = stockItems.find(item => item.id === selectedItemId);
+      if (selectedStock) {
+        form.setValue("item_name", selectedStock["NAMA BARANG"]);
+        form.setValue("item_code", selectedStock["KODE BARANG"]);
+        form.setValue("unit_price", selectedStock["HARGA BELI"]);
+        form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
+        form.setValue("satuan", selectedStock.SATUAN || "");
+        form.setValue("supplier_id", selectedStock.supplier_id || "");
+        const selectedSupplier = suppliers.find(s => s.id === selectedStock.supplier_id);
+        form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
+      }
+    } else {
+      // If selection is cleared
+      form.setValue("item_code", "");
+      form.setValue("unit_price", 0);
+      form.setValue("suggested_selling_price", 0);
+      form.setValue("satuan", "");
+      form.setValue("supplier_id", "");
+      form.setValue("supplier_name_input", "");
+    }
+  };
+
+  // Handler for when the stock item combobox input text changes
+  const handleStockItemInputChange = (value: string) => {
+    form.setValue("item_name", value);
+    // If the user types, clear the selected item ID and other prepopulated fields
+    // unless the typed value exactly matches an existing item.
+    const matchedItem = stockItems.find(item => item["NAMA BARANG"] === value);
+    if (!matchedItem) {
+      form.setValue("selected_stock_item_id", "");
+      form.setValue("item_code", "");
+      form.setValue("unit_price", 0);
+      form.setValue("suggested_selling_price", 0);
+      form.setValue("satuan", "");
+      form.setValue("supplier_id", "");
+      form.setValue("supplier_name_input", "");
+    } else if (matchedItem.id !== form.getValues().selected_stock_item_id) {
+      // If it matches a different item, update all fields
+      handleStockItemSelect(matchedItem.id);
+    }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -175,7 +223,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="item_name"
+              name="item_name" // This field will now primarily control the input text
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
                   <FormLabel>Nama Item</FormLabel>
@@ -183,28 +231,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                     <StockItemCombobox
                       name={field.name}
                       items={stockItems}
-                      value={field.value}
-                      inputValue={field.value}
-                      onInputValueChange={field.onChange}
-                      onValueChange={(selectedStock) => {
-                        if (selectedStock) {
-                          form.setValue("item_name", selectedStock["NAMA BARANG"]);
-                          form.setValue("item_code", selectedStock["KODE BARANG"]);
-                          form.setValue("unit_price", selectedStock["HARGA BELI"]);
-                          form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
-                          form.setValue("satuan", selectedStock.SATUAN || "");
-                          form.setValue("supplier_id", selectedStock.supplier_id || ""); // Set supplier_id from stock item
-                          const selectedSupplier = suppliers.find(s => s.id === selectedStock.supplier_id);
-                          form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : ""); // Set supplier name for combobox
-                        } else {
-                          form.setValue("item_code", "");
-                          form.setValue("unit_price", 0);
-                          form.setValue("suggested_selling_price", 0);
-                          form.setValue("satuan", "");
-                          form.setValue("supplier_id", "");
-                          form.setValue("supplier_name_input", "");
-                        }
-                      }}
+                      selectedItemId={form.watch("selected_stock_item_id")} // Pass the selected ID
+                      onSelectItemId={handleStockItemSelect} // Handle ID selection
+                      inputValue={field.value} // Pass the current item_name as input text
+                      onInputValueChange={handleStockItemInputChange} // Handle input text changes
                       disabled={loadingStockItems}
                       placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item yang sudah ada atau ketik baru..."}
                     />
