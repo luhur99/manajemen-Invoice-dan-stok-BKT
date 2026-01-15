@@ -1,0 +1,1 @@
+ALTER TYPE public.scheduling_request_status ADD VALUE 'in_progress' AFTER 'pending';

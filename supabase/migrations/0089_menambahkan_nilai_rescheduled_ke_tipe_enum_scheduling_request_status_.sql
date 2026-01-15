@@ -1,0 +1,1 @@
+ALTER TYPE public.scheduling_request_status ADD VALUE 'rescheduled' AFTER 'in_progress';
