@@ -641,29 +641,31 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 )}
               />
             )}
-            {/* Technician Name field - now a combobox */}
-            <FormField
-              control={form.control}
-              name="technician_name"
-              render={({ field }) => (
-                <FormItem className="md:col-span-2">
-                  <FormLabel>Nama Teknisi</FormLabel>
-                  <FormControl>
-                    <TechnicianCombobox
-                      technicians={technicians || []}
-                      value={technicians?.find(t => t.name === field.value)?.id || undefined}
-                      onValueChange={handleTechnicianSelect}
-                      inputValue={technicianSearchInput}
-                      onInputValueChange={setTechnicianSearchInput}
-                      disabled={loadingTechnicians}
-                      loading={loadingTechnicians}
-                      placeholder="Pilih atau cari teknisi..."
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Technician Name field - now a combobox, only shown for existing requests */}
+            {initialData && (
+              <FormField
+                control={form.control}
+                name="technician_name"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Nama Teknisi</FormLabel>
+                    <FormControl>
+                      <TechnicianCombobox
+                        technicians={technicians || []}
+                        value={technicians?.find(t => t.name === field.value)?.id || undefined}
+                        onValueChange={handleTechnicianSelect}
+                        inputValue={technicianSearchInput}
+                        onInputValueChange={setTechnicianSearchInput}
+                        disabled={loadingTechnicians}
+                        loading={loadingTechnicians}
+                        placeholder="Pilih atau cari teknisi..."
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             {/* Conditional Notes Field */}
             {(watchedStatus === SchedulingRequestStatus.RESCHEDULED ||
               watchedStatus === SchedulingRequestStatus.REJECTED ||
