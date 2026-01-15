@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,93 +14,81 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
+import { Loader2, PlusCircle } from "lucide-react";
+import { format } from "date-fns";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  quantity: z.coerce.number().min(1, "Kuantitas harus lebih besar dari 0"),
-  transaction_date: z.date({ required_error: "Tanggal transaksi wajib diisi" }),
-  notes: z.string().optional(),
-  transaction_type: z.enum(["in", "out", "return", "damage_loss"], {
-    required_error: "Tipe transaksi wajib dipilih",
+  product_id: z.string().min(1, "Produk wajib dipilih"),
+  transaction_type: z.enum(["outbound", "initial"], {
+    required_error: "Tipe Transaksi wajib dipilih",
   }),
+  quantity: z.coerce.number().min(1, "Kuantitas harus lebih dari 0"),
   warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], {
     required_error: "Kategori Gudang wajib dipilih",
   }),
+  notes: z.string().optional(),
+  transaction_date: z.string().min(1, "Tanggal Transaksi wajib diisi"),
 });
 
 interface AddStockTransactionFormProps {
-  product: Product; // Changed from stockItem
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  initialTransactionType?: "in" | "out" | "return" | "damage_loss";
+  products: { id: string; nama_barang: string; kode_barang: string }[];
+  isOpen: boolean; // Added to control dialog from parent
+  onOpenChange: (open: boolean) => void; // Added to control dialog from parent
+  initialProductId?: string; // New prop for pre-selecting a product
+  initialTransactionType?: "outbound" | "initial"; // New prop for pre-selecting transaction type
 }
 
+const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
+  switch (category) {
+    case "siap_jual": return "Siap Jual";
+    case "riset": return "Riset";
+    case "retur": return "Retur";
+    case "backup_teknisi": return "Backup Teknisi";
+    default: return "-";
+  }
+};
+
 const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
-  product, // Changed from stockItem
+  onSuccess,
+  products,
   isOpen,
   onOpenChange,
-  onSuccess,
+  initialProductId,
   initialTransactionType,
 }) => {
-  const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
-  const [loadingInventories, setLoadingInventories] = useState(true);
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      product_id: initialProductId || "",
+      transaction_type: initialTransactionType || "outbound",
       quantity: 1,
-      transaction_date: new Date(),
+      warehouse_category: "siap_jual",
       notes: "",
-      transaction_type: initialTransactionType || "in",
-      warehouse_category: "siap_jual", // Default category
+      transaction_date: format(new Date(), "yyyy-MM-dd"),
     },
   });
 
-  const selectedCategory = form.watch("warehouse_category");
-  const transactionTypeWatch = form.watch("transaction_type");
-
-  const fetchInventories = useCallback(async () => {
-    if (!product?.id) return; // Changed from stockItem?.id
-    setLoadingInventories(true);
-    const { data, error } = await supabase
-      .from("warehouse_inventories")
-      .select("*")
-      .eq("product_id", product.id); // Changed from stockItem.id
-
-    if (error) {
-      showError("Gagal memuat inventaris item.");
-      console.error("Error fetching warehouse inventories:", error);
-      setCurrentInventories([]);
-    } else {
-      setCurrentInventories(data as WarehouseInventory[]);
-    }
-    setLoadingInventories(false);
-  }, [product?.id]); // Changed from stockItem?.id
-
-  useEffect(() => {
+  // Reset form when dialog opens with new initial values
+  React.useEffect(() => {
     if (isOpen) {
       form.reset({
+        product_id: initialProductId || "",
+        transaction_type: initialTransactionType || "outbound",
         quantity: 1,
-        transaction_date: new Date(),
-        notes: "",
-        transaction_type: initialTransactionType || "in",
         warehouse_category: "siap_jual",
+        notes: "",
+        transaction_date: format(new Date(), "yyyy-MM-dd"),
       });
-      fetchInventories();
     }
-  }, [isOpen, initialTransactionType, form, fetchInventories]);
+  }, [isOpen, initialProductId, initialTransactionType, form]);
+
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -112,113 +100,116 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     }
 
     try {
-      // Get current quantity for the selected category
-      const currentInventory = currentInventories.find(
-        (inv) => inv.warehouse_category === values.warehouse_category
-      );
-      const currentQuantity = currentInventory ? currentInventory.quantity : 0;
+      // Update warehouse inventory
+      const { data: existingInventory, error: fetchError } = await supabase
+        .from("warehouse_inventories")
+        .select("id, quantity")
+        .eq("product_id", values.product_id)
+        .eq("warehouse_category", values.warehouse_category)
+        .single();
 
-      let newQuantityInInventory = currentQuantity;
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found
+        throw fetchError;
+      }
 
-      if (values.transaction_type === "in" || values.transaction_type === "return") {
-        newQuantityInInventory += values.quantity;
-      } else if (values.transaction_type === "out" || values.transaction_type === "damage_loss") {
-        if (currentQuantity < values.quantity) {
-          showError(`Stok tidak mencukupi di kategori "${getCategoryDisplay(values.warehouse_category)}". Tersedia: ${currentQuantity}, Diminta: ${values.quantity}`);
+      let newQuantity = existingInventory ? existingInventory.quantity : 0;
+
+      if (values.transaction_type === "outbound") {
+        if (newQuantity < values.quantity) {
+          showError("Kuantitas stok tidak mencukupi untuk transaksi keluar.");
           return;
         }
-        newQuantityInInventory -= values.quantity;
+        newQuantity -= values.quantity;
+      } else if (values.transaction_type === "initial") {
+        newQuantity += values.quantity;
       }
+      // No 'inbound' logic here as it's removed
 
-      // Update or insert into warehouse_inventories
-      const { error: upsertInventoryError } = await supabase
-        .from("warehouse_inventories")
-        .upsert(
-          {
-            product_id: product.id, // Changed from stockItem.id
-            warehouse_category: values.warehouse_category,
-            quantity: newQuantityInInventory,
+      if (existingInventory) {
+        const { error: updateError } = await supabase
+          .from("warehouse_inventories")
+          .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+          .eq("id", existingInventory.id);
+
+        if (updateError) {
+          throw updateError;
+        }
+      } else if (values.transaction_type === "initial") {
+        const { error: insertError } = await supabase
+          .from("warehouse_inventories")
+          .insert({
             user_id: userId,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "product_id, warehouse_category" }
-        );
+            product_id: values.product_id,
+            warehouse_category: values.warehouse_category,
+            quantity: newQuantity,
+          });
 
-      if (upsertInventoryError) {
-        throw upsertInventoryError;
+        if (insertError) {
+          throw insertError;
+        }
+      } else {
+        showError("Tidak ada inventaris yang ditemukan untuk produk dan kategori ini.");
+        return;
       }
 
-      // Insert into stock_transactions table
+      // Insert into stock_transactions
       const { error: transactionError } = await supabase
         .from("stock_transactions")
         .insert({
           user_id: userId,
-          product_id: product.id, // Changed from stock_item_id
+          product_id: values.product_id,
           transaction_type: values.transaction_type,
           quantity: values.quantity,
-          notes: values.notes || null,
-          transaction_date: format(values.transaction_date, "yyyy-MM-dd"),
-          warehouse_category: values.warehouse_category, // Save the category
+          warehouse_category: values.warehouse_category,
+          notes: values.notes,
+          transaction_date: values.transaction_date,
         });
 
       if (transactionError) {
         throw transactionError;
       }
 
-      showSuccess("Transaksi stok berhasil dicatat!");
-      onOpenChange(false);
+      showSuccess("Transaksi stok berhasil ditambahkan!");
+      form.reset();
+      onOpenChange(false); // Close dialog
       onSuccess();
     } catch (error: any) {
-      showError(`Gagal mencatat transaksi stok: ${error.message}`);
+      showError(`Gagal menambahkan transaksi stok: ${error.message}`);
       console.error("Error adding stock transaction:", error);
     }
   };
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return "-";
-    }
-  };
-
-  const dialogTitle = {
-    in: "Tambah Stok Masuk",
-    out: "Kurangi Stok Keluar",
-    return: "Catat Retur Barang",
-    damage_loss: "Catat Stok Rusak/Hilang",
-  }[transactionTypeWatch];
-
-  const dialogDescription = `Catat transaksi stok untuk produk "${product["NAMA BARANG"]}".`; // Changed message
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogTrigger asChild>
+        {/* This trigger is hidden because the parent controls the dialog */}
+        <Button className="hidden">Tambah Transaksi Stok</Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
-          <DialogDescription>{dialogDescription}</DialogDescription>
+          <DialogTitle>Tambah Transaksi Stok</DialogTitle>
+          <DialogDescription>Catat pergerakan stok barang.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
-              name="transaction_type"
+              name="product_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipe Transaksi</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <FormLabel>Produk</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialProductId}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih tipe transaksi" />
+                        <SelectValue placeholder="Pilih produk" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="in">Stok Masuk</SelectItem>
-                      <SelectItem value="out">Stok Keluar (Manual)</SelectItem>
-                      <SelectItem value="return">Retur Barang</SelectItem>
-                      <SelectItem value="damage_loss">Rusak/Hilang</SelectItem>
+                      {products.map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.kode_barang} - {product.nama_barang}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -227,22 +218,19 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="warehouse_category"
+              name="transaction_type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Kategori Gudang</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingInventories}>
+                  <FormLabel>Tipe Transaksi</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialTransactionType}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={loadingInventories ? "Memuat kategori..." : "Pilih kategori gudang"} />
+                        <SelectValue placeholder="Pilih tipe transaksi" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {["siap_jual", "riset", "retur", "backup_teknisi"].map(category => (
-                        <SelectItem key={category} value={category}>
-                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="outbound">Stok Keluar</SelectItem>
+                      <SelectItem value="initial">Stok Awal</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -264,38 +252,36 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
             />
             <FormField
               control={form.control}
+              name="warehouse_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Gudang</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori gudang" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
+                      <SelectItem value="riset">Riset</SelectItem>
+                      <SelectItem value="retur">Retur</SelectItem>
+                      <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="transaction_date"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
+                <FormItem>
                   <FormLabel>Tanggal Transaksi</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pilih tanggal</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -304,22 +290,24 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
               control={form.control}
               name="notes"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Keterangan (Opsional)</FormLabel>
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Catatan</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Tambahkan keterangan transaksi..." {...field} />
+                    <Textarea {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Simpan Transaksi"
-              )}
-            </Button>
+            <div className="md:col-span-2">
+              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Tambah Transaksi Stok"
+                )}
+              </Button>
+            </div>
           </form>
         </Form>
       </DialogContent>

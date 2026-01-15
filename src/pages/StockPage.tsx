@@ -1,462 +1,357 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { showError, showSuccess } from "@/utils/toast";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, PlusCircle, Edit, Trash2, Package, ArrowUp, ArrowDown } from "lucide-react";
+import { showSuccess, showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
-import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
-import StockMovementForm from "@/components/StockMovementForm";
-import StockAdjustmentForm from "@/components/StockAdjustmentForm";
-import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
-import PaginationControls from "@/components/PaginationControls";
-import ExportDataButton from "@/components/ExportDataButton";
-import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle, SlidersHorizontal, Eye } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
-import { Toggle } from "@/components/ui/toggle";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { format } from "date-fns";
 
-// Define a flattened type for export
-interface FlattenedProductForExport { // Changed from FlattenedStockItemForExport
-  "KODE BARANG": string;
-  "NAMA BARANG": string;
-  SATUAN: string;
-  "HARGA BELI": number;
-  "HARGA JUAL": number;
-  "STOK SIAP JUAL": number;
-  "STOK RISET": number;
-  "STOK RETUR": number;
-  "STOK BACKUP TEKNISI": number; // New category for export
-  "TOTAL STOK AKHIR": number;
-  "BATAS AMAN": number;
-  "CREATED AT": string;
+interface Product {
+  id: string;
+  kode_barang: string;
+  nama_barang: string;
+  satuan?: string;
+  harga_beli: number;
+  harga_jual: number;
+  safe_stock_limit: number;
+  created_at: string;
+  supplier_id?: string;
+  user_id: string;
+  current_stock?: number; // Aggregated stock from warehouse_inventories
 }
 
+interface WarehouseInventory {
+  product_id: string;
+  warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
+  quantity: number;
+}
+
+interface StockTransaction {
+  id: string;
+  product_id: string;
+  transaction_type: 'inbound' | 'outbound' | 'initial' | 'transfer' | 'damage_loss';
+  quantity: number;
+  warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
+  notes?: string;
+  transaction_date: string;
+  created_at: string;
+}
+
+const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
+  switch (category) {
+    case "siap_jual": return "Siap Jual";
+    case "riset": return "Riset";
+    case "retur": return "Retur";
+    case "backup_teknisi": return "Backup Teknisi";
+    default: return "-";
+  }
+};
+
 const StockPage = () => {
-  const [productsData, setProductsData] = useState<Product[]>([]); // Changed from stockData
-  const [filteredProductsData, setFilteredProductsData] = useState<Product[]>([]); // Changed from filteredStockData
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null); // Changed from selectedStockItem
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
+  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
+  const [initialTransactionType, setInitialTransactionType] = React.useState<"outbound" | "initial">("outbound"); // Restricted types
 
-  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
-  const [transactionType, setTransactionType] = useState<"in" | "out" | "return" | "damage_loss" | undefined>(undefined);
+  const { data: products, isLoading, error, refetch: fetchStockItems } = useQuery<Product[], Error>({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
+        .select("*");
 
-  const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
-  const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false);
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [productToView, setProductToView] = useState<Product | null>(null); // Changed from stockItemToView
+      if (productsError) throw productsError;
 
-  const [showLowStockOnly, setShowLowStockOnly] = useState(false);
+      const { data: inventoriesData, error: inventoriesError } = await supabase
+        .from("warehouse_inventories")
+        .select("product_id, quantity");
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+      if (inventoriesError) throw inventoriesError;
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return "-";
-    }
-  };
-
-  const fetchProductsData = useCallback(async () => { // Changed from fetchStockData
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: products, error: productsError } = await supabase // Changed from stockItems
-        .from("products") // Changed from stock_items
-        .select(`
-          id,
-          user_id,
-          kode_barang,
-          nama_barang,
-          satuan,
-          harga_beli,
-          harga_jual,
-          safe_stock_limit,
-          created_at,
-          warehouse_inventories (
-            warehouse_category,
-            quantity
-          )
-        `)
-        .order("nama_barang", { ascending: true });
-
-      if (productsError) {
-        throw productsError;
-      }
-
-      const processedProducts: Product[] = products.map(item => { // Changed from processedStock
-        const inventories = item.warehouse_inventories || [];
-        return {
-          id: item.id,
-          user_id: item.user_id,
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          SATUAN: item.satuan || "",
-          "HARGA BELI": item.harga_beli,
-          "HARGA JUAL": item.harga_jual,
-          safe_stock_limit: item.safe_stock_limit,
-          created_at: item.created_at,
-          inventories: inventories as WarehouseInventory[],
-        };
+      const productStockMap = new Map<string, number>();
+      inventoriesData.forEach(inventory => {
+        productStockMap.set(inventory.product_id, (productStockMap.get(inventory.product_id) || 0) + inventory.quantity);
       });
 
-      setProductsData(processedProducts); // Changed from setStockData
-      setFilteredProductsData(processedProducts); // Changed from setFilteredStockData
-      setCurrentPage(1);
-    } catch (err: any) {
-      setError(`Gagal memuat data produk dari database: ${err.message}`); // Changed message
-      console.error("Error fetching products data:", err); // Changed message
-      showError("Gagal memuat data produk."); // Changed message
-      setProductsData([]); // Changed from setStockData
-      setFilteredProductsData([]); // Changed from setFilteredStockData
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return productsData.map(product => ({
+        ...product,
+        current_stock: productStockMap.get(product.id) || 0,
+      }));
+    },
+  });
 
-  const fetchAllProductsDataForExport = useCallback(async () => { // Changed from fetchAllStockDataForExport
-    try {
-      const { data: products, error: productsError } = await supabase // Changed from stockItems
-        .from("products") // Changed from stock_items
-        .select(`
-          id,
-          user_id,
-          kode_barang,
-          nama_barang,
-          satuan,
-          harga_beli,
-          harga_jual,
-          safe_stock_limit,
-          created_at,
-          warehouse_inventories (
-            warehouse_category,
-            quantity
-          )
-        `)
-        .order("nama_barang", { ascending: true });
-
-      if (productsError) {
-        throw productsError;
-      }
-
-      // Flatten the data for CSV export
-      const flattenedData: FlattenedProductForExport[] = products.map(item => { // Changed from FlattenedStockItemForExport
-        const inventories = item.warehouse_inventories || [];
-        const stockByCategory: { [key: string]: number } = {};
-        inventories.forEach((inv: any) => {
-          stockByCategory[inv.warehouse_category] = inv.quantity;
-        });
-
-        return {
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          SATUAN: item.satuan || "",
-          "HARGA BELI": item.harga_beli,
-          "HARGA JUAL": item.harga_jual,
-          "STOK SIAP JUAL": stockByCategory.siap_jual || 0,
-          "STOK RISET": stockByCategory.riset || 0,
-          "STOK RETUR": stockByCategory.retur || 0,
-          "STOK BACKUP TEKNISI": stockByCategory.backup_teknisi || 0, // Include new category
-          "TOTAL STOK AKHIR": inventories.reduce((sum: number, inv: any) => sum + inv.quantity, 0),
-          "BATAS AMAN": item.safe_stock_limit || 0,
-          "CREATED AT": item.created_at,
-        };
-      });
-      return flattenedData;
-    } catch (err: any) {
-      console.error("Error fetching all products data for export:", err); // Changed message
-      showError("Gagal memuat semua data produk untuk ekspor."); // Changed message
-      return null;
-    }
-  }, []);
-
-  const productHeaders: { key: keyof FlattenedProductForExport; label: string }[] = [ // Changed from stockItemHeaders
-    { key: "KODE BARANG", label: "Kode Barang" },
-    { key: "NAMA BARANG", label: "Nama Barang" },
-    { key: "SATUAN", label: "Satuan" },
-    { key: "HARGA BELI", label: "Harga Beli" },
-    { key: "HARGA JUAL", label: "Harga Jual" },
-    { key: "STOK SIAP JUAL", label: "Stok Siap Jual" },
-    { key: "STOK RISET", label: "Stok Riset" },
-    { key: "STOK RETUR", label: "Stok Retur" },
-    { key: "STOK BACKUP TEKNISI", label: "Stok Backup Teknisi" }, // New header
-    { key: "TOTAL STOK AKHIR", label: "Total Stok Akhir" },
-    { key: "BATAS AMAN", label: "Batas Aman" },
-    { key: "CREATED AT", label: "Created At" },
-  ];
-
-  useEffect(() => {
-    fetchProductsData(); // Changed from fetchStockData
-  }, [fetchProductsData]); // Changed from fetchStockData
-
-  useEffect(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    let filtered = productsData.filter(item => // Changed from stockData
-      item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.inventories?.some(inv => getCategoryDisplay(inv.warehouse_category).toLowerCase().includes(lowerCaseSearchTerm))
-    );
-
-    if (showLowStockOnly) {
-      filtered = filtered.filter(item => {
-        const totalStock = item.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
-        const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
-        return totalStock < limit;
-      });
-    }
-
-    setFilteredProductsData(filtered); // Changed from setFilteredStockData
-    setCurrentPage(1);
-  }, [searchTerm, productsData, showLowStockOnly]); // Changed from stockData
-
-  const handleDeleteProduct = async (productId: string) => { // Changed from handleDeleteStockItem
-    if (!window.confirm("Apakah Anda yakin ingin menghapus produk ini? Ini akan menghapus semua data inventaris dan transaksi terkait.")) { // Changed message
-      return;
-    }
-
-    try {
-      // Supabase RLS with CASCADE should handle deleting related warehouse_inventories, stock_transactions, stock_movements
-      const { error } = await supabase
-        .from("products") // Changed from stock_items
-        .delete()
-        .eq("id", productId); // Changed from stockItemId
-
-      if (error) {
-        throw error;
-      }
-
-      showSuccess("Produk berhasil dihapus!"); // Changed message
-      fetchProductsData(); // Changed from fetchStockData
-    } catch (err: any) {
-      showError(`Gagal menghapus produk: ${err.message}`); // Changed message
-      console.error("Error deleting product:", err); // Changed message
-    }
+  const handleEditClick = (product: Product) => {
+    setSelectedProduct(product);
+    setIsEditModalOpen(true);
   };
 
-  const handleEditClick = (item: Product) => { // Changed from StockItem
-    setSelectedProduct(item); // Changed from setSelectedStockItem
-    setIsEditFormOpen(true);
+  const handleDeleteClick = (product: Product) => {
+    setSelectedProduct(product);
+    setIsDeleteModalOpen(true);
   };
 
-  const handleOpenTransactionForm = (item: Product) => { // Changed from StockItem
-    setSelectedProduct(item); // Changed from setSelectedStockItem
-    setTransactionType(undefined);
+  const handleOpenTransactionForm = (product: Product, type: "outbound" | "initial") => {
+    setSelectedProduct(product);
+    setInitialTransactionType(type);
     setIsTransactionFormOpen(true);
   };
 
-  const handleOpenMovementForm = (item: Product) => { // Changed from StockItem
-    setSelectedProduct(item); // Changed from setSelectedStockItem
-    setIsMovementFormOpen(true);
+  const handleUpdateProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProduct) return;
+
+    const { id, user_id, created_at, current_stock, ...updateData } = selectedProduct; // Exclude non-updatable fields
+
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update(updateData)
+        .eq("id", id);
+
+      if (error) throw error;
+
+      showSuccess("Produk berhasil diperbarui!");
+      setIsEditModalOpen(false);
+      fetchStockItems();
+    } catch (err: any) {
+      showError(`Gagal memperbarui produk: ${err.message}`);
+      console.error("Error updating product:", err);
+    }
   };
 
-  const handleOpenAdjustmentForm = (item: Product) => { // Changed from StockItem
-    setSelectedProduct(item); // Changed from setSelectedStockItem
-    setIsAdjustmentFormOpen(true);
+  const handleDeleteProduct = async () => {
+    if (!selectedProduct) return;
+
+    try {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", selectedProduct.id);
+
+      if (error) throw error;
+
+      showSuccess("Produk berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      fetchStockItems();
+    } catch (err: any) {
+      showError(`Gagal menghapus produk: ${err.message}`);
+      console.error("Error deleting product:", err);
+    }
   };
 
-  const handleViewDetailsClick = (item: Product) => { // Changed from StockItem
-    setProductToView(item); // Changed from setStockItemToView
-    setIsViewDetailsOpen(true);
-  };
+  const filteredProducts = products?.filter((product) =>
+    product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
-  const totalPages = Math.ceil(filteredProductsData.length / itemsPerPage); // Changed from filteredStockData
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredProductsData.slice(startIndex, endIndex); // Changed from filteredStockData
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return <div className="text-red-500">Error loading products: {error.message}</div>;
+  }
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader>
-        <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Data Produk</CardTitle> {/* Changed title */}
-          <div className="flex gap-2">
-            <AddStockItemForm onSuccess={fetchProductsData} /> {/* Still using AddStockItemForm, but it will now handle Product type */}
-            <ExportDataButton
-              fetchDataFunction={fetchAllProductsDataForExport} // Changed from fetchAllStockDataForExport
-              fileName="products.csv" // Changed from stock_items.csv
-              headers={productHeaders} // Changed from stockItemHeaders
-            />
-            <Toggle
-              pressed={showLowStockOnly}
-              onPressedChange={setShowLowStockOnly}
-              aria-label="Toggle low stock filter"
-              className="flex items-center gap-2"
-            >
-              <AlertCircle className="h-4 w-4" />
-              Stok Rendah
-            </Toggle>
-          </div>
-        </div>
-        <CardDescription>Informasi mengenai produk yang tersedia.</CardDescription> {/* Changed description */}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Data Produk</h1>
+
+      <div className="flex justify-between items-center mb-6">
         <Input
-          type="text"
-          placeholder="Cari berdasarkan kode, nama produk, satuan, atau kategori gudang..." // Changed message
+          placeholder="Cari produk..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-4"
+          className="max-w-sm"
         />
-        {filteredProductsData.length > 0 ? ( // Changed from filteredStockData
-          <>
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Kode Barang</TableHead>
-                    <TableHead>Nama Barang</TableHead>
-                    <TableHead>Satuan</TableHead>
-                    <TableHead className="text-right">Harga Beli</TableHead>
-                    <TableHead className="text-right">Harga Jual</TableHead>
-                    <TableHead className="text-right">Stok per Kategori</TableHead>
-                    <TableHead className="text-right">Total Stok Akhir</TableHead>
-                    <TableHead className="text-right">Batas Aman</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentItems.map((item) => {
-                    const totalStock = item.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
-                    const isLowStock = totalStock < (item.safe_stock_limit || 10);
-                    return (
-                      <TableRow key={item.id} className={isLowStock ? "bg-red-50 dark:bg-red-950" : ""}>
-                        <TableCell>{item["KODE BARANG"]}</TableCell>
-                        <TableCell>{item["NAMA BARANG"]}</TableCell>
-                        <TableCell>{item.SATUAN}</TableCell>
-                        <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
-                        <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
-                        <TableCell className="text-right">
-                          {item.inventories && item.inventories.length > 0 ? (
-                            <div className="flex flex-col items-end">
-                              {item.inventories.map(inv => (
-                                <span key={inv.warehouse_category} className="text-xs">
-                                  {getCategoryDisplay(inv.warehouse_category)}: {inv.quantity}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={isLowStock ? "font-bold text-red-600 dark:text-red-400" : ""}>
-                            {totalStock}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
-                        <TableCell className="text-center">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="flex items-center gap-1">
-                                <Settings className="h-4 w-4" /> Atur Produk
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewDetailsClick(item)}>
-                                <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleEditClick(item)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit Produk Metadata
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Tambah/Kurangi Stok
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
-                                <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindahkan Stok Antar Kategori
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
-                                <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleDeleteProduct(item.id!)} className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" /> Hapus Produk
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={(page) => setCurrentPage(page)}
+        <AddStockItemForm onSuccess={fetchStockItems} />
+      </div>
+
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Kode Barang</TableHead>
+              <TableHead>Nama Barang</TableHead>
+              <TableHead>Satuan</TableHead>
+              <TableHead>Harga Beli</TableHead>
+              <TableHead>Harga Jual</TableHead>
+              <TableHead>Stok Saat Ini</TableHead>
+              <TableHead>Batas Stok Aman</TableHead>
+              <TableHead>Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredProducts?.map((product) => (
+              <TableRow key={product.id}>
+                <TableCell className="font-medium">{product.kode_barang}</TableCell>
+                <TableCell>{product.nama_barang}</TableCell>
+                <TableCell>{product.satuan || '-'}</TableCell>
+                <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
+                <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
+                <TableCell>{product.current_stock}</TableCell>
+                <TableCell>{product.safe_stock_limit}</TableCell>
+                <TableCell className="flex space-x-2">
+                  <Button variant="outline" size="sm" onClick={() => handleEditClick(product)}>
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDeleteClick(product)}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "outbound")}>
+                    <ArrowDown className="h-4 w-4" /> Stok Keluar
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "initial")}>
+                    <PlusCircle className="h-4 w-4" /> Stok Awal
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Edit Product Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Produk</DialogTitle>
+            <DialogDescription>
+              Ubah detail produk di sini. Klik simpan saat Anda selesai.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateProduct} className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="kode_barang" className="text-right">
+                Kode Barang
+              </Label>
+              <Input
+                id="kode_barang"
+                value={selectedProduct?.kode_barang || ""}
+                onChange={(e) =>
+                  setSelectedProduct({ ...selectedProduct!, kode_barang: e.target.value })
+                }
+                className="col-span-3"
               />
-            )}
-          </>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada data produk yang tersedia atau cocok dengan pencarian Anda.</p>
-        )}
-      </CardContent>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="nama_barang" className="text-right">
+                Nama Barang
+              </Label>
+              <Input
+                id="nama_barang"
+                value={selectedProduct?.nama_barang || ""}
+                onChange={(e) =>
+                  setSelectedProduct({ ...selectedProduct!, nama_barang: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="satuan" className="text-right">
+                Satuan
+              </Label>
+              <Input
+                id="satuan"
+                value={selectedProduct?.satuan || ""}
+                onChange={(e) =>
+                  setSelectedProduct({ ...selectedProduct!, satuan: e.target.value })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="harga_beli" className="text-right">
+                Harga Beli
+              </Label>
+              <Input
+                id="harga_beli"
+                type="number"
+                value={selectedProduct?.harga_beli || 0}
+                onChange={(e) =>
+                  setSelectedProduct({ ...selectedProduct!, harga_beli: parseFloat(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="harga_jual" className="text-right">
+                Harga Jual
+              </Label>
+              <Input
+                id="harga_jual"
+                type="number"
+                value={selectedProduct?.harga_jual || 0}
+                onChange={(e) =>
+                  setSelectedProduct({ ...selectedProduct!, harga_jual: parseFloat(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="safe_stock_limit" className="text-right">
+                Batas Stok Aman
+              </Label>
+              <Input
+                id="safe_stock_limit"
+                type="number"
+                value={selectedProduct?.safe_stock_limit || 0}
+                onChange={(e) =>
+                  setSelectedProduct({ ...selectedProduct!, safe_stock_limit: parseInt(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit">Simpan Perubahan</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-      {selectedProduct && (
-        <EditStockItemForm // Still using EditStockItemForm, but it will now handle Product type
-          product={selectedProduct}
-          isOpen={isEditFormOpen}
-          onOpenChange={setIsEditFormOpen}
-          onSuccess={fetchProductsData}
-        />
-      )}
+      {/* Delete Product Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Hapus Produk</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus produk "{selectedProduct?.nama_barang}"? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
+            <Button variant="destructive" onClick={handleDeleteProduct}>Hapus</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {selectedProduct && isTransactionFormOpen && (
-        <AddStockTransactionForm // Still using AddStockTransactionForm, but it will now handle Product type
-          product={selectedProduct}
+      {/* Add Stock Transaction Form (controlled by parent) */}
+      {isTransactionFormOpen && selectedProduct && products && (
+        <AddStockTransactionForm
+          products={products}
+          initialProductId={selectedProduct.id}
+          initialTransactionType={initialTransactionType}
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
-          onSuccess={fetchProductsData}
-          initialTransactionType={transactionType}
+          onSuccess={fetchStockItems}
         />
       )}
-
-      {selectedProduct && isMovementFormOpen && (
-        <StockMovementForm // Still using StockMovementForm, but it will now handle Product type
-          product={selectedProduct}
-          isOpen={isMovementFormOpen}
-          onOpenChange={setIsMovementFormOpen}
-          onSuccess={fetchProductsData}
-        />
-      )}
-
-      {selectedProduct && isAdjustmentFormOpen && (
-        <StockAdjustmentForm // Still using StockAdjustmentForm, but it will now handle Product type
-          product={selectedProduct}
-          isOpen={isAdjustmentFormOpen}
-          onOpenChange={setIsAdjustmentFormOpen}
-          onSuccess={fetchProductsData}
-        />
-      )}
-
-      {productToView && (
-        <ViewStockItemDetailsDialog // Still using ViewStockItemDetailsDialog, but it will now handle Product type
-          product={productToView}
-          isOpen={isViewDetailsOpen}
-          onOpenChange={setIsViewDetailsOpen}
-        />
-      )}
-    </Card>
+    </div>
   );
 };
 
