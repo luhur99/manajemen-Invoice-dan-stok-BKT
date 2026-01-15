@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -35,8 +35,9 @@ import {
   Product,
   InvoicePaymentStatus,
   InvoiceType,
-  CustomerTypeEnum, // Corrected import
+  CustomerTypeEnum,
   WarehouseInventory,
+  ScheduleWithDetails, // Import ScheduleWithDetails
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 
@@ -49,7 +50,7 @@ const formSchema = z.object({
   total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
-  customer_type: z.nativeEnum(CustomerTypeEnum).optional(), // Corrected enum usage
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
@@ -70,9 +71,38 @@ interface AddInvoiceFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  initialSchedule?: ScheduleWithDetails | null; // New prop for initial schedule data
 }
 
-const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+// Function to generate INV-YYMMDDXXXX
+const generateInvoiceNumber = async (): Promise<string> => {
+  const today = format(new Date(), "yyMMdd");
+  const prefix = `INV${today}`;
+
+  const { data, error } = await supabase
+    .from("invoices")
+    .select("invoice_number")
+    .like("invoice_number", `${prefix}%`)
+    .order("invoice_number", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error("Error fetching latest invoice number:", error);
+    return `${prefix}${Date.now().toString().slice(-4)}`; // Fallback
+  }
+
+  let sequence = 1;
+  if (data && data.length > 0 && data[0].invoice_number) {
+    const latestInvoiceNumber = data[0].invoice_number;
+    const currentSequence = parseInt(latestInvoiceNumber.substring(8), 10); // Get last 4 digits
+    if (!isNaN(currentSequence)) {
+      sequence = currentSequence + 1;
+    }
+  }
+  return `${prefix}${String(sequence).padStart(4, '0')}`;
+};
+
+const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess, initialSchedule }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -138,6 +168,37 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
     fetchProducts();
   }, []);
+
+  // Effect to handle initial schedule data and generate invoice number
+  React.useEffect(() => {
+    if (isOpen) {
+      const resetFormWithDefaults = async () => {
+        const newInvoiceNumber = await generateInvoiceNumber();
+        let defaultNotes = "";
+        if (initialSchedule?.do_number) {
+          defaultNotes = `DO Number: ${initialSchedule.do_number}`;
+        }
+
+        form.reset({
+          invoice_number: newInvoiceNumber,
+          invoice_date: new Date(),
+          due_date: undefined,
+          customer_name: initialSchedule?.customer_name || "",
+          company_name: undefined, // Can be fetched from customer if customer_id is available
+          total_amount: 0,
+          payment_status: InvoicePaymentStatus.PENDING,
+          type: undefined,
+          customer_type: undefined,
+          payment_method: initialSchedule?.payment_method || undefined,
+          notes: defaultNotes,
+          courier_service: initialSchedule?.courier_service || undefined,
+          items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+        });
+      };
+      resetFormWithDefaults();
+    }
+  }, [isOpen, initialSchedule, form]);
+
 
   const calculateTotalAmount = React.useCallback(() => {
     const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
@@ -268,7 +329,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   <FormItem>
                     <FormLabel>Nomor Invoice</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input {...field} readOnly className="bg-gray-100" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

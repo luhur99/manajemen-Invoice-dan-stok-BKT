@@ -241,6 +241,7 @@ export interface Schedule {
   document_url?: string;
   scheduling_request_id?: string; // New field
   do_number?: string; // New field
+  payment_method?: string; // Added payment_method here
 }
 
 // New interface for Schedule with invoice number and 'no'

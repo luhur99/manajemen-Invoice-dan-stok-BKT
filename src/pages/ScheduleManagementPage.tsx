@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, CheckCircle } from "lucide-react";
+import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, CheckCircle, ReceiptText } from "lucide-react"; // Import ReceiptText icon
 import { showSuccess, showError } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
 import EditScheduleForm from "@/components/EditScheduleForm";
@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { format } from "date-fns";
 import { ScheduleWithDetails, ScheduleStatus } from "@/types/data";
 import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload";
+import AddInvoiceForm from "@/components/AddInvoiceForm"; // Added this import
 
 const getStatusColor = (status: ScheduleStatus) => {
   switch (status) {
@@ -37,11 +38,13 @@ const ScheduleManagementPage = () => {
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
-  const [isCompleteModalOpen, setIsCompleteModalOpen] = React.useState(false); // New state for complete dialog
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = React.useState(false);
   const [selectedSchedule, setSelectedSchedule] = React.useState<ScheduleWithDetails | null>(null);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [scheduleToView, setScheduleToView] = React.useState<ScheduleWithDetails | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = React.useState(false);
+  const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = React.useState(false); // New state for create invoice modal
+  const [scheduleForInvoiceCreation, setScheduleForInvoiceCreation] = React.useState<ScheduleWithDetails | null>(null); // New state for schedule data to pass to invoice form
 
   const { data: schedules, isLoading, error, refetch: fetchSchedules } = useQuery<ScheduleWithDetails[], Error>({
     queryKey: ["schedules"],
@@ -119,6 +122,11 @@ const ScheduleManagementPage = () => {
     }
   };
 
+  const handleCreateInvoiceClick = (schedule: ScheduleWithDetails) => {
+    setScheduleForInvoiceCreation(schedule);
+    setIsCreateInvoiceModalOpen(true);
+  };
+
   const handleDeleteSchedule = async () => {
     if (!selectedSchedule) return;
 
@@ -151,8 +159,7 @@ const ScheduleManagementPage = () => {
       item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.do_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by DO number
-      item.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by SR number
-      format(new Date(item.schedule_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
+      item.sr_number?.toLowerCase().includes(lowerCaseSearchTerm)
     );
   });
 
@@ -190,14 +197,11 @@ const ScheduleManagementPage = () => {
             <TableRow>
               <TableHead className="w-[50px]">No</TableHead>
               <TableHead>No. DO</TableHead>
-              {/* <TableHead>No. SR</TableHead> Removed as per user request */}
               <TableHead>Tanggal</TableHead>
               <TableHead>Waktu</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Pelanggan</TableHead>
-              {/* <TableHead>Alamat</TableHead> Removed as per user request */}
               <TableHead>Teknisi</TableHead>
-              {/* <TableHead>No. Invoice Terkait</TableHead> Removed as per user request */}
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
@@ -207,14 +211,11 @@ const ScheduleManagementPage = () => {
               <TableRow key={schedule.id}>
                 <TableCell>{schedule.no}</TableCell>
                 <TableCell>{schedule.do_number || "-"}</TableCell>
-                {/* <TableCell>{schedule.sr_number || "-"}</TableCell> Removed as per user request */}
                 <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{schedule.schedule_time || "-"}</TableCell>
                 <TableCell>{schedule.type}</TableCell>
                 <TableCell>{schedule.customer_name}</TableCell>
-                {/* <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell> Removed as per user request */}
                 <TableCell>{schedule.technician_name || "-"}</TableCell>
-                {/* <TableCell>{schedule.invoice_number || "-"}</TableCell> Removed as per user request */}
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(schedule.status)}`}>
                     {schedule.status.charAt(0).toUpperCase() + schedule.status.slice(1)}
@@ -238,6 +239,11 @@ const ScheduleManagementPage = () => {
                   <Button variant="outline" size="icon" onClick={() => handleUploadClick(schedule)} title="Unggah Dokumen">
                     <FileText className="h-4 w-4" />
                   </Button>
+                  {schedule.status === ScheduleStatus.COMPLETED && (
+                    <Button variant="outline" size="icon" onClick={() => handleCreateInvoiceClick(schedule)} title="Buat Invoice">
+                      <ReceiptText className="h-4 w-4 text-purple-600" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -275,6 +281,19 @@ const ScheduleManagementPage = () => {
           isOpen={isUploadModalOpen}
           onOpenChange={setIsUploadModalOpen}
           onSuccess={fetchSchedules}
+        />
+      )}
+
+      {/* Add Invoice Form (triggered by "Buat Invoice" button) */}
+      {scheduleForInvoiceCreation && (
+        <AddInvoiceForm
+          isOpen={isCreateInvoiceModalOpen}
+          onOpenChange={setIsCreateInvoiceModalOpen}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate invoices cache
+            fetchSchedules(); // Refresh schedules to reflect any changes if needed
+          }}
+          initialSchedule={scheduleForInvoiceCreation}
         />
       )}
 
