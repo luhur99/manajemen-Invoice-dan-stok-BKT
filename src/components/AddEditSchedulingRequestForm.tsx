@@ -132,7 +132,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       contact_person: "",
       phone_number: "",
       payment_method: null,
-      status: SchedulingRequestStatus.PENDING,
+      status: SchedulingRequestStatus.PENDING, // Default status for new requests
       notes: null,
       invoice_id: null,
       technician_name: null, // New field
@@ -226,7 +226,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             contact_person: "",
             phone_number: "",
             payment_method: null,
-            status: SchedulingRequestStatus.PENDING,
+            status: SchedulingRequestStatus.PENDING, // Default status for new requests
             notes: null,
             invoice_id: null,
             technician_name: null,
@@ -280,7 +280,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         contact_person: values.contact_person.trim(),
         phone_number: values.phone_number.trim(),
         payment_method: values.payment_method?.trim() || null,
-        status: values.status,
+        status: initialData ? values.status : SchedulingRequestStatus.PENDING, // Use default PENDING for new requests
         notes: values.notes?.trim() || null,
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL) ? values.invoice_id : null,
         technician_name: values.technician_name?.trim() || null, // Include technician name
@@ -581,30 +581,33 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(SchedulingRequestStatus).map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Only render status field if initialData exists (i.e., editing an existing request) */}
+            {initialData && (
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih status" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(SchedulingRequestStatus).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             {/* Conditional Notes Field */}
             {(watchedStatus === SchedulingRequestStatus.RESCHEDULED ||
               watchedStatus === SchedulingRequestStatus.REJECTED ||
