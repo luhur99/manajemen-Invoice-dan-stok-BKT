@@ -152,6 +152,7 @@ export interface Profile {
 export interface PurchaseRequest {
   id: string;
   user_id?: string;
+  pr_number?: string; // Added pr_number here
   item_name: string;
   item_code: string;
   quantity: number;

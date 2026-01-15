@@ -37,6 +37,7 @@ import { Terminal } from "lucide-react";
 
 const purchaseRequestSchema = z.object({
   id: z.string().uuid().optional(), // Add id for update scenarios
+  pr_number: z.string().optional(), // Added pr_number to schema
   item_name: z.string().min(1, "Nama item wajib diisi"),
   item_code: z.string().min(1, "Kode item wajib diisi"),
   quantity: z.number().min(1, "Kuantitas minimal 1"),
@@ -57,13 +58,45 @@ const purchaseRequestSchema = z.object({
   satuan: z.string().optional().nullable(),
 });
 
+const generatePrNumber = async (): Promise<string> => {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const prefix = `PR-${format(new Date(), "yyyyMMdd")}`;
+
+  // Fetch the count of PRs created today
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("pr_number")
+    .like("pr_number", `${prefix}%`)
+    .order("pr_number", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error("Error fetching latest PR number:", error);
+    // Fallback to a less ideal but unique number
+    return `${prefix}-${Date.now().toString().slice(-4)}`;
+  }
+
+  let sequence = 1;
+  if (data && data.length > 0 && data[0].pr_number) {
+    const latestPrNumber = data[0].pr_number;
+    const parts = latestPrNumber.split('-');
+    const lastPart = parts[parts.length - 1];
+    const currentSequence = parseInt(lastPart, 10);
+    if (!isNaN(currentSequence)) {
+      sequence = currentSequence + 1;
+    }
+  }
+
+  return `${prefix}-${String(sequence).padStart(4, '0')}`;
+};
+
 const PurchaseRequestPage = () => {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isViewReceiptDialogOpen, setIsViewReceiptDialogOpen] = useState(false);
-  const [isCloseRequestDialogOpen, setIsCloseRequestDialogOpen] = useState(false); // New state for close request modal
+  const [isCloseRequestDialogOpen, setIsCloseRequestDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [currentReceiptUrl, setCurrentReceiptUrl] = useState<string | null>(null);
@@ -118,6 +151,7 @@ const PurchaseRequestPage = () => {
   const form = useForm<z.infer<typeof purchaseRequestSchema>>({
     resolver: zodResolver(purchaseRequestSchema),
     defaultValues: {
+      pr_number: "", // Added default value
       item_name: "",
       item_code: "",
       quantity: 1,
@@ -265,7 +299,7 @@ const PurchaseRequestPage = () => {
         event_type: StockEventType.IN,
         quantity: formData.received_quantity,
         to_warehouse_category: formData.target_warehouse_category,
-        notes: `Penerimaan dari permintaan pembelian #${selectedRequest.item_code}. ${formData.received_notes || ''}`,
+        notes: `Penerimaan dari permintaan pembelian #${selectedRequest.pr_number || selectedRequest.item_code}. ${formData.received_notes || ''}`, // Included pr_number
         event_date: new Date().toISOString().split('T')[0],
       });
 
@@ -319,9 +353,11 @@ const PurchaseRequestPage = () => {
     },
   });
 
-  const handleAddRequest = () => {
+  const handleAddRequest = async () => { // Made async to await generatePrNumber
     setSelectedRequest(null);
+    const newPrNumber = await generatePrNumber(); // Generate PR number
     reset({
+      pr_number: newPrNumber, // Set generated PR number
       item_name: "",
       item_code: "",
       quantity: 1,
@@ -348,15 +384,12 @@ const PurchaseRequestPage = () => {
     setSelectedRequest(request);
     reset({
       ...request,
+      pr_number: request.pr_number || "", // Ensure pr_number is set for edit
       quantity: request.quantity || 0,
       unit_price: request.unit_price || 0,
       suggested_selling_price: request.suggested_selling_price || 0,
       total_price: request.total_price || 0,
       status: request.status || PurchaseRequestStatus.PENDING,
-      // These fields are now handled by the close request modal, so no need to pre-fill here
-      // received_quantity: request.received_quantity || 0,
-      // returned_quantity: request.returned_quantity || 0,
-      // damaged_quantity: request.damaged_quantity || 0,
     });
     setIsDialogOpen(true);
   };
@@ -432,13 +465,11 @@ const PurchaseRequestPage = () => {
     setIsViewReceiptDialogOpen(true);
   };
 
-  // Modified to open the new modal
   const handleCloseRequest = (request: PurchaseRequest) => {
     setSelectedRequest(request);
-    // Pre-fill the form for the close request modal
     form.reset({
       ...request,
-      received_quantity: request.received_quantity || request.quantity, // Default to requested quantity
+      received_quantity: request.received_quantity || request.quantity,
       returned_quantity: request.returned_quantity || 0,
       damaged_quantity: request.damaged_quantity || 0,
       target_warehouse_category: request.target_warehouse_category || null,
@@ -483,6 +514,7 @@ const PurchaseRequestPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>No. PR</TableHead> {/* Added new column */}
               <TableHead>Item</TableHead>
               <TableHead>Kode</TableHead>
               <TableHead>Kuantitas</TableHead>
@@ -496,6 +528,7 @@ const PurchaseRequestPage = () => {
           <TableBody>
             {purchaseRequests?.map((request) => (
               <TableRow key={request.id}>
+                <TableCell>{request.pr_number || "-"}</TableCell> {/* Display pr_number */}
                 <TableCell>{request.item_name}</TableCell>
                 <TableCell>{request.item_code}</TableCell>
                 <TableCell>{request.quantity} {request.satuan}</TableCell>
@@ -563,6 +596,13 @@ const PurchaseRequestPage = () => {
             }
           })} className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pr_number" className="text-right">
+                No. PR
+              </Label>
+              <Input id="pr_number" {...register("pr_number")} className="col-span-3" readOnly />
+              {errors.pr_number && <p className="col-span-4 text-red-500 text-sm">{errors.pr_number.message}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="product_id" className="text-right">
                 Produk
               </Label>
@@ -603,7 +643,7 @@ const PurchaseRequestPage = () => {
                 Kuantitas
               </Label>
               <Input id="quantity" type="number" {...register("quantity", { valueAsNumber: true })} className="col-span-3" />
-              {errors.quantity && <p className="col-span-4 text-red-500 text-sm">{errors.quantity.message}</p>} {/* Fixed here */}
+              {errors.quantity && <p className="col-span-4 text-red-500 text-sm">{errors.quantity.message}</p>}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="satuan" className="text-right">
@@ -768,6 +808,12 @@ const PurchaseRequestPage = () => {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit((data) => confirmCloseRequestMutation.mutate(data))} className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="pr_number_display" className="text-right">
+                No. PR
+              </Label>
+              <Input id="pr_number_display" value={selectedRequest?.pr_number || "-"} className="col-span-3" readOnly />
+            </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="requested_quantity" className="text-right">
                 Kuantitas Diajukan
