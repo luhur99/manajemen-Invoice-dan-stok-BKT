@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm, useFieldArray, Path } from "react-hook-form"; // Path is still imported but not used in useFieldArray generics
+import { useForm, useFieldArray, Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -28,34 +28,34 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react"; // Import PlusCircle and Trash2
+import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, CustomerTypeEnum } from "@/types/data"; // Import Invoice and Customer, CustomerTypeEnum
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, CustomerTypeEnum } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
-import { useQuery } from "@tanstack/react-query"; // Import useQuery
-import CustomerCombobox from "./CustomerCombobox"; // Import CustomerCombobox
+import { useQuery } from "@tanstack/react-query";
+import CustomerCombobox from "./CustomerCombobox";
 
 const formSchema = z.object({
   sr_number: z.string().optional(),
-  customer_id: z.string().uuid().optional().nullable(), // New field for customer_id
+  customer_id: z.string().uuid().optional().nullable(),
   customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
   company_name: z.string().optional(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
   vehicle_units: z.coerce.number().int().min(0, "Jumlah unit kendaraan tidak boleh negatif.").default(0),
-  vehicle_type: z.array(z.string()).default([]), // Changed to non-optional array with default
-  vehicle_year: z.array(z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.")).default([]), // Changed to non-optional array with default
+  vehicle_type: z.array(z.string()).default([]),
+  vehicle_year: z.array(z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.")).default([]),
   full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
   landmark: z.string().optional(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
   requested_time: z.string().optional(),
   contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
   phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  customer_type: z.nativeEnum(CustomerTypeEnum).optional(), // Changed to enum
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
   payment_method: z.string().optional(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
   notes: z.string().optional(),
-  invoice_id: z.string().uuid().optional().nullable(), // New field for conditional invoice
+  invoice_id: z.string().uuid().optional().nullable(),
 });
 
 interface AddEditSchedulingRequestFormProps {
@@ -78,12 +78,12 @@ const generateSrNumber = async (): Promise<string> => {
 
   if (error) {
     console.error("Error fetching latest SR number:", error);
-    return `${prefix}-${Date.now().toString().slice(-4)}`; // Fallback
+    return `${prefix}-${Date.now().toString().slice(-4)}`;
   }
 
   let sequence = 1;
   if (data && data.length > 0 && data[0].sr_number) {
-    const latestSrNumber = data[0].sr_number;
+    const latestSrNumber = data[0].sr_number; // Corrected from pr_number
     const parts = latestSrNumber.split('-');
     const lastPart = parts[parts.length - 1];
     const currentSequence = parseInt(lastPart, 10);
@@ -126,14 +126,18 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     },
   });
 
-  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray({
+  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray<
+    z.infer<typeof formSchema> // Only one generic type
+  >({
     control: form.control,
-    name: "vehicle_type", // Removed explicit generic type
+    name: "vehicle_type",
   });
 
-  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray({
+  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray<
+    z.infer<typeof formSchema> // Only one generic type
+  >({
     control: form.control,
-    name: "vehicle_year", // Removed explicit generic type
+    name: "vehicle_year",
   });
 
   const watchedVehicleUnits = form.watch("vehicle_units");
@@ -141,10 +145,9 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   const watchedCustomerId = form.watch("customer_id");
   const [customerSearchInput, setCustomerSearchInput] = useState("");
 
-  // Fetch invoices for conditional input
   const { data: invoices, isLoading: loadingInvoices, error: invoicesError } = useQuery<Invoice[], Error>({
     queryKey: ["invoices"],
-    queryFn: async (): Promise<Invoice[]> => { // Explicitly define return type
+    queryFn: async (): Promise<Invoice[]> => {
       const { data, error } = await supabase
         .from("invoices")
         .select(`
@@ -163,18 +166,17 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           notes,
           document_url,
           courier_service
-        `) // Select all fields to match Invoice interface
+        `)
         .order("invoice_number", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar invoice.");
         throw error;
       }
-      return data as Invoice[]; // Cast data to Invoice[]
+      return data as Invoice[];
     },
     enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID,
   });
 
-  // Fetch customers for combobox
   const { data: customers, isLoading: loadingCustomers, error: customersError } = useQuery<Customer[], Error>({
     queryKey: ["customers"],
     queryFn: async () => {
@@ -201,14 +203,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           vehicle_year: initialData.vehicle_year || [],
           sr_number: initialData.sr_number || "",
           invoice_id: initialData.invoice_id || null,
-          // customer_id will be set if initialData has it, otherwise it's null
           customer_name: initialData.customer_name || "",
           company_name: initialData.company_name || "",
           full_address: initialData.full_address || "",
           phone_number: initialData.phone_number || "",
           customer_type: initialData.customer_type as CustomerTypeEnum || undefined,
         });
-        // If initialData has a customer_name, set the combobox input value
         if (initialData.customer_name) {
           setCustomerSearchInput(initialData.customer_name);
         }
@@ -235,13 +235,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             notes: "",
             invoice_id: null,
           });
-          setCustomerSearchInput(""); // Clear combobox input for new form
+          setCustomerSearchInput("");
         });
       }
     }
   }, [isOpen, initialData, form]);
 
-  // Sync vehicle_type and vehicle_year arrays with vehicle_units
   useEffect(() => {
     const currentVehicleTypes = form.getValues("vehicle_type") || [];
     const currentVehicleYears = form.getValues("vehicle_year") || [];
@@ -259,7 +258,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     }
   }, [watchedVehicleUnits, appendVehicleType, removeVehicleType, appendVehicleYear, removeVehicleYearField, form]);
 
-  // Populate form fields when a customer is selected from combobox
   const handleCustomerSelect = (customer: Customer | undefined) => {
     if (customer) {
       form.setValue("customer_id", customer.id);
@@ -268,7 +266,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("full_address", customer.address || "");
       form.setValue("phone_number", customer.phone_number || "");
       form.setValue("customer_type", customer.customer_type);
-      setCustomerSearchInput(customer.customer_name); // Keep selected customer name in combobox input
+      setCustomerSearchInput(customer.customer_name);
     } else {
       form.setValue("customer_id", null);
       form.setValue("customer_name", "");
@@ -276,7 +274,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("full_address", "");
       form.setValue("phone_number", "");
       form.setValue("customer_type", undefined);
-      setCustomerSearchInput(""); // Clear combobox input
+      setCustomerSearchInput("");
     }
   };
 
@@ -295,11 +293,11 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         vehicle_type: values.vehicle_type?.filter(type => type !== "") || null,
         vehicle_units: values.vehicle_units || 0,
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
-        customer_id: values.customer_id || null, // Ensure customer_id is passed
-        customer_name: values.customer_name, // Keep for now, will be removed after full migration
-        company_name: values.company_name, // Keep for now
-        phone_number: values.phone_number, // Keep for now
-        customer_type: values.customer_type || null, // Keep for now
+        customer_id: values.customer_id || null,
+        customer_name: values.customer_name,
+        company_name: values.company_name,
+        phone_number: values.phone_number,
+        customer_type: values.customer_type || null,
       };
 
       if (initialData) {
@@ -430,7 +428,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               )}
             />
 
-            {/* Conditional Invoice ID Input */}
             {(watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) && (
               <FormField
                 control={form.control}
@@ -445,7 +442,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {invoices?.map((invoice: Invoice) => ( // Explicitly cast invoice to Invoice
+                        {invoices?.map((invoice: Invoice) => (
                           <SelectItem key={invoice.id} value={invoice.id}>
                             {invoice.invoice_number}
                           </SelectItem>
@@ -472,7 +469,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               )}
             />
 
-            {/* Dynamic Vehicle Type and Year Inputs */}
             {Array.from({ length: watchedVehicleUnits }).map((_, index) => (
               <React.Fragment key={index}>
                 <FormField
@@ -657,7 +653,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 </FormItem>
               )}
             />
-            {initialData && ( // Status is only editable for existing requests
+            {initialData && (
               <FormField
                 control={form.control}
                 name="status"
