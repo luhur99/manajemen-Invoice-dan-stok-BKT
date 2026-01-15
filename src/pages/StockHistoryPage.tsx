@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockTransactionWithItemName, TransactionType, WarehouseCategory } from "@/types/data";
+import { StockTransactionWithItemName, TransactionType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { showError } from "@/utils/toast"; // Import showError
 
 const getTransactionTypeDisplay = (type: TransactionType) => {
   switch (type) {
@@ -20,20 +21,31 @@ const getTransactionTypeDisplay = (type: TransactionType) => {
   }
 };
 
-const getCategoryDisplay = (category?: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return "-";
-  }
-};
-
 const StockHistoryPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedType, setSelectedType] = React.useState<TransactionType | "all">("all");
-  const [selectedCategory, setSelectedCategory] = React.useState<WarehouseCategory | "all">("all");
+  const [selectedCategory, setSelectedCategory] = React.useState<string | "all">("all"); // Changed to string
+  
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const { data: transactions, isLoading, error, refetch: fetchTransactions } = useQuery<StockTransactionWithItemName[], Error>({
     queryKey: ["stockTransactions"],
@@ -63,7 +75,7 @@ const StockHistoryPage = () => {
       item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (item.warehouse_category && getCategoryDisplay(item.warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+      (item.warehouse_category && getCategoryDisplayName(item.warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
       format(new Date(item.transaction_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
 
     const matchesType = selectedType === "all" || item.transaction_type === selectedType;
@@ -72,7 +84,7 @@ const StockHistoryPage = () => {
     return matchesSearch && matchesType && matchesCategory;
   });
 
-  if (isLoading) {
+  if (isLoading || loadingCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -80,8 +92,8 @@ const StockHistoryPage = () => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-500">Error loading stock transactions: {error.message}</div>;
+  if (error || categoriesError) {
+    return <div className="text-red-500">Error loading stock transactions or categories: {error?.message || categoriesError?.message}</div>;
   }
 
   return (
@@ -115,16 +127,17 @@ const StockHistoryPage = () => {
 
           <Select
             value={selectedCategory}
-            onValueChange={(value: WarehouseCategory | "all") => setSelectedCategory(value)}
+            onValueChange={(value: string | "all") => setSelectedCategory(value)}
+            disabled={loadingCategories}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter Kategori" />
+              <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Filter Kategori"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Kategori</SelectItem>
-              {Object.values(WarehouseCategory).map((category) => (
-                <SelectItem key={category} value={category}>
-                  {getCategoryDisplay(category)}
+              {warehouseCategories?.map((category) => (
+                <SelectItem key={category.id} value={category.code}>
+                  {category.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -165,7 +178,7 @@ const StockHistoryPage = () => {
                       {getTransactionTypeDisplay(transaction.transaction_type)}
                     </span>
                   </TableCell>
-                  <TableCell>{transaction.warehouse_category ? getCategoryDisplay(transaction.warehouse_category) : "-"}</TableCell>
+                  <TableCell>{transaction.warehouse_category ? getCategoryDisplayName(transaction.warehouse_category) : "-"}</TableCell>
                   <TableCell className="text-right">{transaction.quantity}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{transaction.notes || "-"}</TableCell>
                 </TableRow>

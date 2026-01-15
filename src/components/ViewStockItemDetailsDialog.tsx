@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Product, StockTransactionWithItemName, WarehouseInventory, WarehouseCategory, TransactionType } from "@/types/data";
+import { Product, StockTransactionWithItemName, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data"; // Import the interface
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -22,30 +22,41 @@ interface ViewStockItemDetailsDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-const getCategoryDisplay = (category: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return category;
-  }
-};
-
-const getTransactionTypeDisplay = (type: TransactionType) => {
-  switch (type) {
-    case TransactionType.INITIAL: return "Stok Awal";
-    case TransactionType.IN: return "Masuk";
-    case TransactionType.OUT: return "Keluar";
-    default: return type;
-  }
-};
-
 const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
   product,
   isOpen,
   onOpenChange,
 }) => {
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
+
+  const getTransactionTypeDisplay = (type: TransactionType) => {
+    switch (type) {
+      case TransactionType.INITIAL: return "Stok Awal";
+      case TransactionType.IN: return "Masuk";
+      case TransactionType.OUT: return "Keluar";
+      default: return type;
+    }
+  };
+
   const { data: inventories, isLoading: loadingInventories, error: inventoriesError } = useQuery<WarehouseInventory[], Error>({
     queryKey: ["productInventories", product.id],
     queryFn: async () => {
@@ -80,7 +91,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     enabled: isOpen,
   });
 
-  if (loadingInventories || loadingTransactions) {
+  if (loadingInventories || loadingTransactions || loadingCategories) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[700px]">
@@ -96,7 +107,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     );
   }
 
-  if (inventoriesError || transactionsError) {
+  if (inventoriesError || transactionsError || categoriesError) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[700px]">
@@ -104,7 +115,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
             <DialogTitle>Detail Produk Stok</DialogTitle>
             <DialogDescription>Terjadi kesalahan saat memuat detail produk.</DialogDescription>
           </DialogHeader>
-          <div className="text-red-500">Error: {inventoriesError?.message || transactionsError?.message}</div>
+          <div className="text-red-500">Error: {inventoriesError?.message || transactionsError?.message || categoriesError?.message}</div>
         </DialogContent>
       </Dialog>
     );
@@ -149,7 +160,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
                 ) : (
                   inventories?.map((inv) => (
                     <TableRow key={inv.id}>
-                      <TableCell>{getCategoryDisplay(inv.warehouse_category)}</TableCell>
+                      <TableCell>{getCategoryDisplayName(inv.warehouse_category)}</TableCell>
                       <TableCell className="text-right">{inv.quantity}</TableCell>
                     </TableRow>
                   ))
@@ -182,7 +193,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
                     <TableRow key={t.id}>
                       <TableCell>{format(new Date(t.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{getTransactionTypeDisplay(t.transaction_type)}</TableCell>
-                      <TableCell>{t.warehouse_category ? getCategoryDisplay(t.warehouse_category) : "-"}</TableCell>
+                      <TableCell>{t.warehouse_category ? getCategoryDisplayName(t.warehouse_category) : "-"}</TableCell>
                       <TableCell className="text-right">{t.quantity}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{t.notes || "-"}</TableCell>
                     </TableRow>

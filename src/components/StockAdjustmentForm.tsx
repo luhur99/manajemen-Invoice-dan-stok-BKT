@@ -20,51 +20,64 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
+import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
 import { format } from "date-fns";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], {
+  warehouse_category: z.string({ // Changed to string
     required_error: "Kategori Gudang wajib dipilih",
-  }),
+  }).min(1, "Kategori Gudang wajib dipilih"),
   new_quantity: z.coerce.number().min(0, "Kuantitas baru tidak boleh negatif"),
   reason: z.string().min(1, "Alasan penyesuaian wajib diisi"),
 });
 
 interface StockAdjustmentFormProps {
-  product: Product; // Changed from stockItem
+  product: Product;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
-const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-  switch (category) {
-    case "siap_jual": return "Siap Jual";
-    case "riset": return "Riset";
-    case "retur": return "Retur";
-    case "backup_teknisi": return "Backup Teknisi";
-    default: return "-";
-  }
-};
-
 const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
-  product, // Changed from stockItem
+  product,
   isOpen,
   onOpenChange,
   onSuccess,
 }) => {
   const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
   const [loadingInventories, setLoadingInventories] = useState(true);
+  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  const fetchWarehouseCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    const { data, error } = await supabase
+      .from("warehouse_categories")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      showError("Gagal memuat kategori gudang.");
+      console.error("Error fetching warehouse categories:", error);
+    } else {
+      setWarehouseCategories(data as WarehouseCategoryType[]);
+    }
+    setLoadingCategories(false);
+  }, []);
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const fetchInventories = useCallback(async () => {
-    if (!product?.id) return; // Changed from stockItem?.id
+    if (!product?.id) return;
     setLoadingInventories(true);
     const { data, error } = await supabase
       .from("warehouse_inventories")
       .select("*")
-      .eq("product_id", product.id); // Changed from stockItem.id
+      .eq("product_id", product.id);
 
     if (error) {
       showError("Gagal memuat inventaris item.");
@@ -74,31 +87,34 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
       setCurrentInventories(data as WarehouseInventory[]);
     }
     setLoadingInventories(false);
-  }, [product?.id]); // Changed from stockItem?.id
+  }, [product?.id]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      warehouse_category: product.inventories?.[0]?.warehouse_category || "siap_jual", // Changed from stockItem.inventories
-      new_quantity: 0, // Will be set in useEffect
+      warehouse_category: "", // Default empty string
+      new_quantity: 0,
       reason: "",
     },
   });
 
-  // Update default new_quantity when category changes or dialog opens
   useEffect(() => {
     if (isOpen) {
+      fetchWarehouseCategories();
       fetchInventories().then(() => {
-        const defaultCategory = product.inventories?.[0]?.warehouse_category || "siap_jual"; // Changed from stockItem.inventories
-        const initialQuantity = currentInventories.find(inv => inv.warehouse_category === defaultCategory)?.quantity || 0;
-        form.reset({
-          warehouse_category: defaultCategory,
-          new_quantity: initialQuantity,
-          reason: "",
-        });
+        // Set default category and quantity after categories and inventories are loaded
+        if (warehouseCategories.length > 0) {
+          const defaultCategoryCode = product.inventories?.[0]?.warehouse_category || warehouseCategories[0].code;
+          const initialQuantity = currentInventories.find(inv => inv.warehouse_category === defaultCategoryCode)?.quantity || 0;
+          form.reset({
+            warehouse_category: defaultCategoryCode,
+            new_quantity: initialQuantity,
+            reason: "",
+          });
+        }
       });
     }
-  }, [isOpen, product, form, fetchInventories, currentInventories.length]); // Depend on currentInventories.length to re-run after fetch
+  }, [isOpen, product, form, fetchInventories, fetchWarehouseCategories, warehouseCategories.length, currentInventories.length]);
 
   const selectedCategory = form.watch("warehouse_category");
   const currentQuantityForSelectedCategory = currentInventories.find(
@@ -131,7 +147,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
         .from("warehouse_inventories")
         .upsert(
           {
-            product_id: product.id, // Changed from stockItem.id
+            product_id: product.id,
             warehouse_category: values.warehouse_category,
             quantity: newQuantity,
             user_id: userId,
@@ -149,10 +165,10 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
         .from("stock_transactions")
         .insert({
           user_id: userId,
-          product_id: product.id, // Changed from stock_item_id
+          product_id: product.id,
           transaction_type: 'adjustment',
-          quantity: Math.abs(difference), // Record the absolute change
-          notes: `Penyesuaian stok di kategori ${getCategoryDisplay(values.warehouse_category)} dari ${oldQuantity} menjadi ${newQuantity}. Alasan: ${values.reason}`,
+          quantity: Math.abs(difference),
+          notes: `Penyesuaian stok di kategori ${getCategoryDisplayName(values.warehouse_category)} dari ${oldQuantity} menjadi ${newQuantity}. Alasan: ${values.reason}`,
           transaction_date: format(new Date(), "yyyy-MM-dd"),
           warehouse_category: values.warehouse_category,
         });
@@ -174,8 +190,8 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Penyesuaian Stok Produk</DialogTitle> {/* Changed title */}
-          <DialogDescription>Sesuaikan kuantitas stok untuk produk "{product.nama_barang}" di kategori tertentu.</DialogDescription> {/* Changed description */}
+          <DialogTitle>Penyesuaian Stok Produk</DialogTitle>
+          <DialogDescription>Sesuaikan kuantitas stok untuk produk "{product.nama_barang}" di kategori tertentu.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -189,16 +205,16 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
                     field.onChange(value);
                     const quantityForNewCategory = currentInventories.find(inv => inv.warehouse_category === value)?.quantity || 0;
                     form.setValue("new_quantity", quantityForNewCategory);
-                  }} value={field.value} disabled={loadingInventories}>
+                  }} value={field.value} disabled={loadingInventories || loadingCategories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={loadingInventories ? "Memuat kategori..." : "Pilih kategori gudang"} />
+                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {["siap_jual", "riset", "retur", "backup_teknisi"].map(category => (
-                        <SelectItem key={category} value={category}>
-                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
+                      {warehouseCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.code}>
+                          {category.name} (Stok: {currentInventories.find(inv => inv.warehouse_category === category.code)?.quantity || 0})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -208,7 +224,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
               )}
             />
             <FormItem>
-              <FormLabel>Stok Saat Ini ({getCategoryDisplay(selectedCategory)})</FormLabel>
+              <FormLabel>Stok Saat Ini ({getCategoryDisplayName(selectedCategory)})</FormLabel>
               <FormControl>
                 <Input type="number" value={currentQuantityForSelectedCategory} disabled />
               </FormControl>

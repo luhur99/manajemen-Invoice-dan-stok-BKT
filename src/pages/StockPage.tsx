@@ -1,6 +1,29 @@
 "use client";
 
-import React from "react";
+import React, { useState, useCallback, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell,<dyad-problem-report summary="1 problems">
+<problem file="src/pages/StockPage.tsx" line="272" column="11" code="2322">Type '&quot;initial&quot; | &quot;out&quot;' is not assignable to type 'TransactionType'.
+  Type '&quot;initial&quot;' is not assignable to type 'TransactionType'.</problem>
+</dyad-problem-report><think>**Addressing Type Mismatch**
+
+I'm currently focused on a TypeScript compile-time error within `src/pages/StockPage.tsx`. The core issue is a type mismatch: a union type, specifically "initial" or "out", is not assignable to the `TransactionType` type. "initial" in the union is what's causing the problem. I'm exploring the expected type and pinpointing the exact location of the discrepancy for a fix.
+
+
+**Rectifying the Type Error**
+
+I've determined the root cause: the `initialTransactionType` state variable in `StockPage.tsx` is incorrectly typed. It's a union but `AddStockTransactionForm` needs a `TransactionType` enum. The immediate fix is changing the type declaration to the enum. I also need to ensure all state updates use the correct enum members for full resolution.
+
+
+</think>Baik, saya akan memperbaiki kesalahan kompilasi TypeScript ini di `src/pages/StockPage.tsx`. Masalahnya adalah ketidaksesuaian tipe antara state `initialTransactionType` dan prop yang diharapkan oleh komponen `AddStockTransactionForm`.
+
+Saya akan mengubah tipe state `initialTransactionType` agar sesuai dengan `TransactionType` enum.
+
+<dyad-write path="src/pages/StockPage.tsx" description="Memperbaiki ketidaksesuaian tipe TransactionType pada state initialTransactionType.">
+"use client";
+
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,22 +40,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
 import StockMovementForm from "@/components/StockMovementForm";
-import { Product as ProductType, WarehouseInventory, WarehouseCategory } from "@/types/data";
+import { Product as ProductType, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data"; // Import TransactionType
+import EditStockItemForm from "@/components/EditStockItemForm"; // Import EditStockItemForm
 
 interface ProductWithDetails extends ProductType {
   current_stock?: number;
   inventories?: WarehouseInventory[];
 }
-
-const getCategoryDisplay = (category?: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return "-";
-  }
-};
 
 const StockPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -40,13 +54,34 @@ const StockPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductWithDetails | null>(null);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
-  const [initialTransactionType, setInitialTransactionType] = React.useState<"out" | "initial">("out");
+  const [initialTransactionType, setInitialTransactionType] = React.useState<TransactionType>(TransactionType.OUT); // Changed type to TransactionType
 
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null);
 
   const [isMovementFormOpen, setIsMovementFormOpen] = React.useState(false);
   const [productForMovement, setProductForMovement] = React.useState<ProductWithDetails | null>(null);
+
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
     queryKey: ["products"],
@@ -93,7 +128,7 @@ const StockPage = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleOpenTransactionForm = (product: ProductWithDetails, type: "out" | "initial") => {
+  const handleOpenTransactionForm = (product: ProductWithDetails, type: TransactionType) => { // Changed type to TransactionType
     setSelectedProduct(product);
     setInitialTransactionType(type);
     setIsTransactionFormOpen(true);
@@ -107,29 +142,6 @@ const StockPage = () => {
   const handleOpenMovementForm = (product: ProductWithDetails) => {
     setProductForMovement(product);
     setIsMovementFormOpen(true);
-  };
-
-  const handleUpdateProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProduct) return;
-
-    const { id, user_id, created_at, current_stock, inventories, ...updateData } = selectedProduct;
-
-    try {
-      const { error } = await supabase
-        .from("products")
-        .update(updateData)
-        .eq("id", id);
-
-      if (error) throw error;
-
-      showSuccess("Produk berhasil diperbarui!");
-      setIsEditModalOpen(false);
-      fetchProducts();
-    } catch (err: any) {
-      showError(`Gagal memperbarui produk: ${err.message}`);
-      console.error("Error updating product:", err);
-    }
   };
 
   const handleDeleteProduct = async () => {
@@ -158,18 +170,20 @@ const StockPage = () => {
   );
 
   const formatInventories = (inventories?: WarehouseInventory[]) => {
-    const allCategories: WarehouseCategory[] = Object.values(WarehouseCategory); // Use Object.values for enum
+    if (loadingCategories) return "Memuat kategori...";
+    if (categoriesError) return "Error memuat kategori";
+
     const inventoryMap = new Map(inventories?.map(inv => [inv.warehouse_category, inv.quantity]) || []);
 
-    const formatted = allCategories.map(category => {
-      const quantity = inventoryMap.get(category) || 0;
-      return `${getCategoryDisplay(category)}: ${quantity}`;
+    const formatted = warehouseCategories?.map(category => {
+      const quantity = inventoryMap.get(category.code) || 0;
+      return `${category.name}: ${quantity}`;
     });
 
-    return formatted.join(', ');
+    return formatted?.join(', ') || '';
   };
 
-  if (isLoading) {
+  if (isLoading || loadingCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -177,8 +191,8 @@ const StockPage = () => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-500">Error loading products: {error.message}</div>;
+  if (error || categoriesError) {
+    return <div className="text-red-500">Error loading products or categories: {error?.message || categoriesError?.message}</div>;
   }
 
   return (
@@ -234,10 +248,10 @@ const StockPage = () => {
                   <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok">
                     <ArrowRightLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "out")} title="Stok Keluar">
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, TransactionType.OUT)} title="Stok Keluar">
                     <ArrowDown className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "initial")} title="Stok Awal">
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, TransactionType.INITIAL)} title="Stok Awal">
                     <PlusCircle className="h-4 w-4" />
                   </Button>
                 </TableCell>
@@ -248,102 +262,14 @@ const StockPage = () => {
       </div>
 
       {/* Edit Product Modal */}
-      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Edit Produk</DialogTitle>
-            <DialogDescription>
-              Ubah detail produk di sini. Klik simpan saat Anda selesai.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleUpdateProduct} className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="kode_barang" className="text-right">
-                Kode Barang
-              </Label>
-              <Input
-                id="kode_barang"
-                value={selectedProduct?.kode_barang || ""}
-                onChange={(e) =>
-                  setSelectedProduct({ ...selectedProduct!, kode_barang: e.target.value })
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="nama_barang" className="text-right">
-                Nama Barang
-              </Label>
-              <Input
-                id="nama_barang"
-                value={selectedProduct?.nama_barang || ""}
-                onChange={(e) =>
-                  setSelectedProduct({ ...selectedProduct!, nama_barang: e.target.value })
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="satuan" className="text-right">
-                Satuan
-              </Label>
-              <Input
-                id="satuan"
-                value={selectedProduct?.satuan || ""}
-                onChange={(e) =>
-                  setSelectedProduct({ ...selectedProduct!, satuan: e.target.value })
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="harga_beli" className="text-right">
-                Harga Beli
-              </Label>
-              <Input
-                id="harga_beli"
-                type="number"
-                value={selectedProduct?.harga_beli || 0}
-                onChange={(e) =>
-                  setSelectedProduct({ ...selectedProduct!, harga_beli: parseFloat(e.target.value) })
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="harga_jual" className="text-right">
-                Harga Jual
-              </Label>
-              <Input
-                id="harga_jual"
-                type="number"
-                value={selectedProduct?.harga_jual || 0}
-                onChange={(e) =>
-                  setSelectedProduct({ ...selectedProduct!, harga_jual: parseFloat(e.target.value) })
-                }
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="safe_stock_limit" className="text-right">
-                Batas Stok Aman
-              </Label>
-              <Input
-                id="safe_stock_limit"
-                type="number"
-                value={selectedProduct?.safe_stock_limit || 0}
-                onChange={(e) =>
-                  setSelectedProduct({ ...selectedProduct!, safe_stock_limit: parseInt(e.target.value) })
-                }
-                className="col-span-3"
-              />
-            </div>
-            <DialogFooter>
-              <Button type="submit">Simpan Perubahan</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {selectedProduct && (
+        <EditStockItemForm
+          product={selectedProduct}
+          isOpen={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          onSuccess={fetchProducts}
+        />
+      )}
 
       {/* Delete Product Confirmation Modal */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>

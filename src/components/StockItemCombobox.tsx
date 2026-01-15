@@ -14,7 +14,11 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Product, WarehouseCategory, WarehouseInventory } from "@/types/data";
+import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { supabase } from "@/integrations/supabase/client";
+import { showError } from "@/utils/toast";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 interface StockItemComboboxProps {
   products: Product[];
@@ -23,28 +27,6 @@ interface StockItemComboboxProps {
   placeholder?: string;
   disabled?: boolean;
 }
-
-const getCategoryDisplay = (category: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return category;
-  }
-};
-
-const formatStockInventories = (inventories?: WarehouseInventory[]) => {
-  if (!inventories || inventories.length === 0) {
-    return "Stok: 0";
-  }
-  const totalStock = inventories.reduce((sum, inv) => sum + inv.quantity, 0);
-  const details = inventories
-    .filter(inv => inv.quantity > 0)
-    .map(inv => `${getCategoryDisplay(inv.warehouse_category)}: ${inv.quantity}`)
-    .join(', ');
-  return `Total: ${totalStock} (${details || 'Tidak ada stok per kategori'})`;
-};
 
 const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   products,
@@ -56,6 +38,41 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   const [open, setOpen] = React.useState(false);
   const [inputValue, setInputValue] = React.useState("");
 
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
+
+  const formatStockInventories = (inventories?: WarehouseInventory[]) => {
+    if (loadingCategories) return "Memuat stok...";
+    if (categoriesError) return "Error memuat kategori";
+
+    if (!inventories || inventories.length === 0) {
+      return "Stok: 0";
+    }
+    const totalStock = inventories.reduce((sum, inv) => sum + inv.quantity, 0);
+    const details = inventories
+      .filter(inv => inv.quantity > 0)
+      .map(inv => `${getCategoryDisplayName(inv.warehouse_category)}: ${inv.quantity}`)
+      .join(', ');
+    return `Total: ${totalStock} (${details || 'Tidak ada stok per kategori'})`;
+  };
+
   const selectedItem = products.find((item) => item.id === selectedProductId);
 
   return (
@@ -66,9 +83,11 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between"
-          disabled={disabled}
+          disabled={disabled || loadingCategories}
         >
-          {selectedItem
+          {loadingCategories ? (
+            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          ) : selectedItem
             ? `${selectedItem.nama_barang} (${selectedItem.kode_barang}) - ${formatStockInventories(selectedItem.inventories)}`
             : inputValue || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory, WarehouseInventory } from "@/types/data";
+import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data"; // Import the interface
 import StockItemCombobox from "./StockItemCombobox";
 
 const formSchema = z.object({
@@ -40,9 +40,9 @@ const formSchema = z.object({
   suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
   total_price: z.number().min(0, "Total harga tidak boleh negatif."),
   supplier_id: z.string().min(1, "Supplier harus dipilih."),
-  target_warehouse_category: z.nativeEnum(WarehouseCategory, {
+  target_warehouse_category: z.string({ // Changed to string
     required_error: "Kategori gudang tujuan harus dipilih.",
-  }),
+  }).min(1, "Kategori gudang tujuan harus dipilih."),
   notes: z.string().optional(),
 });
 
@@ -51,16 +51,6 @@ interface AddPurchaseRequestFormProps {
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
-
-const getCategoryDisplay = (category: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return category;
-  }
-};
 
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
@@ -75,7 +65,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
       suggested_selling_price: 0,
       total_price: 0,
       supplier_id: "",
-      target_warehouse_category: WarehouseCategory.SIAP_JUAL,
+      target_warehouse_category: "", // Default empty string
       notes: "",
     },
   });
@@ -84,6 +74,28 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
   const [loadingProducts, setLoadingProducts] = React.useState(true);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(true);
+  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  const fetchWarehouseCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    const { data, error } = await supabase
+      .from("warehouse_categories")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      showError("Gagal memuat kategori gudang.");
+      console.error("Error fetching warehouse categories:", error);
+    } else {
+      setWarehouseCategories(data as WarehouseCategoryType[]);
+      // Set default value if categories are loaded and form is open
+      if (data.length > 0 && isOpen && !form.getValues("target_warehouse_category")) {
+        form.setValue("target_warehouse_category", data[0].code);
+      }
+    }
+    setLoadingCategories(false);
+  }, [isOpen, form]);
 
   React.useEffect(() => {
     const fetchInitialData = async () => {
@@ -146,9 +158,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
 
     if (isOpen) {
       fetchInitialData();
+      fetchWarehouseCategories();
       form.reset();
     }
-  }, [isOpen, form]);
+  }, [isOpen, form, fetchWarehouseCategories]);
 
   const selectedProductId = form.watch("product_id");
   const quantity = form.watch("quantity");
@@ -176,6 +189,11 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
   React.useEffect(() => {
     form.setValue("total_price", quantity * unitPrice);
   }, [quantity, unitPrice, form]);
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -391,16 +409,16 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Kategori Gudang Tujuan</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori gudang tujuan" />
+                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang tujuan"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.values(WarehouseCategory).map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {getCategoryDisplay(category)}
+                      {warehouseCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.code}>
+                          {category.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

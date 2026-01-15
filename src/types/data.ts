@@ -1,10 +1,13 @@
 // src/types/data.ts
 
-export enum WarehouseCategory {
-  SIAP_JUAL = "siap_jual",
-  RISET = "riset",
-  RETUR = "retur",
-  BACKUP_TEKNISI = "backup_teknisi",
+// Replaced enum with interface for dynamic categories
+export interface WarehouseCategory {
+  id: string;
+  user_id?: string;
+  name: string;
+  code: string; // e.g., "siap_jual"
+  created_at: string;
+  updated_at?: string;
 }
 
 export enum TransactionType {
@@ -93,7 +96,7 @@ export interface Product {
 export interface WarehouseInventory {
   id: string;
   product_id: string;
-  warehouse_category: WarehouseCategory;
+  warehouse_category: string; // Changed to string as it will reference WarehouseCategory.code
   quantity: number;
   user_id: string;
   created_at: string;
@@ -109,7 +112,7 @@ export interface StockTransaction {
   notes?: string;
   transaction_date: string;
   created_at: string;
-  warehouse_category?: WarehouseCategory;
+  warehouse_category?: string; // Changed to string
 }
 
 // New interface for StockTransaction with product name
@@ -122,8 +125,8 @@ export interface StockMovement {
   id: string;
   user_id: string;
   product_id: string;
-  from_category: WarehouseCategory;
-  to_category: WarehouseCategory;
+  from_category: string; // Changed to string
+  to_category: string; // Changed to string
   quantity: number;
   reason?: string;
   movement_date: string;
@@ -180,7 +183,7 @@ export interface PurchaseRequest {
   received_quantity?: number;
   returned_quantity?: number;
   damaged_quantity?: number;
-  target_warehouse_category?: WarehouseCategory;
+  target_warehouse_category?: string; // Changed to string
   received_notes?: string;
   received_at?: string;
   product_id?: string;

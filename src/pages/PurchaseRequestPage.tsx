@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,12 +9,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, PlusCircle, Edit, Trash2, CheckCircle, XCircle, Receipt, Package, FileText } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm";
-import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm"; // Fixed import
-import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog"; // Fixed import
+import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm";
+import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { PurchaseRequestWithDetails, PurchaseRequestStatus, TransactionType, WarehouseCategory } from "@/types/data";
-import PurchaseRequestReceiptUpload from "@/components/PurchaseRequestReceiptUpload"; // Fixed import
+import { PurchaseRequestWithDetails, PurchaseRequestStatus, TransactionType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import PurchaseRequestReceiptUpload from "@/components/PurchaseRequestReceiptUpload";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const getStatusColor = (status: PurchaseRequestStatus) => {
@@ -34,16 +34,6 @@ const getStatusColor = (status: PurchaseRequestStatus) => {
   }
 };
 
-const getCategoryDisplay = (category?: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return "-";
-  }
-};
-
 const PurchaseRequestPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
@@ -54,6 +44,27 @@ const PurchaseRequestPage = () => {
   const [requestToView, setRequestToView] = React.useState<PurchaseRequestWithDetails | null>(null);
   const [isReceiptUploadOpen, setIsReceiptUploadOpen] = React.useState(false);
   const [filterStatus, setFilterStatus] = React.useState<PurchaseRequestStatus | "all">("all");
+
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const { data: requests, isLoading, error, refetch: fetchRequests } = useQuery<PurchaseRequestWithDetails[], Error>({
     queryKey: ["purchaseRequests"],
@@ -238,6 +249,7 @@ const PurchaseRequestPage = () => {
       item.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.supplier_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      (item.target_warehouse_category && getCategoryDisplayName(item.target_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
       format(new Date(item.created_at), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
 
     const matchesStatus = filterStatus === "all" || item.status === filterStatus;
@@ -245,7 +257,7 @@ const PurchaseRequestPage = () => {
     return matchesSearch && matchesStatus;
   });
 
-  if (isLoading) {
+  if (isLoading || loadingCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -253,8 +265,8 @@ const PurchaseRequestPage = () => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-500">Error loading purchase requests: {error.message}</div>;
+  if (error || categoriesError) {
+    return <div className="text-red-500">Error loading purchase requests or categories: {error?.message || categoriesError?.message}</div>;
   }
 
   return (
@@ -321,7 +333,7 @@ const PurchaseRequestPage = () => {
                 <TableCell className="text-right">{request.suggested_selling_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                 <TableCell className="text-right">{request.total_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                 <TableCell>{request.supplier_name}</TableCell>
-                <TableCell>{request.target_warehouse_category ? getCategoryDisplay(request.target_warehouse_category) : "-"}</TableCell>
+                <TableCell>{request.target_warehouse_category ? getCategoryDisplayName(request.target_warehouse_category) : "-"}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
                     {request.status.charAt(0).toUpperCase() + request.status.slice(1).replace(/_/g, ' ')}
@@ -416,7 +428,7 @@ const PurchaseRequestPage = () => {
       )}
 
       {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}> {/* Fixed typo here */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Konfirmasi Hapus Permintaan Pembelian</DialogTitle>

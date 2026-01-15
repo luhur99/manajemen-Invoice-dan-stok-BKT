@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,16 +27,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product as ProductType, WarehouseCategory, WarehouseInventory } from "@/types/data";
+import { Product as ProductType, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data"; // Import the interface
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
-  from_category: z.nativeEnum(WarehouseCategory, {
+  from_category: z.string({ // Changed to string
     required_error: "Kategori asal harus dipilih.",
-  }),
-  to_category: z.nativeEnum(WarehouseCategory, {
+  }).min(1, "Kategori asal harus dipilih."),
+  to_category: z.string({ // Changed to string
     required_error: "Kategori tujuan harus dipilih.",
-  }),
+  }).min(1, "Kategori tujuan harus dipilih."),
   quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
   reason: z.string().optional(),
 });
@@ -48,27 +48,41 @@ interface StockMovementFormProps {
   onSuccess: () => void;
 }
 
-const getCategoryDisplay = (category: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return category;
-  }
-};
-
 const StockMovementForm: React.FC<StockMovementFormProps> = ({
   product,
   isOpen,
   onOpenChange,
   onSuccess,
 }) => {
+  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
+  const fetchWarehouseCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    const { data, error } = await supabase
+      .from("warehouse_categories")
+      .select("*")
+      .order("name", { ascending: true });
+
+    if (error) {
+      showError("Gagal memuat kategori gudang.");
+      console.error("Error fetching warehouse categories:", error);
+    } else {
+      setWarehouseCategories(data as WarehouseCategoryType[]);
+    }
+    setLoadingCategories(false);
+  }, []);
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      from_category: undefined,
-      to_category: undefined,
+      from_category: "",
+      to_category: "",
       quantity: 0,
       reason: "",
     },
@@ -88,11 +102,11 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
   });
 
   const availableFromCategories = productInventories?.filter(inv => inv.quantity > 0) || [];
-  const allWarehouseCategories = Object.values(WarehouseCategory);
+  const allWarehouseCategoryCodes = warehouseCategories.map(cat => cat.code);
 
   const selectedFromCategory = form.watch("from_category");
-  const availableToCategories = allWarehouseCategories.filter(
-    (category) => category !== selectedFromCategory
+  const availableToCategories = allWarehouseCategoryCodes.filter(
+    (code) => code !== selectedFromCategory
   );
 
   const currentFromCategoryQuantity = productInventories?.find(
@@ -101,15 +115,16 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
 
   React.useEffect(() => {
     if (isOpen) {
+      fetchWarehouseCategories();
       form.reset({
-        from_category: undefined,
-        to_category: undefined,
+        from_category: "",
+        to_category: "",
         quantity: 0,
         reason: "",
       });
       refetchInventories();
     }
-  }, [isOpen, form, refetchInventories]);
+  }, [isOpen, form, refetchInventories, fetchWarehouseCategories]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (values.quantity > currentFromCategoryQuantity) {
@@ -160,14 +175,14 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Dari Kategori</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingInventories}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingInventories || loadingCategories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori asal" />
+                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori asal"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {loadingInventories ? (
+                      {loadingInventories || loadingCategories ? (
                         <SelectItem value="loading" disabled>
                           <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
                         </SelectItem>
@@ -178,7 +193,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
                       ) : (
                         availableFromCategories.map((inv) => (
                           <SelectItem key={inv.warehouse_category} value={inv.warehouse_category}>
-                            {getCategoryDisplay(inv.warehouse_category)} (Stok: {inv.quantity})
+                            {getCategoryDisplayName(inv.warehouse_category)} (Stok: {inv.quantity})
                           </SelectItem>
                         ))
                       )}
@@ -200,21 +215,25 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Ke Kategori</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedFromCategory}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedFromCategory || loadingCategories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori tujuan" />
+                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori tujuan"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {availableToCategories.length === 0 ? (
+                      {loadingCategories ? (
+                        <SelectItem value="loading" disabled>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
+                        </SelectItem>
+                      ) : availableToCategories.length === 0 ? (
                         <SelectItem value="no-target" disabled>
                           Pilih kategori asal terlebih dahulu
                         </SelectItem>
                       ) : (
-                        availableToCategories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {getCategoryDisplay(category)}
+                        availableToCategories.map((code) => (
+                          <SelectItem key={code} value={code}>
+                            {getCategoryDisplayName(code)}
                           </SelectItem>
                         ))
                       )}
@@ -259,7 +278,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
             />
 
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting || loadingInventories}>
+              <Button type="submit" disabled={form.formState.isSubmitting || loadingInventories || loadingCategories}>
                 {form.formState.isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (

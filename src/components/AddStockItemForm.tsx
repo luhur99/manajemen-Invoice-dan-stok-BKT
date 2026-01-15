@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
+import { WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -28,29 +29,22 @@ const formSchema = z.object({
   satuan: z.string().optional(),
   harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
-  initial_stock_quantity: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0), // Renamed
+  initial_stock_quantity: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
   safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
-  initial_warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], { // Renamed
+  initial_warehouse_category: z.string({ // Changed to string
     required_error: "Kategori Gudang Awal wajib dipilih",
-  }).default("siap_jual"),
+  }).min(1, "Kategori Gudang Awal wajib dipilih"),
 });
 
 interface AddStockItemFormProps {
   onSuccess: () => void;
 }
 
-const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-  switch (category) {
-    case "siap_jual": return "Siap Jual";
-    case "riset": return "Riset";
-    case "retur": return "Retur";
-    case "backup_teknisi": return "Backup Teknisi";
-    default: return "-";
-  }
-};
-
 const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = React.useState(false);
+  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -61,9 +55,40 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
       harga_jual: 0,
       initial_stock_quantity: 0,
       safe_stock_limit: 0,
-      initial_warehouse_category: "siap_jual",
+      initial_warehouse_category: "", // Default empty string
     },
   });
+
+  useEffect(() => {
+    const fetchWarehouseCategories = async () => {
+      setLoadingCategories(true);
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        console.error("Error fetching warehouse categories:", error);
+      } else {
+        setWarehouseCategories(data as WarehouseCategoryType[]);
+        // Set default value if categories are loaded and form is open
+        if (data.length > 0 && isOpen && !form.getValues("initial_warehouse_category")) {
+          form.setValue("initial_warehouse_category", data[0].code);
+        }
+      }
+      setLoadingCategories(false);
+    };
+
+    if (isOpen) {
+      fetchWarehouseCategories();
+    }
+  }, [isOpen, form]);
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -77,7 +102,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
     try {
       // 1. Insert into products (product metadata)
       const { data: productData, error: productError } = await supabase
-        .from("products") // Changed from stock_items
+        .from("products")
         .insert({
           user_id: userId,
           kode_barang: values.kode_barang,
@@ -94,7 +119,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
         throw productError;
       }
 
-      const newProductId = productData.id; // Changed from newStockItemId
+      const newProductId = productData.id;
 
       // 2. If initial_stock_quantity > 0, insert into warehouse_inventories
       if (values.initial_stock_quantity > 0) {
@@ -102,17 +127,14 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           .from("warehouse_inventories")
           .insert({
             user_id: userId,
-            product_id: newProductId, // Changed from newStockItemId
+            product_id: newProductId,
             warehouse_category: values.initial_warehouse_category,
             quantity: values.initial_stock_quantity,
           });
 
         if (inventoryError) {
-          // If inventory insertion fails, consider rolling back product or just log
           console.error("Error creating initial warehouse inventory:", inventoryError);
           showError(`Gagal membuat inventaris awal: ${inventoryError.message}`);
-          // Optionally, delete the created product here if you want a full rollback
-          // await supabase.from("products").delete().eq("id", newProductId);
           return;
         }
 
@@ -121,27 +143,26 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           .from("stock_transactions")
           .insert({
             user_id: userId,
-            product_id: newProductId, // Changed from stock_item_id
+            product_id: newProductId,
             transaction_type: "initial",
             quantity: values.initial_stock_quantity,
-            notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplay(values.initial_warehouse_category)}`,
+            notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplayName(values.initial_warehouse_category)}`,
             warehouse_category: values.initial_warehouse_category,
             transaction_date: format(new Date(), "yyyy-MM-dd"),
           });
 
         if (transactionError) {
           console.error("Error recording initial stock transaction:", transactionError);
-          // Don't throw, just log, as the item and inventory were added successfully
         }
       }
 
-      showSuccess("Produk berhasil ditambahkan!"); // Changed message
+      showSuccess("Produk berhasil ditambahkan!");
       form.reset();
       setIsOpen(false);
-      onSuccess(); // Trigger refresh of stock data
+      onSuccess();
     } catch (error: any) {
-      showError(`Gagal menambahkan produk: ${error.message}`); // Changed message
-      console.error("Error adding product:", error); // Changed message
+      showError(`Gagal menambahkan produk: ${error.message}`);
+      console.error("Error adding product:", error);
     }
   };
 
@@ -243,17 +264,18 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Kategori Gudang Awal</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori gudang awal" />
+                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang awal"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
-                      <SelectItem value="riset">Riset</SelectItem>
-                      <SelectItem value="retur">Retur</SelectItem>
-                      <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
+                      {warehouseCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.code}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

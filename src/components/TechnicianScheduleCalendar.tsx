@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } from "date-fns"; // Import startOfDay
-import { id } from "date-fns/locale"; // Import Indonesian locale
+import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } from "date-fns";
+import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import { Schedule } from "@/types/data";
+import { Schedule, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
 import { Loader2, CalendarDays, User, Clock, MapPin, Info } from "lucide-react";
+import { useQuery } from "@tanstack/react-query"; // Import useQuery
 
 interface TechnicianScheduleCalendarProps {
   // No props needed for now, it will manage its own state and data fetching
@@ -19,6 +20,27 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDaySchedules, setSelectedDaySchedules] = useState<Schedule[]>([]);
+
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   // Define colors for different technicians in the schedule list
   const technicianColors: Record<string, string> = {
@@ -141,6 +163,24 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     return acc;
   }, {} as Record<string, Schedule[]>);
 
+  if (loadingCategories || loading) {
+    return (
+      <Card className="border shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold">Kalender Jadwal Teknisi</CardTitle>
+          <CardDescription>Memuat kalender jadwal...</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center items-center h-32">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (categoriesError) {
+    return <div className="text-red-500">Error loading categories: {categoriesError.message}</div>;
+  }
+
   return (
     <Card className="border shadow-sm">
       <CardHeader>
@@ -168,10 +208,10 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
             selected={date}
             onSelect={handleDaySelect}
             className="rounded-md border shadow"
-            modifiers={allModifiers} // Use combined modifiers
-            modifiersStyles={calendarModifierStyles} // Use technician-specific styles
-            locale={id} // Set locale to Indonesian
-            onMonthChange={(newMonth) => setDate(newMonth)} // Update date state when month changes
+            modifiers={allModifiers}
+            modifiersStyles={calendarModifierStyles}
+            locale={id}
+            onMonthChange={(newMonth) => setDate(newMonth)}
           />
         </div>
         <div className="flex-1 lg:max-h-[400px] overflow-y-auto p-4 border rounded-md bg-gray-50 dark:bg-gray-700">

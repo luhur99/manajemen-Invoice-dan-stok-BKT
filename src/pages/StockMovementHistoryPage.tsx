@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,22 +9,34 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockMovementWithItemName, WarehouseCategory } from "@/types/data";
-
-const getCategoryDisplay = (category: WarehouseCategory) => {
-  switch (category) {
-    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
-    case WarehouseCategory.RISET: return "Riset";
-    case WarehouseCategory.RETUR: return "Retur";
-    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
-    default: return category;
-  }
-};
+import { StockMovementWithItemName, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Import the interface
+import { showError } from "@/utils/toast"; // Import showError
 
 const StockMovementHistoryPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
-  const [selectedFromCategory, setSelectedFromCategory] = React.useState<WarehouseCategory | "all">("all");
-  const [selectedToCategory, setSelectedToCategory] = React.useState<WarehouseCategory | "all">("all");
+  const [selectedFromCategory, setSelectedFromCategory] = React.useState<string | "all">("all"); // Changed to string
+  const [selectedToCategory, setSelectedToCategory] = React.useState<string | "all">("all"); // Changed to string
+  
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const { data: movements, isLoading, error, refetch: fetchMovements } = useQuery<StockMovementWithItemName[], Error>({
     queryKey: ["stockMovements"],
@@ -52,8 +64,8 @@ const StockMovementHistoryPage = () => {
     const matchesSearch =
       item.product_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      getCategoryDisplay(item.from_category).toLowerCase().includes(lowerCaseSearchTerm) ||
-      getCategoryDisplay(item.to_category).toLowerCase().includes(lowerCaseSearchTerm) ||
+      getCategoryDisplayName(item.from_category).toLowerCase().includes(lowerCaseSearchTerm) ||
+      getCategoryDisplayName(item.to_category).toLowerCase().includes(lowerCaseSearchTerm) ||
       item.reason?.toLowerCase().includes(lowerCaseSearchTerm) ||
       format(new Date(item.movement_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
 
@@ -63,7 +75,7 @@ const StockMovementHistoryPage = () => {
     return matchesSearch && matchesFromCategory && matchesToCategory;
   });
 
-  if (isLoading) {
+  if (isLoading || loadingCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -71,8 +83,8 @@ const StockMovementHistoryPage = () => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-500">Error loading stock movements: {error.message}</div>;
+  if (error || categoriesError) {
+    return <div className="text-red-500">Error loading stock movements or categories: {error?.message || categoriesError?.message}</div>;
   }
 
   return (
@@ -89,16 +101,17 @@ const StockMovementHistoryPage = () => {
         <div className="flex gap-4">
           <Select
             value={selectedFromCategory}
-            onValueChange={(value: WarehouseCategory | "all") => setSelectedFromCategory(value)}
+            onValueChange={(value: string | "all") => setSelectedFromCategory(value)}
+            disabled={loadingCategories}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Dari Kategori" />
+              <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Dari Kategori"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Asal</SelectItem>
-              {Object.values(WarehouseCategory).map((category) => (
-                <SelectItem key={category} value={category}>
-                  {getCategoryDisplay(category)}
+              {warehouseCategories?.map((category) => (
+                <SelectItem key={category.id} value={category.code}>
+                  {category.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -106,16 +119,17 @@ const StockMovementHistoryPage = () => {
 
           <Select
             value={selectedToCategory}
-            onValueChange={(value: WarehouseCategory | "all") => setSelectedToCategory(value)}
+            onValueChange={(value: string | "all") => setSelectedToCategory(value)}
+            disabled={loadingCategories}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Ke Kategori" />
+              <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Ke Kategori"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Tujuan</SelectItem>
-              {Object.values(WarehouseCategory).map((category) => (
-                <SelectItem key={category} value={category}>
-                  {getCategoryDisplay(category)}
+              {warehouseCategories?.map((category) => (
+                <SelectItem key={category.id} value={category.code}>
+                  {category.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -149,8 +163,8 @@ const StockMovementHistoryPage = () => {
                   <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                   <TableCell>{movement.product_name || "N/A"}</TableCell>
                   <TableCell>{movement.product_code || "N/A"}</TableCell>
-                  <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
-                  <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
+                  <TableCell>{getCategoryDisplayName(movement.from_category)}</TableCell>
+                  <TableCell>{getCategoryDisplayName(movement.to_category)}</TableCell>
                   <TableCell className="text-right">{movement.quantity}</TableCell>
                   <TableCell className="max-w-[200px] truncate">{movement.reason || "-"}</TableCell>
                 </TableRow>

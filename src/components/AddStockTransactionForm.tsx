@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,17 +21,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
+import { WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data"; // Import the interface
+import { useQuery } from "@tanstack/react-query";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk wajib dipilih"),
-  transaction_type: z.enum(["out", "initial"], {
+  transaction_type: z.nativeEnum(TransactionType, {
     required_error: "Tipe Transaksi wajib dipilih",
   }),
   quantity: z.coerce.number().min(1, "Kuantitas harus lebih dari 0"),
-  warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], {
+  warehouse_category: z.string({ // Changed to string
     required_error: "Kategori Gudang wajib dipilih",
-  }),
+  }).min(1, "Kategori Gudang wajib dipilih"),
   notes: z.string().optional(),
   transaction_date: z.string().min(1, "Tanggal Transaksi wajib diisi"),
 });
@@ -42,18 +44,8 @@ interface AddStockTransactionFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   initialProductId?: string;
-  initialTransactionType?: "out" | "initial";
+  initialTransactionType?: TransactionType; // Changed type to TransactionType
 }
-
-const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-  switch (category) {
-    case "siap_jual": return "Siap Jual";
-    case "riset": return "Riset";
-    case "retur": return "Retur";
-    case "backup_teknisi": return "Backup Teknisi";
-    default: return "-";
-  }
-};
 
 const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   onSuccess,
@@ -63,31 +55,59 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   initialProductId,
   initialTransactionType,
 }) => {
+  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       product_id: initialProductId || "",
-      transaction_type: initialTransactionType || "out",
+      transaction_type: initialTransactionType || TransactionType.OUT, // Ensured type is TransactionType
       quantity: 1,
-      warehouse_category: "siap_jual",
+      warehouse_category: "", // Default empty string
       notes: "",
       transaction_date: format(new Date(), "yyyy-MM-dd"),
     },
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const fetchWarehouseCategories = async () => {
+      setLoadingCategories(true);
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        console.error("Error fetching warehouse categories:", error);
+      } else {
+        setWarehouseCategories(data as WarehouseCategoryType[]);
+        // Set default value if categories are loaded and form is open
+        if (data.length > 0 && isOpen && !form.getValues("warehouse_category")) {
+          form.setValue("warehouse_category", data[0].code);
+        }
+      }
+      setLoadingCategories(false);
+    };
+
     if (isOpen) {
+      fetchWarehouseCategories();
       form.reset({
         product_id: initialProductId || "",
-        transaction_type: initialTransactionType || "out",
+        transaction_type: initialTransactionType || TransactionType.OUT, // Ensured type is TransactionType
         quantity: 1,
-        warehouse_category: "siap_jual",
+        warehouse_category: "", // Reset to empty string
         notes: "",
         transaction_date: format(new Date(), "yyyy-MM-dd"),
       });
     }
   }, [isOpen, initialProductId, initialTransactionType, form]);
 
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -112,14 +132,13 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
 
       let newQuantity = existingInventory ? existingInventory.quantity : 0;
 
-      if (values.transaction_type === "out") {
+      if (values.transaction_type === TransactionType.OUT) {
         if (newQuantity < values.quantity) {
-          // Pesan kesalahan yang lebih spesifik
-          showError(`Kuantitas stok tidak mencukupi di kategori '${getCategoryDisplay(values.warehouse_category)}'. Tersedia: ${newQuantity}, Diminta: ${values.quantity}.`);
+          showError(`Kuantitas stok tidak mencukupi di kategori '${getCategoryDisplayName(values.warehouse_category)}'. Tersedia: ${newQuantity}, Diminta: ${values.quantity}.`);
           return;
         }
         newQuantity -= values.quantity;
-      } else if (values.transaction_type === "initial") {
+      } else if (values.transaction_type === TransactionType.INITIAL) {
         newQuantity += values.quantity;
       }
 
@@ -132,7 +151,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         if (updateError) {
           throw updateError;
         }
-      } else if (values.transaction_type === "initial") {
+      } else if (values.transaction_type === TransactionType.INITIAL) {
         const { error: insertError } = await supabase
           .from("warehouse_inventories")
           .insert({
@@ -225,8 +244,8 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="out">Stok Keluar</SelectItem>
-                      <SelectItem value="initial">Stok Awal</SelectItem>
+                      <SelectItem value={TransactionType.OUT}>Stok Keluar</SelectItem>
+                      <SelectItem value={TransactionType.INITIAL}>Stok Awal</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -252,17 +271,18 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Kategori Gudang</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori gudang" />
+                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang"} />
                     </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
-                      <SelectItem value="riset">Riset</SelectItem>
-                      <SelectItem value="retur">Retur</SelectItem>
-                      <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
+                      {warehouseCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.code}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
