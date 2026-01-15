@@ -190,14 +190,14 @@ const ScheduleManagementPage = () => {
             <TableRow>
               <TableHead className="w-[50px]">No</TableHead>
               <TableHead>No. DO</TableHead>
-              <TableHead>No. SR</TableHead> {/* New column */}
+              {/* <TableHead>No. SR</TableHead> Removed as per user request */}
               <TableHead>Tanggal</TableHead>
               <TableHead>Waktu</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Pelanggan</TableHead>
-              <TableHead>Alamat</TableHead>
+              {/* <TableHead>Alamat</TableHead> Removed as per user request */}
               <TableHead>Teknisi</TableHead>
-              <TableHead>No. Invoice Terkait</TableHead>
+              {/* <TableHead>No. Invoice Terkait</TableHead> Removed as per user request */}
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
@@ -207,14 +207,14 @@ const ScheduleManagementPage = () => {
               <TableRow key={schedule.id}>
                 <TableCell>{schedule.no}</TableCell>
                 <TableCell>{schedule.do_number || "-"}</TableCell>
-                <TableCell>{schedule.sr_number || "-"}</TableCell> {/* Display SR number */}
+                {/* <TableCell>{schedule.sr_number || "-"}</TableCell> Removed as per user request */}
                 <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{schedule.schedule_time || "-"}</TableCell>
                 <TableCell>{schedule.type}</TableCell>
                 <TableCell>{schedule.customer_name}</TableCell>
-                <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell>
+                {/* <TableCell className="max-w-[200px] truncate">{schedule.address || "-"}</TableCell> Removed as per user request */}
                 <TableCell>{schedule.technician_name || "-"}</TableCell>
-                <TableCell>{schedule.invoice_number || "-"}</TableCell>
+                {/* <TableCell>{schedule.invoice_number || "-"}</TableCell> Removed as per user request */}
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(schedule.status)}`}>
                     {schedule.status.charAt(0).toUpperCase() + schedule.status.slice(1)}
