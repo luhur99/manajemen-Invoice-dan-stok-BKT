@@ -358,3 +358,28 @@ export interface Customer {
 export interface CustomerWithDetails extends Customer {
   no?: number;
 }
+
+// New enum for TechnicianType
+export enum TechnicianType {
+  INTERNAL = "internal",
+  EXTERNAL = "external",
+}
+
+// New interface for Technician
+export interface Technician {
+  id: string;
+  user_id?: string;
+  name: string;
+  phone_number?: string;
+  type: TechnicianType;
+  address?: string;
+  city?: string;
+  province?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+// New interface for Technician with 'no' for display
+export interface TechnicianWithDetails extends Technician {
+  no?: number;
+}

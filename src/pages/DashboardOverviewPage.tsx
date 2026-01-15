@@ -13,7 +13,7 @@ import {
   ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
-import { Product, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
+import { Product, WarehouseCategory as WarehouseCategoryType, StockEventType, Technician } from "@/types/data"; // Updated imports
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query"; // Import useQuery
@@ -66,6 +66,21 @@ const DashboardOverviewPage = () => {
 
       if (error) {
         showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+    queryKey: ["technicians"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("technicians")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar teknisi.");
         throw error;
       }
       return data;
@@ -312,15 +327,15 @@ const DashboardOverviewPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [getCategoryDisplayName, warehouseCategories]); // Added warehouseCategories to dependencies for getCategoryDisplayName
+  }, [getCategoryDisplayName, warehouseCategories, technicians]); // Added technicians to dependencies
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   // Combined loading state
-  const overallLoading = loading || loadingCategories;
-  const overallError = dashboardDataError || categoriesError;
+  const overallLoading = loading || loadingCategories || loadingTechnicians;
+  const overallError = dashboardDataError || categoriesError || techniciansError;
 
   if (overallLoading) {
     return (

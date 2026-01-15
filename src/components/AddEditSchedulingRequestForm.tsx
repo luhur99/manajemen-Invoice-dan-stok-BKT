@@ -31,10 +31,11 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, Technician } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
 import { useQuery } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
+import TechnicianCombobox from "./TechnicianCombobox"; // Import TechnicianCombobox
 
 const formSchema = z.object({
   sr_number: z.string().optional().nullable(),
@@ -53,7 +54,7 @@ const formSchema = z.object({
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
   notes: z.string().optional().nullable(),
   invoice_id: z.string().uuid().optional().nullable(),
-  technician_name: z.string().optional().nullable(), // New field
+  technician_name: z.string().optional().nullable(), // Keep technician_name as text for now
 }).superRefine((data, ctx) => {
   // Custom validation for notes based on status
   if (['rescheduled', 'rejected', 'cancelled'].includes(data.status) && (!data.notes || data.notes.trim() === '')) {
@@ -143,6 +144,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   const watchedCustomerId = form.watch("customer_id");
   const watchedStatus = form.watch("status"); // Watch status for conditional validation
   const [customerSearchInput, setCustomerSearchInput] = useState("");
+  const [technicianSearchInput, setTechnicianSearchInput] = useState(initialData?.technician_name || ""); // State for technician combobox input
 
   const { data: invoices, isLoading: loadingInvoices, error: invoicesError } = useQuery<Invoice[], Error>({
     queryKey: ["invoices"],
@@ -191,6 +193,21 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     },
   });
 
+  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+    queryKey: ["technicians"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("technicians")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar teknisi.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
@@ -209,6 +226,9 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         });
         if (initialData.customer_name) {
           setCustomerSearchInput(initialData.customer_name);
+        }
+        if (initialData.technician_name) {
+          setTechnicianSearchInput(initialData.technician_name);
         }
       } else {
         generateSrNumber().then(srNum => {
@@ -232,10 +252,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             technician_name: null,
           });
           setCustomerSearchInput("");
+          setTechnicianSearchInput("");
         });
       }
     } else {
       setCustomerSearchInput("");
+      setTechnicianSearchInput("");
     }
   }, [isOpen, initialData, form]);
 
@@ -255,6 +277,17 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("full_address", "");
       form.setValue("phone_number", "");
       setCustomerSearchInput("");
+    }
+  };
+
+  const handleTechnicianSelect = (technician: Technician | undefined) => {
+    if (technician) {
+      form.setValue("technician_name", technician.name);
+      setTechnicianSearchInput(technician.name);
+      form.clearErrors(["technician_name"]);
+    } else {
+      form.setValue("technician_name", null);
+      setTechnicianSearchInput("");
     }
   };
 
@@ -608,6 +641,29 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 )}
               />
             )}
+            {/* Technician Name field - now a combobox */}
+            <FormField
+              control={form.control}
+              name="technician_name"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Nama Teknisi</FormLabel>
+                  <FormControl>
+                    <TechnicianCombobox
+                      technicians={technicians || []}
+                      value={technicians?.find(t => t.name === field.value)?.id || undefined}
+                      onValueChange={handleTechnicianSelect}
+                      inputValue={technicianSearchInput}
+                      onInputValueChange={setTechnicianSearchInput}
+                      disabled={loadingTechnicians}
+                      loading={loadingTechnicians}
+                      placeholder="Pilih atau cari teknisi..."
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             {/* Conditional Notes Field */}
             {(watchedStatus === SchedulingRequestStatus.RESCHEDULED ||
               watchedStatus === SchedulingRequestStatus.REJECTED ||
@@ -620,22 +676,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                     <FormLabel>Alasan (Wajib)</FormLabel>
                     <FormControl>
                       <Textarea placeholder="Masukkan alasan..." {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {/* Technician Name field */}
-            {watchedStatus === SchedulingRequestStatus.APPROVED && (
-              <FormField
-                control={form.control}
-                name="technician_name"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Nama Teknisi (Wajib)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Masukkan nama teknisi..." {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

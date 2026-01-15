@@ -3,7 +3,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo, User } from "lucide-react"; // Import User icon for Customer Management
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo, User, HardHat } from "lucide-react"; // Import HardHat icon for Technician Management
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -60,9 +60,14 @@ const navItems = [
     icon: Users,
   },
   {
-    title: "Manajemen Pelanggan", // New nav item
+    title: "Manajemen Pelanggan",
     href: "/customers",
-    icon: User, // Using User icon
+    icon: User,
+  },
+  {
+    title: "Manajemen Teknisi", // New nav item
+    href: "/technicians",
+    icon: HardHat, // Using HardHat icon
   },
   {
     title: "Kategori Gudang",

@@ -13,9 +13,10 @@ import ViewSchedulingRequestDetailsDialog from "@/components/ViewSchedulingReque
 import CancelRequestDialog from "@/components/CancelRequestDialog"; // Keep CancelRequestDialog
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType } from "@/types/data";
+import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician } from "@/types/data";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
+import TechnicianCombobox from "@/components/TechnicianCombobox"; // Import TechnicianCombobox
 
 const getStatusColor = (status: SchedulingRequestStatus) => {
   switch (status) {
@@ -66,6 +67,8 @@ const SchedulingRequestPage = () => {
   // States for new action dialogs
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false); // For technician name input on approve
+  const [technicianNameForApproval, setTechnicianNameForApproval] = useState(""); // State for technician name input
+  const [technicianSearchInputForApproval, setTechnicianSearchInputForApproval] = useState(""); // State for combobox input
 
   const { data: requests, isLoading, isError, error, refetch } = useQuery<SchedulingRequestWithDetails[], Error>({
     queryKey: ["schedulingRequests"],
@@ -100,6 +103,21 @@ const SchedulingRequestPage = () => {
     },
   });
 
+  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+    queryKey: ["technicians"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("technicians")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar teknisi.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
   const deleteRequestMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("scheduling_requests").delete().eq("id", id);
@@ -131,6 +149,8 @@ const SchedulingRequestPage = () => {
       setSelectedRequest(null);
       setIsCancelModalOpen(false);
       setIsApproveModalOpen(false);
+      setTechnicianNameForApproval(""); // Clear input
+      setTechnicianSearchInputForApproval(""); // Clear combobox input
     },
     onError: (err) => {
       showError(`Gagal memperbarui status permintaan jadwal: ${err.message}`);
@@ -171,7 +191,19 @@ const SchedulingRequestPage = () => {
 
   const handleApproveClick = (request: SchedulingRequestWithDetails) => {
     setSelectedRequest(request);
+    setTechnicianNameForApproval(request.technician_name || ""); // Pre-fill if exists
+    setTechnicianSearchInputForApproval(request.technician_name || "");
     setIsApproveModalOpen(true); // Open the dialog to input technician name
+  };
+
+  const handleTechnicianSelectForApproval = (technician: Technician | undefined) => {
+    if (technician) {
+      setTechnicianNameForApproval(technician.name);
+      setTechnicianSearchInputForApproval(technician.name);
+    } else {
+      setTechnicianNameForApproval("");
+      setTechnicianSearchInputForApproval("");
+    }
   };
 
   const filteredRequests = requests?.filter((request) => {
@@ -359,31 +391,35 @@ const SchedulingRequestPage = () => {
             <DialogHeader>
               <DialogTitle>Setujui Permintaan Jadwal</DialogTitle>
               <DialogDescription>
-                Masukkan nama teknisi untuk permintaan jadwal ini.
+                Pilih nama teknisi untuk permintaan jadwal ini.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={(e) => {
               e.preventDefault();
-              const technicianInput = (e.target as HTMLFormElement).elements.namedItem('technician_name') as HTMLInputElement;
-              const name = technicianInput.value;
-              if (name.trim() === '') {
+              if (technicianNameForApproval.trim() === '') {
                 showError('Nama teknisi wajib diisi.');
                 return;
               }
-              updateStatusMutation.mutate({ id: selectedRequest.id, status: SchedulingRequestStatus.APPROVED, technician_name: name });
+              updateStatusMutation.mutate({ id: selectedRequest.id, status: SchedulingRequestStatus.APPROVED, technician_name: technicianNameForApproval });
             }} className="space-y-4">
-              <Input
-                id="technician_name"
-                name="technician_name"
-                placeholder="Nama Teknisi"
-                defaultValue={selectedRequest.technician_name || ''}
-                required
+              <TechnicianCombobox
+                technicians={technicians || []}
+                value={technicians?.find(t => t.name === technicianNameForApproval)?.id || undefined}
+                onValueChange={handleTechnicianSelectForApproval}
+                inputValue={technicianSearchInputForApproval}
+                onInputValueChange={setTechnicianSearchInputForApproval}
+                disabled={loadingTechnicians}
+                loading={loadingTechnicians}
+                placeholder="Pilih atau cari teknisi..."
+                id="technician_name_for_approval"
+                name="technician_name_for_approval"
               />
+              {updateStatusMutation.isError && <p className="text-red-500 text-sm">{updateStatusMutation.error?.message}</p>}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsApproveModalOpen(false)} disabled={updateStatusMutation.isPending}>
                   Batal
                 </Button>
-                <Button type="submit" disabled={updateStatusMutation.isPending}>
+                <Button type="submit" disabled={updateStatusMutation.isPending || !technicianNameForApproval.trim()}>
                   {updateStatusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Setujui & Simpan"}
                 </Button>
               </DialogFooter>

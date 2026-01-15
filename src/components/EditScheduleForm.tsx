@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -31,7 +31,9 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Schedule, ScheduleType, ScheduleStatus } from "@/types/data";
+import { Schedule, ScheduleType, ScheduleStatus, Technician } from "@/types/data";
+import { useQuery } from "@tanstack/react-query";
+import TechnicianCombobox from "./TechnicianCombobox"; // Import TechnicianCombobox
 
 const formSchema = z.object({
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
@@ -39,7 +41,7 @@ const formSchema = z.object({
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
   customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
   address: z.string().optional(),
-  technician_name: z.string().optional(),
+  technician_name: z.string().optional().nullable(), // Keep technician_name as text for now
   invoice_id: z.string().optional(),
   status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
   notes: z.string().optional(),
@@ -63,12 +65,29 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       type: schedule.type as ScheduleType, // Cast to enum
       customer_name: schedule.customer_name,
       address: schedule.address || "",
-      technician_name: schedule.technician_name || "",
+      technician_name: schedule.technician_name || null, // Set initial technician name
       invoice_id: schedule.invoice_id || "",
       status: schedule.status as ScheduleStatus, // Cast to enum
       notes: schedule.notes || "",
       phone_number: schedule.phone_number || "",
       courier_service: schedule.courier_service || "",
+    },
+  });
+
+  const [technicianSearchInput, setTechnicianSearchInput] = useState(schedule.technician_name || ""); // State for technician combobox input
+
+  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+    queryKey: ["technicians"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("technicians")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar teknisi.");
+        throw error;
+      }
+      return data;
     },
   });
 
@@ -80,15 +99,27 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         type: schedule.type as ScheduleType,
         customer_name: schedule.customer_name,
         address: schedule.address || "",
-        technician_name: schedule.technician_name || "",
+        technician_name: schedule.technician_name || null,
         invoice_id: schedule.invoice_id || "",
         status: schedule.status as ScheduleStatus,
         notes: schedule.notes || "",
         phone_number: schedule.phone_number || "",
         courier_service: schedule.courier_service || "",
       });
+      setTechnicianSearchInput(schedule.technician_name || "");
     }
   }, [isOpen, schedule, form]);
+
+  const handleTechnicianSelect = (technician: Technician | undefined) => {
+    if (technician) {
+      form.setValue("technician_name", technician.name);
+      setTechnicianSearchInput(technician.name);
+      form.clearErrors(["technician_name"]);
+    } else {
+      form.setValue("technician_name", null);
+      setTechnicianSearchInput("");
+    }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
@@ -245,6 +276,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                 </FormItem>
               )}
             />
+            {/* Technician Name field - now a combobox */}
             <FormField
               control={form.control}
               name="technician_name"
@@ -252,7 +284,16 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                 <FormItem>
                   <FormLabel>Nama Teknisi (Opsional)</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <TechnicianCombobox
+                      technicians={technicians || []}
+                      value={technicians?.find(t => t.name === field.value)?.id || undefined}
+                      onValueChange={handleTechnicianSelect}
+                      inputValue={technicianSearchInput}
+                      onInputValueChange={setTechnicianSearchInput}
+                      disabled={loadingTechnicians}
+                      loading={loadingTechnicians}
+                      placeholder="Pilih atau cari teknisi..."
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
