@@ -63,6 +63,7 @@ const PurchaseRequestPage = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isViewReceiptDialogOpen, setIsViewReceiptDialogOpen] = useState(false);
+  const [isCloseRequestDialogOpen, setIsCloseRequestDialogOpen] = useState(false); // New state for close request modal
   const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
   const [fileToUpload, setFileToUpload] = useState<File | null>(null);
   const [currentReceiptUrl, setCurrentReceiptUrl] = useState<string | null>(null);
@@ -223,6 +224,101 @@ const PurchaseRequestPage = () => {
     },
   });
 
+  const confirmCloseRequestMutation = useMutation({
+    mutationFn: async (formData: z.infer<typeof purchaseRequestSchema>) => {
+      if (!selectedRequest || !selectedRequest.id) throw new Error("Permintaan tidak valid.");
+
+      // Use selectedRequest.document_url for the check
+      if (!selectedRequest.document_url) {
+        throw new Error("Tidak dapat menutup permintaan. Resi/dokumen PO/Inv belum diunggah.");
+      }
+      if (!formData.received_quantity || formData.received_quantity <= 0) {
+        throw new Error("Tidak dapat menutup permintaan. Kuantitas diterima harus lebih besar dari 0.");
+      }
+      if (!formData.target_warehouse_category) {
+        throw new Error("Tidak dapat menutup permintaan. Kategori gudang target belum ditentukan.");
+      }
+
+      // 1. Update purchase request status to 'closed' and other received details
+      const { error: updateRequestError } = await supabase
+        .from("purchase_requests")
+        .update({
+          status: PurchaseRequestStatus.CLOSED,
+          received_at: new Date().toISOString(),
+          received_quantity: formData.received_quantity,
+          returned_quantity: formData.returned_quantity,
+          damaged_quantity: formData.damaged_quantity,
+          target_warehouse_category: formData.target_warehouse_category,
+          received_notes: formData.received_notes,
+        })
+        .eq("id", selectedRequest.id);
+
+      if (updateRequestError) throw new Error(`Gagal menutup permintaan pembelian: ${updateRequestError.message}`);
+
+      // 2. Add entry to stock_ledger for 'IN' event
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated for stock update.");
+
+      const { error: stockLedgerError } = await supabase.from("stock_ledger").insert({
+        user_id: user.id,
+        product_id: selectedRequest.product_id,
+        event_type: StockEventType.IN,
+        quantity: formData.received_quantity,
+        to_warehouse_category: formData.target_warehouse_category,
+        notes: `Penerimaan dari permintaan pembelian #${selectedRequest.item_code}. ${formData.received_notes || ''}`,
+        event_date: new Date().toISOString().split('T')[0],
+      });
+
+      if (stockLedgerError) {
+        await supabase.from("purchase_requests").update({ status: selectedRequest.status, received_at: selectedRequest.received_at }).eq("id", selectedRequest.id);
+        throw new Error(`Gagal memperbarui ledger stok: ${stockLedgerError.message}`);
+      }
+
+      // 3. Update or insert into warehouse_inventories
+      const { data: existingInventory, error: inventoryFetchError } = await supabase
+        .from("warehouse_inventories")
+        .select("id, quantity")
+        .eq("product_id", selectedRequest.product_id)
+        .eq("warehouse_category", formData.target_warehouse_category)
+        .single();
+
+      if (inventoryFetchError && inventoryFetchError.code !== 'PGRST116') {
+        throw new Error(`Gagal memeriksa inventaris gudang: ${inventoryFetchError.message}`);
+      }
+
+      if (existingInventory) {
+        const { error: updateInventoryError } = await supabase
+          .from("warehouse_inventories")
+          .update({ quantity: existingInventory.quantity + formData.received_quantity, updated_at: new Date().toISOString() })
+          .eq("id", existingInventory.id);
+        if (updateInventoryError) throw new Error(`Gagal memperbarui inventaris gudang: ${updateInventoryError.message}`);
+      } else {
+        const { error: insertInventoryError } = await supabase
+          .from("warehouse_inventories")
+          .insert({
+            user_id: user.id,
+            product_id: selectedRequest.product_id,
+            warehouse_category: formData.target_warehouse_category,
+            quantity: formData.received_quantity,
+          });
+        if (insertInventoryError) throw new Error(`Gagal menambahkan ke inventaris gudang: ${insertInventoryError.message}`);
+      }
+      return formData;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse_inventories"] });
+      showSuccess("Permintaan pembelian berhasil ditutup dan stok diperbarui!");
+      setIsCloseRequestDialogOpen(false);
+      setSelectedRequest(null);
+      form.reset();
+    },
+    onError: (err) => {
+      showError(`Gagal menutup permintaan pembelian: ${err.message}`);
+    },
+  });
+
   const handleAddRequest = () => {
     setSelectedRequest(null);
     reset({
@@ -257,9 +353,10 @@ const PurchaseRequestPage = () => {
       suggested_selling_price: request.suggested_selling_price || 0,
       total_price: request.total_price || 0,
       status: request.status || PurchaseRequestStatus.PENDING,
-      received_quantity: request.received_quantity || 0,
-      returned_quantity: request.returned_quantity || 0,
-      damaged_quantity: request.damaged_quantity || 0,
+      // These fields are now handled by the close request modal, so no need to pre-fill here
+      // received_quantity: request.received_quantity || 0,
+      // returned_quantity: request.returned_quantity || 0,
+      // damaged_quantity: request.damaged_quantity || 0,
     });
     setIsDialogOpen(true);
   };
@@ -297,7 +394,7 @@ const PurchaseRequestPage = () => {
 
     const fileExtension = fileToUpload.name.split(".").pop();
     const fileName = `${selectedRequest.id}-${Date.now()}.${fileExtension}`;
-    const filePath = `purchase_documents/${fileName}`; // Changed folder path here
+    const filePath = `purchase_documents/${fileName}`;
 
     const { data, error } = await supabase.storage
       .from("documents")
@@ -335,108 +432,19 @@ const PurchaseRequestPage = () => {
     setIsViewReceiptDialogOpen(true);
   };
 
-  const handleCloseRequest = async (request: PurchaseRequest) => {
-    if (!request.id) return;
-
-    // Check if document_url exists
-    if (!request.document_url) {
-      showError("Tidak dapat menutup permintaan. Resi/dokumen PO/Inv belum diunggah.");
-      return;
-    }
-
-    // Check if received_quantity is set and greater than 0
-    if (!request.received_quantity || request.received_quantity <= 0) {
-      showError("Tidak dapat menutup permintaan. Kuantitas diterima harus lebih besar dari 0.");
-      return;
-    }
-
-    // Check if target_warehouse_category is set
-    if (!request.target_warehouse_category) {
-      showError("Tidak dapat menutup permintaan. Kategori gudang target belum ditentukan.");
-      return;
-    }
-
-    // Update purchase request status to 'closed'
-    const { error: updateRequestError } = await supabase
-      .from("purchase_requests")
-      .update({ status: PurchaseRequestStatus.CLOSED, received_at: new Date().toISOString() })
-      .eq("id", request.id);
-
-    if (updateRequestError) {
-      showError(`Gagal menutup permintaan pembelian: ${updateRequestError.message}`);
-      return;
-    }
-
-    // Add entry to stock_ledger for 'IN' event
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      showError("User not authenticated for stock update.");
-      return;
-    }
-
-    const { error: stockLedgerError } = await supabase.from("stock_ledger").insert({
-      user_id: user.id,
-      product_id: request.product_id,
-      event_type: StockEventType.IN,
-      quantity: request.received_quantity,
-      to_warehouse_category: request.target_warehouse_category,
-      notes: `Penerimaan dari permintaan pembelian #${request.item_code}. ${request.received_notes || ''}`,
-      event_date: new Date().toISOString().split('T')[0], // Current date
+  // Modified to open the new modal
+  const handleCloseRequest = (request: PurchaseRequest) => {
+    setSelectedRequest(request);
+    // Pre-fill the form for the close request modal
+    form.reset({
+      ...request,
+      received_quantity: request.received_quantity || request.quantity, // Default to requested quantity
+      returned_quantity: request.returned_quantity || 0,
+      damaged_quantity: request.damaged_quantity || 0,
+      target_warehouse_category: request.target_warehouse_category || null,
+      received_notes: request.received_notes || "",
     });
-
-    if (stockLedgerError) {
-      showError(`Gagal memperbarui ledger stok: ${stockLedgerError.message}`);
-      // Optionally, revert purchase request status if stock update fails
-      await supabase.from("purchase_requests").update({ status: request.status, received_at: request.received_at }).eq("id", request.id);
-      return;
-    }
-
-    // Update or insert into warehouse_inventories
-    const { data: existingInventory, error: inventoryFetchError } = await supabase
-      .from("warehouse_inventories")
-      .select("id, quantity")
-      .eq("product_id", request.product_id)
-      .eq("warehouse_category", request.target_warehouse_category)
-      .single();
-
-    if (inventoryFetchError && inventoryFetchError.code !== 'PGRST116') { // PGRST116 means no rows found
-      showError(`Gagal memeriksa inventaris gudang: ${inventoryFetchError.message}`);
-      return;
-    }
-
-    if (existingInventory) {
-      // Update existing inventory
-      const { error: updateInventoryError } = await supabase
-        .from("warehouse_inventories")
-        .update({ quantity: existingInventory.quantity + request.received_quantity, updated_at: new Date().toISOString() })
-        .eq("id", existingInventory.id);
-
-      if (updateInventoryError) {
-        showError(`Gagal memperbarui inventaris gudang: ${updateInventoryError.message}`);
-        return;
-      }
-    } else {
-      // Insert new inventory entry
-      const { error: insertInventoryError } = await supabase
-        .from("warehouse_inventories")
-        .insert({
-          user_id: user.id,
-          product_id: request.product_id,
-          warehouse_category: request.target_warehouse_category,
-          quantity: request.received_quantity,
-        });
-
-      if (insertInventoryError) {
-        showError(`Gagal menambahkan ke inventaris gudang: ${insertInventoryError.message}`);
-        return;
-      }
-    }
-
-    showSuccess("Permintaan pembelian berhasil ditutup dan stok diperbarui!");
-    queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-    queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
-    queryClient.invalidateQueries({ queryKey: ["warehouse_inventories"] });
-    refetch();
+    setIsCloseRequestDialogOpen(true);
   };
 
   if (isLoading) {
@@ -595,7 +603,7 @@ const PurchaseRequestPage = () => {
                 Kuantitas
               </Label>
               <Input id="quantity" type="number" {...register("quantity", { valueAsNumber: true })} className="col-span-3" />
-              {errors.quantity && <p className="col-span-4 text-red-500 text-sm">{errors.quantity.message}</p>}
+              {errors.quantity && <p className="col-span-4 text-red-500 text-sm">{errors.quantity.message}</p>} {/* Fixed here */}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="satuan" className="text-right">
@@ -677,60 +685,6 @@ const PurchaseRequestPage = () => {
                   </Select>
                   {errors.status && <p className="col-span-4 text-red-500 text-sm">{errors.status.message}</p>}
                 </div>
-                {watch("status") === PurchaseRequestStatus.CLOSED && (
-                  <>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="received_quantity" className="text-right">
-                        Kuantitas Diterima
-                      </Label>
-                      <Input id="received_quantity" type="number" {...register("received_quantity", { valueAsNumber: true })} className="col-span-3" />
-                      {errors.received_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.received_quantity.message}</p>}
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="returned_quantity" className="text-right">
-                        Kuantitas Dikembalikan
-                      </Label>
-                      <Input id="returned_quantity" type="number" {...register("returned_quantity", { valueAsNumber: true })} className="col-span-3" />
-                      {errors.returned_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.returned_quantity.message}</p>}
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="damaged_quantity" className="text-right">
-                        Kuantitas Rusak
-                      </Label>
-                      <Input id="damaged_quantity" type="number" {...register("damaged_quantity", { valueAsNumber: true })} className="col-span-3" />
-                      {errors.damaged_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.damaged_quantity.message}</p>}
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="target_warehouse_category" className="text-right">
-                        Gudang Target
-                      </Label>
-                      <Select
-                        onValueChange={(value) => setValue("target_warehouse_category", value)}
-                        value={watch("target_warehouse_category") || ""}
-                        disabled={loadingCategories}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Pilih Kategori Gudang" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {warehouseCategories?.map((category) => (
-                            <SelectItem key={category.id} value={category.code}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {errors.target_warehouse_category && <p className="col-span-4 text-red-500 text-sm">{errors.target_warehouse_category.message}</p>}
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                      <Label htmlFor="received_notes" className="text-right">
-                        Catatan Penerimaan
-                      </Label>
-                      <Textarea id="received_notes" {...register("received_notes")} className="col-span-3" />
-                      {errors.received_notes && <p className="col-span-4 text-red-500 text-sm">{errors.received_notes.message}</p>}
-                    </div>
-                  </>
-                )}
               </>
             )}
             <DialogFooter>
@@ -801,6 +755,83 @@ const PurchaseRequestPage = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsViewReceiptDialogOpen(false)}>Tutup</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* New Dialog for Closing Purchase Request */}
+      <Dialog open={isCloseRequestDialogOpen} onOpenChange={setIsCloseRequestDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Tutup Permintaan Pembelian & Perbarui Stok</DialogTitle>
+            <DialogDescription>
+              Konfirmasi detail penerimaan untuk permintaan "{selectedRequest?.item_name}".
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit((data) => confirmCloseRequestMutation.mutate(data))} className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="requested_quantity" className="text-right">
+                Kuantitas Diajukan
+              </Label>
+              <Input id="requested_quantity" value={selectedRequest?.quantity || 0} className="col-span-3" readOnly />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="received_quantity" className="text-right">
+                Kuantitas Diterima
+              </Label>
+              <Input id="received_quantity" type="number" {...register("received_quantity", { valueAsNumber: true })} className="col-span-3" />
+              {errors.received_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.received_quantity.message}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="returned_quantity" className="text-right">
+                Kuantitas Dikembalikan
+              </Label>
+              <Input id="returned_quantity" type="number" {...register("returned_quantity", { valueAsNumber: true })} className="col-span-3" />
+              {errors.returned_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.returned_quantity.message}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="damaged_quantity" className="text-right">
+                Kuantitas Rusak
+              </Label>
+              <Input id="damaged_quantity" type="number" {...register("damaged_quantity", { valueAsNumber: true })} className="col-span-3" />
+              {errors.damaged_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.damaged_quantity.message}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="target_warehouse_category" className="text-right">
+                Gudang Target
+              </Label>
+              <Select
+                onValueChange={(value) => setValue("target_warehouse_category", value)}
+                value={watch("target_warehouse_category") || ""}
+                disabled={loadingCategories}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Pilih Kategori Gudang" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouseCategories?.map((category) => (
+                    <SelectItem key={category.id} value={category.code}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.target_warehouse_category && <p className="col-span-4 text-red-500 text-sm">{errors.target_warehouse_category.message}</p>}
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="received_notes" className="text-right">
+                Catatan Penerimaan
+              </Label>
+              <Textarea id="received_notes" {...register("received_notes")} className="col-span-3" />
+              {errors.received_notes && <p className="col-span-4 text-red-500 text-sm">{errors.received_notes.message}</p>}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCloseRequestDialogOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={confirmCloseRequestMutation.isPending}>
+                {confirmCloseRequestMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Konfirmasi & Tutup
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
