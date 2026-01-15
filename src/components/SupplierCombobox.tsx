@@ -79,10 +79,9 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
               {suppliers.map((supplier) => (
                 <CommandItem
                   key={supplier.id}
-                  value={supplier.name}
-                  onSelect={(currentCommandItemValue) => {
-                    const selected = suppliers.find(s => s.name === currentCommandItemValue);
-                    onValueChange(selected); // Update parent's supplier_id and supplier_name_input
+                  value={supplier.name} // Tetap gunakan nama untuk fungsionalitas pencarian
+                  onSelect={() => {
+                    onValueChange(supplier); // Langsung panggil onValueChange dengan objek supplier
                     setOpen(false);
                   }}
                 >
