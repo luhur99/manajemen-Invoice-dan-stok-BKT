@@ -38,6 +38,7 @@ import {
   CustomerTypeEnum,
   WarehouseInventory,
   ScheduleWithDetails,
+  InvoiceDocumentStatus, // Import new enum
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 
@@ -51,9 +52,10 @@ const formSchema = z.object({
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
   customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
-  payment_method: z.string().optional(), // Keep as string, but use select for input
+  payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
+  invoice_status: z.nativeEnum(InvoiceDocumentStatus).default(InvoiceDocumentStatus.WAITING_DOCUMENT_INV), // Add to schema
   items: z.array(
     z.object({
       selected_product_id: z.string().min(1, "Produk harus dipilih."),
@@ -111,6 +113,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       customer_name: "",
       total_amount: 0,
       payment_status: InvoicePaymentStatus.PENDING,
+      invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV, // Set default here
       items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
     },
   });
@@ -187,7 +190,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           invoice_date: new Date(),
           due_date: undefined,
           customer_name: initialSchedule?.customer_name || "",
-          company_name: undefined,
+          company_name: undefined, // Can be fetched from customer if customer_id is available
           total_amount: 0,
           payment_status: InvoicePaymentStatus.PENDING,
           type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI, // Set invoice type based on schedule type
@@ -195,6 +198,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           payment_method: initialSchedule?.payment_method || undefined,
           notes: defaultNotes,
           courier_service: initialSchedule?.courier_service || undefined,
+          invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV, // Set default here
           items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
         });
       };
@@ -278,7 +282,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           customer_type: values.customer_type,
           payment_method: values.payment_method,
           notes: values.notes,
-          courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null, // Only save if type is KIRIM_BARANG
+          courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null,
+          invoice_status: values.invoice_status, // Include new status
         })
         .select()
         .single();

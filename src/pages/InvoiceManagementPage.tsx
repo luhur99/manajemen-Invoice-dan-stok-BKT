@@ -13,10 +13,10 @@ import EditInvoiceForm from "@/components/EditInvoiceForm";
 import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus } from "@/types/data";
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data"; // Import InvoiceDocumentStatus
 import InvoiceUpload from "@/components/InvoiceUpload";
 
-const getStatusColor = (status: InvoicePaymentStatus) => {
+const getPaymentStatusColor = (status: InvoicePaymentStatus) => {
   switch (status) {
     case InvoicePaymentStatus.PAID:
       return "bg-green-100 text-green-800";
@@ -29,6 +29,25 @@ const getStatusColor = (status: InvoicePaymentStatus) => {
   }
 };
 
+const getDocumentStatusColor = (status: InvoiceDocumentStatus) => {
+  switch (status) {
+    case InvoiceDocumentStatus.COMPLETED:
+      return "bg-green-100 text-green-800";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
+      return "bg-yellow-100 text-yellow-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
+const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
+  switch (status) {
+    case InvoiceDocumentStatus.COMPLETED: return "Completed";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV: return "Waiting Document";
+    default: return status;
+  }
+};
+
 const InvoiceManagementPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
@@ -38,6 +57,8 @@ const InvoiceManagementPage = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [invoiceToView, setInvoiceToView] = React.useState<InvoiceWithDetails | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = React.useState(false);
+  const [isViewDocumentOpen, setIsViewDocumentOpen] = React.useState(false); // New state for viewing document
+  const [documentUrlToView, setDocumentUrlToView] = React.useState<string | null>(null); // New state for document URL
 
   const { data: invoices, isLoading, error, refetch: fetchInvoices } = useQuery<InvoiceWithDetails[], Error>({
     queryKey: ["invoices"],
@@ -46,21 +67,18 @@ const InvoiceManagementPage = () => {
         .from("invoices")
         .select(`
           *,
-          invoice_items (item_name),
-          schedules (status)
-        `)
+          invoice_items (item_name)
+        `) // Removed the SQL comment here
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       return data.map((invoice, index) => {
         const itemNames = invoice.invoice_items?.map((item: { item_name: string }) => item.item_name).join(", ") || "";
-        const scheduleStatus = invoice.schedules?.[0]?.status; // Assuming one schedule per invoice for simplicity
         return {
           ...invoice,
           no: index + 1, // Add sequential number
           item_names_summary: itemNames,
-          schedule_status_display: scheduleStatus ? scheduleStatus.charAt(0).toUpperCase() + scheduleStatus.slice(1) : "-",
         };
       });
     },
@@ -84,6 +102,11 @@ const InvoiceManagementPage = () => {
   const handleUploadClick = (invoice: InvoiceWithDetails) => {
     setSelectedInvoice(invoice);
     setIsUploadModalOpen(true);
+  };
+
+  const handleViewDocument = (url: string) => { // New handler for viewing document
+    setDocumentUrlToView(url);
+    setIsViewDocumentOpen(true);
   };
 
   const handleDeleteInvoice = async () => {
@@ -113,8 +136,8 @@ const InvoiceManagementPage = () => {
       item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.payment_status.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.schedule_status_display?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.item_names_summary?.toLowerCase().includes(lowerCaseSearchTerm)
+      item.item_names_summary?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      getDocumentStatusDisplay(item.invoice_status).toLowerCase().includes(lowerCaseSearchTerm) // Search by new status
     );
   });
 
@@ -158,7 +181,7 @@ const InvoiceManagementPage = () => {
               <TableHead className="min-w-[200px]">Item</TableHead>
               <TableHead className="text-right">Total Jumlah</TableHead>
               <TableHead>Status Pembayaran</TableHead>
-              <TableHead>Status Jadwal</TableHead>
+              <TableHead>Status Dokumen</TableHead> {/* New column */}
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -173,13 +196,13 @@ const InvoiceManagementPage = () => {
                 <TableCell className="max-w-[200px] truncate">{invoice.item_names_summary || "-"}</TableCell>
                 <TableCell className="text-right">{invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(invoice.payment_status)}`}>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(invoice.payment_status)}`}>
                     {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${invoice.schedule_status_display === 'Completed' ? 'bg-green-100 text-green-800' : invoice.schedule_status_display === 'Cancelled' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`}>
-                    {invoice.schedule_status_display}
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getDocumentStatusColor(invoice.invoice_status)}`}>
+                    {getDocumentStatusDisplay(invoice.invoice_status)}
                   </span>
                 </TableCell>
                 <TableCell className="flex space-x-2 justify-center">
@@ -195,6 +218,11 @@ const InvoiceManagementPage = () => {
                   <Button variant="outline" size="icon" onClick={() => handleUploadClick(invoice)} title="Unggah Dokumen">
                     <FileText className="h-4 w-4" />
                   </Button>
+                  {invoice.document_url && ( // Conditionally render view document button
+                    <Button variant="outline" size="icon" onClick={() => handleViewDocument(invoice.document_url!)} title="Lihat Dokumen">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -234,6 +262,37 @@ const InvoiceManagementPage = () => {
           onSuccess={fetchInvoices}
         />
       )}
+
+      {/* New Dialog for viewing documents */}
+      <Dialog open={isViewDocumentOpen} onOpenChange={setIsViewDocumentOpen}>
+        <DialogContent className="sm:max-w-[800px] h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>Lihat Dokumen Invoice</DialogTitle>
+            <DialogDescription>
+              Dokumen terkait invoice ini.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-grow">
+            {documentUrlToView ? (
+              // Check if it's an image or PDF for direct embedding, otherwise provide a link
+              documentUrlToView.match(/\.(jpeg|jpg|gif|png)$/i) != null ? (
+                <img src={documentUrlToView} alt="Invoice Document" className="max-w-full h-auto mx-auto" />
+              ) : documentUrlToView.match(/\.pdf$/i) != null ? (
+                <iframe src={documentUrlToView} className="w-full h-full border-0" title="Invoice Document"></iframe>
+              ) : (
+                <a href={documentUrlToView} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline block text-center py-4">
+                  Buka Dokumen (Tipe file tidak dapat dipratinjau)
+                </a>
+              )
+            ) : (
+              <p className="text-center text-muted-foreground">Tidak ada dokumen untuk ditampilkan.</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsViewDocumentOpen(false)}>Tutup</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Modal */}
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>

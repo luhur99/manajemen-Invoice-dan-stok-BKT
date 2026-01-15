@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Invoice, InvoiceItem } from "@/types/data";
+import { Invoice, InvoiceItem, InvoiceDocumentStatus } from "@/types/data"; // Import InvoiceDocumentStatus
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +21,14 @@ interface ViewInvoiceDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+const getInvoiceDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
+  switch (status) {
+    case InvoiceDocumentStatus.COMPLETED: return "Completed";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV: return "Waiting Document";
+    default: return status;
+  }
+};
 
 const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
   invoice,
@@ -88,6 +96,7 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
             <p><strong>Pelanggan:</strong> {invoice.customer_name}</p>
             <p><strong>Perusahaan:</strong> {invoice.company_name || "-"}</p>
             <p><strong>Status Pembayaran:</strong> {invoice.payment_status}</p>
+            <p><strong>Status Dokumen:</strong> {getInvoiceDocumentStatusDisplay(invoice.invoice_status)}</p> {/* New field */}
             <p><strong>Tipe Invoice:</strong> {invoice.type || "-"}</p>
             <p><strong>Tipe Pelanggan:</strong> {invoice.customer_type || "-"}</p>
             <p><strong>Metode Pembayaran:</strong> {invoice.payment_method || "-"}</p>

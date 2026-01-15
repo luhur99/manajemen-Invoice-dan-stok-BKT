@@ -83,6 +83,12 @@ export enum ScheduleStatus {
   CANCELLED = "cancelled",
 }
 
+// New enum for Invoice Document Status
+export enum InvoiceDocumentStatus {
+  WAITING_DOCUMENT_INV = "waiting_document_inv",
+  COMPLETED = "completed",
+}
+
 export interface Product {
   id: string;
   user_id: string;
@@ -268,6 +274,7 @@ export interface Invoice {
   notes?: string;
   document_url?: string;
   courier_service?: string;
+  invoice_status: InvoiceDocumentStatus; // Added new field
 }
 
 // New interface for Invoice with item names summary and 'no'
@@ -275,6 +282,7 @@ export interface InvoiceWithDetails extends Invoice {
   item_names_summary?: string;
   no?: number;
   schedule_status_display?: string;
+  invoice_items?: { item_name: string }[]; // Added invoice_items here
 }
 
 export interface InvoiceItem {

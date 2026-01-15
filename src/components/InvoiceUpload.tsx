@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
+import { InvoiceDocumentStatus } from "@/types/data"; // Import new enum
 
 interface InvoiceUploadProps {
   invoiceId: string;
@@ -76,7 +77,7 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
 
       const { error: updateError } = await supabase
         .from("invoices")
-        .update({ document_url: publicUrl })
+        .update({ document_url: publicUrl, invoice_status: InvoiceDocumentStatus.COMPLETED }) // Update status here
         .eq("id", invoiceId);
 
       if (updateError) throw updateError;
@@ -111,7 +112,7 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
 
       const { error: updateError } = await supabase
         .from("invoices")
-        .update({ document_url: null })
+        .update({ document_url: null, invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV }) // Revert status here
         .eq("id", invoiceId);
 
       if (updateError) throw updateError;
