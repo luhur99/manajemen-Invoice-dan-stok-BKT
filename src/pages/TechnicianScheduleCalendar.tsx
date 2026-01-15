@@ -8,8 +8,9 @@ import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician } from "@/types/data"; // Import Technician interface
-import { Loader2, CalendarDays, User, Clock, MapPin, Info } from "lucide-react";
+import { Loader2, CalendarDays, User, Clock, MapPin, Info, AlertTriangle } from "lucide-react"; // Added AlertTriangle
 import { useQuery } from "@tanstack/react-query"; // Import useQuery
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
 
 interface TechnicianScheduleCalendarProps {
   // No props needed for now, it will manage its own state and data fetching
@@ -57,41 +58,42 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     return category ? category.name : code;
   };
 
-  // Define colors for different technicians in the schedule list
-  const technicianColors: Record<string, string> = useMemo(() => {
-    const colors: Record<string, string> = {
-      "Belum Ditugaskan": "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200",
+  // Define a palette of colors for technicians
+  const colorPalette = useMemo(() => [
+    { bgClass: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100", hsl: 'hsl(217.2 91.2% 59.8%)' }, // Blue
+    { bgClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100", hsl: 'hsl(142.1 76.2% 36.3%)' }, // Green
+    { bgClass: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100", hsl: 'hsl(27 87% 53%)' },   // Orange
+    { bgClass: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100", hsl: 'hsl(262.1 83.3% 57.8%)' }, // Purple
+    { bgClass: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100", hsl: 'hsl(340.5 72.6% 55.5%)' }, // Pink
+    { bgClass: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100", hsl: 'hsl(230 69% 61%)' }, // Indigo
+    { bgClass: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-100", hsl: 'hsl(174 72% 48%)' }, // Teal
+  ], []);
+
+  // Dynamically assign colors to technicians
+  const technicianColorMap = useMemo(() => {
+    const map: Record<string, { bgClass: string; hsl: string }> = {
+      "Belum Ditugaskan": { bgClass: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200", hsl: 'hsl(210 40% 96.1%)' },
     };
     technicians?.forEach((tech, index) => {
-      // Assign a color based on index or a predefined list
-      const colorClasses = [
-        "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100",
-        "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
-        "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100",
-        "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100",
-        "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100",
-      ];
-      colors[tech.name] = colorClasses[index % colorClasses.length];
+      map[tech.name] = colorPalette[index % colorPalette.length];
     });
-    return colors;
-  }, [technicians]);
+    return map;
+  }, [technicians, colorPalette]);
+
+  // Define colors for different technicians in the schedule list
+  const getTechnicianBgClass = useCallback((technicianName: string | null | undefined) => {
+    return technicianColorMap[technicianName || "Belum Ditugaskan"]?.bgClass || technicianColorMap["Belum Ditugaskan"].bgClass;
+  }, [technicianColorMap]);
 
   // Define colors for calendar day markers (using HSL for consistency with shadcn/ui)
   const calendarModifierStyles: Record<string, React.CSSProperties> = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
-    technicians?.forEach((tech, index) => {
-      // Assign a color based on index or a predefined list
-      const hslColors = [
-        'hsl(217.2 91.2% 59.8%)', // Blue-500
-        'hsl(142.1 76.2% 36.3%)', // Green-500
-        'hsl(27 87% 53%)',       // Orange-500
-        'hsl(262.1 83.3% 57.8%)', // Purple-500
-        'hsl(340.5 72.6% 55.5%)', // Pink-500
-      ];
-      styles[tech.name.toLowerCase().replace(/\s/g, '_')] = { backgroundColor: hslColors[index % hslColors.length], color: 'hsl(0 0% 100%)' };
+    technicians?.forEach((tech) => {
+      const key = tech.name.toLowerCase().replace(/\s/g, '_');
+      styles[key] = { backgroundColor: technicianColorMap[tech.name]?.hsl || 'hsl(0 0% 100%)', color: 'hsl(0 0% 100%)' };
     });
     return styles;
-  }, [technicians]);
+  }, [technicians, technicianColorMap]);
 
   const fetchSchedulesForMonth = useCallback(async (monthDate: Date) => {
     setLoading(true);
@@ -190,6 +192,8 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     return acc;
   }, {} as Record<string, Schedule[]>);
 
+  const numberOfDistinctTechniciansToday = Object.keys(groupedSchedules).filter(techName => techName !== "Belum Ditugaskan").length;
+
   if (loadingCategories || loading || loadingTechnicians) {
     return (
       <Card className="border shadow-sm">
@@ -217,9 +221,9 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
       <CardContent className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1">
           <div className="mb-4 flex flex-wrap gap-4 text-sm">
-            {technicians?.map((tech, index) => (
+            {technicians?.map((tech) => (
               <div key={tech.id} className="flex items-center gap-2">
-                <span className={`h-4 w-4 rounded-full ${technicianColors[tech.name]?.split(' ')[0]}`}></span>
+                <span className={`h-4 w-4 rounded-full ${getTechnicianBgClass(tech.name).split(' ')[0]}`}></span>
                 <span>{tech.name}</span>
               </div>
             ))}
@@ -251,6 +255,15 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
             <p className="text-gray-600 dark:text-gray-300">Tidak ada jadwal untuk tanggal ini.</p>
           ) : (
             <div className="space-y-4">
+              {numberOfDistinctTechniciansToday > 1 && (
+                <Alert variant="default" className="mb-4"> {/* Changed variant to "default" */}
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Perhatian!</AlertTitle>
+                  <AlertDescription>
+                    Ada {numberOfDistinctTechniciansToday} teknisi berbeda yang dijadwalkan pada tanggal ini. Periksa potensi bentrok.
+                  </AlertDescription>
+                </Alert>
+              )}
               {Object.entries(groupedSchedules).map(([technician, schedules]) => (
                 <div key={technician} className="border-b pb-3 last:border-b-0">
                   <h4 className="font-bold text-md mb-2 flex items-center">
@@ -264,7 +277,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
                   </h4>
                   <ul className="space-y-2">
                     {schedules.map((schedule) => (
-                      <li key={schedule.id} className={`p-3 rounded-md shadow-sm text-sm ${technicianColors[schedule.technician_name || "Belum Ditugaskan"]}`}>
+                      <li key={schedule.id} className={`p-3 rounded-md shadow-sm text-sm ${getTechnicianBgClass(schedule.technician_name)}`}>
                         <p className="flex items-center"><Clock className="h-4 w-4 mr-2 text-current" /> {schedule.schedule_time || "Waktu tidak ditentukan"}</p>
                         <p className="flex items-center"><Info className="h-4 w-4 mr-2 text-current" /> {schedule.type.charAt(0).toUpperCase() + schedule.type.slice(1)} untuk {schedule.customer_name}</p>
                         {schedule.address && <p className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-current" /> {schedule.address}</p>}
