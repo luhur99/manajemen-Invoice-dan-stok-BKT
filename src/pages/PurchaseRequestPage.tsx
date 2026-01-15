@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Edit, Trash, Receipt, Eye, Loader2, FileText } from "lucide-react";
+import { Plus, Edit, Trash, Receipt, Eye, Loader2, FileText, CheckCircle } from "lucide-react"; // Import CheckCircle icon
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -258,6 +258,27 @@ const PurchaseRequestPage = () => {
     },
   });
 
+  const approvePurchaseRequestMutation = useMutation({
+    mutationFn: async (request: PurchaseRequest) => {
+      const { data, error } = await supabase
+        .from("purchase_requests")
+        .update({ status: PurchaseRequestStatus.APPROVED, updated_at: new Date().toISOString() })
+        .eq("id", request.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
+      showSuccess("Permintaan pembelian berhasil disetujui!");
+      setSelectedRequest(null);
+    },
+    onError: (err) => {
+      showError(`Gagal menyetujui permintaan pembelian: ${err.message}`);
+    },
+  });
+
   const confirmCloseRequestMutation = useMutation({
     mutationFn: async (formData: z.infer<typeof purchaseRequestSchema>) => {
       if (!selectedRequest || !selectedRequest.id) throw new Error("Permintaan tidak valid.");
@@ -405,6 +426,11 @@ const PurchaseRequestPage = () => {
     }
   };
 
+  const handleApproveRequest = (request: PurchaseRequest) => {
+    setSelectedRequest(request);
+    approvePurchaseRequestMutation.mutate(request);
+  };
+
   const handleReceiptUploadClick = (request: PurchaseRequest) => {
     setSelectedRequest(request);
     setFileToUpload(null);
@@ -445,7 +471,7 @@ const PurchaseRequestPage = () => {
 
     const { error: updateError } = await supabase
       .from("purchase_requests")
-      .update({ document_url: publicUrl })
+      .update({ document_url: publicUrl, status: PurchaseRequestStatus.WAITING_FOR_RECEIPT }) // Set status to WAITING_FOR_RECEIPT
       .eq("id", selectedRequest.id);
 
     if (updateError) {
@@ -469,7 +495,7 @@ const PurchaseRequestPage = () => {
     setSelectedRequest(request);
     form.reset({
       ...request,
-      received_quantity: request.received_quantity || request.quantity,
+      received_quantity: request.received_quantity || request.quantity, // Default to requested quantity
       returned_quantity: request.returned_quantity || 0,
       damaged_quantity: request.damaged_quantity || 0,
       target_warehouse_category: request.target_warehouse_category || null,
@@ -514,7 +540,7 @@ const PurchaseRequestPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>No. PR</TableHead> {/* Added new column */}
+              <TableHead>No. PR</TableHead>
               <TableHead>Item</TableHead>
               <TableHead>Kode</TableHead>
               <TableHead>Kuantitas</TableHead>
@@ -528,7 +554,7 @@ const PurchaseRequestPage = () => {
           <TableBody>
             {purchaseRequests?.map((request) => (
               <TableRow key={request.id}>
-                <TableCell>{request.pr_number || "-"}</TableCell> {/* Display pr_number */}
+                <TableCell>{request.pr_number || "-"}</TableCell>
                 <TableCell>{request.item_name}</TableCell>
                 <TableCell>{request.item_code}</TableCell>
                 <TableCell>{request.quantity} {request.satuan}</TableCell>
@@ -552,9 +578,14 @@ const PurchaseRequestPage = () => {
                     <Edit className="h-4 w-4 text-gray-600" />
                   </Button>
                   {request.status === PurchaseRequestStatus.PENDING && (
-                    <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(request)} title="Hapus Permintaan">
-                      <Trash className="h-4 w-4 text-red-600" />
-                    </Button>
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui Permintaan">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(request)} title="Hapus Permintaan">
+                        <Trash className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </>
                   )}
                   {request.status !== PurchaseRequestStatus.CLOSED && (
                     <>
