@@ -40,7 +40,7 @@ const StockPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductWithDetails | null>(null);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
-  const [initialTransactionType, setInitialTransactionType] = React.useState<"out" | "initial">("out"); // Changed from "outbound" to "out"
+  const [initialTransactionType, setInitialTransactionType] = React.useState<"out" | "initial">("out");
 
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false); // State for View Details dialog
   const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null); // State for product to view
@@ -90,7 +90,7 @@ const StockPage = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleOpenTransactionForm = (product: ProductWithDetails, type: "out" | "initial") => { // Changed from "outbound" to "out"
+  const handleOpenTransactionForm = (product: ProductWithDetails, type: "out" | "initial") => {
     setSelectedProduct(product);
     setInitialTransactionType(type);
     setIsTransactionFormOpen(true);
@@ -189,8 +189,8 @@ const StockPage = () => {
               <TableHead>Satuan</TableHead>
               <TableHead>Harga Beli</TableHead>
               <TableHead>Harga Jual</TableHead>
-              <TableHead>Stok per Kategori</TableHead> {/* New column */}
-              <TableHead>Total Stok</TableHead> {/* Renamed from Stok Saat Ini */}
+              <TableHead className="min-w-[200px]">Stok per Kategori</TableHead> {/* Removed truncate and adjusted min-width */}
+              <TableHead>Total Stok</TableHead>
               <TableHead>Batas Stok Aman</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
@@ -203,7 +203,7 @@ const StockPage = () => {
                 <TableCell>{product.satuan || '-'}</TableCell>
                 <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
                 <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
-                <TableCell className="max-w-[250px] truncate">{formatInventories(product.inventories)}</TableCell> {/* Display inventories */}
+                <TableCell className="whitespace-normal">{formatInventories(product.inventories)}</TableCell> {/* Removed truncate and added whitespace-normal */}
                 <TableCell>{product.current_stock}</TableCell>
                 <TableCell>{product.safe_stock_limit}</TableCell>
                 <TableCell className="flex space-x-2 justify-center">
