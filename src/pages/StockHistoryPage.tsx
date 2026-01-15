@@ -6,28 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye } from "lucide-react"; // Import Eye icon
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
 import { showError } from "@/utils/toast"; // Import showError
-
-const getEventTypeDisplay = (type: StockEventType) => {
-  switch (type) {
-    case StockEventType.INITIAL: return "Stok Awal";
-    case StockEventType.IN: return "Masuk";
-    case StockEventType.OUT: return "Keluar";
-    case StockEventType.TRANSFER: return "Pindah";
-    case StockEventType.ADJUSTMENT: return "Penyesuaian";
-    default: return type;
-  }
-};
+import ViewNotesDialog from "@/components/ViewNotesDialog"; // Import ViewNotesDialog
 
 const StockHistoryPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedType, setSelectedType] = React.useState<StockEventType | "all">("all"); // Updated type
   const [selectedCategory, setSelectedCategory] = React.useState<string | "all">("all");
   
+  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false); // State for ViewNotesDialog
+  const [notesToView, setNotesToView] = useState<string>(""); // State for notes content
+
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
@@ -47,6 +40,18 @@ const StockHistoryPage = () => {
   const getCategoryDisplayName = (code: string) => {
     const category = warehouseCategories?.find(cat => cat.code === code);
     return category ? category.name : code;
+  };
+
+  // Helper function to get display name for StockEventType
+  const getEventTypeDisplay = (type: StockEventType) => {
+    switch (type) {
+      case StockEventType.INITIAL: return "Stok Awal";
+      case StockEventType.IN: return "Masuk";
+      case StockEventType.OUT: return "Keluar";
+      case StockEventType.TRANSFER: return "Pindah";
+      case StockEventType.ADJUSTMENT: return "Penyesuaian";
+      default: return type;
+    }
   };
 
   const { data: ledgerEntries, isLoading, error, refetch: fetchLedgerEntries } = useQuery<StockLedgerWithProduct[], Error>({ // Updated type and query key
@@ -69,6 +74,11 @@ const StockHistoryPage = () => {
       }));
     },
   });
+
+  const handleViewNotes = (notes: string) => {
+    setNotesToView(notes);
+    setIsViewNotesOpen(true);
+  };
 
   const filteredLedgerEntries = ledgerEntries?.filter((item) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -185,13 +195,29 @@ const StockHistoryPage = () => {
                   <TableCell>{entry.from_warehouse_category ? getCategoryDisplayName(entry.from_warehouse_category) : "-"}</TableCell>
                   <TableCell>{entry.to_warehouse_category ? getCategoryDisplayName(entry.to_warehouse_category) : "-"}</TableCell>
                   <TableCell className="text-right">{entry.quantity}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{entry.notes || "-"}</TableCell>
+                  <TableCell>
+                    {entry.notes ? (
+                      <Button variant="outline" size="sm" onClick={() => handleViewNotes(entry.notes!)} className="h-7 px-2">
+                        <Eye className="h-3 w-3 mr-1" /> Lihat
+                      </Button>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* View Notes Dialog */}
+      <ViewNotesDialog
+        notes={notesToView}
+        isOpen={isViewNotesOpen}
+        onOpenChange={setIsViewNotesOpen}
+        title="Catatan Riwayat Stok"
+      />
     </div>
   );
 };
