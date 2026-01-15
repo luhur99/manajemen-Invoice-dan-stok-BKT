@@ -80,11 +80,11 @@ const SidebarNav = () => {
             to={item.to}
             className={cn(
               buttonVariants({ variant: "ghost" }),
-              "w-full justify-start text-sidebar-foreground hover:bg-sidebar-hover dark:hover:bg-sidebar-hover"
+              "w-full justify-start text-sidebar-foreground hover:bg-sidebar-hover dark:hover:bg-sidebar-hover h-auto py-2" // Added h-auto and py-2 for better spacing with two lines
             )}
           >
             {item.icon}
-            <span className="ml-2 overflow-hidden whitespace-nowrap text-ellipsis">{item.text}</span>
+            <span className="ml-2 flex-1 text-left line-clamp-2">{item.text}</span> {/* Changed here */}
           </Link>
         ))}
       </div>
