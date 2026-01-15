@@ -3,7 +3,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes } from "lucide-react"; // Import Boxes icon for Stock Management
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo } from "lucide-react"; // Import ListTodo icon for Scheduling Requests
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,19 @@ const navItems = [
     icon: CalendarDays,
   },
   {
+    title: "Permintaan Jadwal Teknis", // New nav item
+    href: "/scheduling-requests",
+    icon: ListTodo, // Using ListTodo icon
+  },
+  {
     title: "Manajemen Produk",
     href: "/stock",
     icon: Package,
   },
   {
-    title: "Manajemen Stok", // New nav item
+    title: "Manajemen Stok",
     href: "/stock-management",
-    icon: Boxes, // Using Boxes icon
+    icon: Boxes,
   },
   {
     title: "Riwayat Transaksi Produk",

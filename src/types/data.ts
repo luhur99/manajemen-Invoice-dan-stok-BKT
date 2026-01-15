@@ -21,8 +21,11 @@ export enum StockEventType {
 
 export enum SchedulingRequestType {
   INSTALLATION = "installation",
-  MAINTENANCE = "maintenance",
-  SURVEY = "survey",
+  SERVICE_PAID = "service_paid", // New
+  SERVICE_UNBILL = "service_unbill", // New
+  DELIVERY = "delivery", // New
+  MAINTENANCE = "maintenance", // Keep existing for now
+  SURVEY = "survey", // Keep existing for now
 }
 
 export enum SchedulingRequestStatus {
@@ -184,6 +187,7 @@ export interface PurchaseRequestWithDetails extends PurchaseRequest {
 export interface SchedulingRequest {
   id: string;
   user_id?: string;
+  sr_number?: string; // Added sr_number
   customer_name: string;
   company_name?: string;
   type: SchedulingRequestType;
@@ -201,6 +205,12 @@ export interface SchedulingRequest {
   status: SchedulingRequestStatus;
   notes?: string;
   created_at: string;
+  updated_at?: string; // Added for consistency
+}
+
+// New interface for SchedulingRequest with 'no' for display
+export interface SchedulingRequestWithDetails extends SchedulingRequest {
+  no?: number;
 }
 
 export interface Schedule {
