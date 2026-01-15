@@ -257,9 +257,9 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         customer_name: values.customer_name,
         company_name: values.company_name,
         phone_number: values.phone_number,
-        customer_type: values.customer_type || null,
+        // Removed customer_type from dataToSubmit as it's not a column in scheduling_requests
         vehicle_details: values.vehicle_details || null,
-        payment_method: values.payment_method || null, // Ensure payment_method is handled
+        payment_method: values.payment_method || null,
       };
 
       if (initialData) {
