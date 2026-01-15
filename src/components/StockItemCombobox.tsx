@@ -75,7 +75,7 @@ const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed componen
           name={name}
         >
           {selectedItem
-            ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${formatStockInventories(selectedItem.inventories)}`
+            ? `${selectedItem.nama_barang} (${selectedItem.kode_barang}) - ${formatStockInventories(selectedItem.inventories)}`
             : inputValue || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -93,10 +93,10 @@ const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed componen
               {items.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item["NAMA BARANG"]} // Use item name for search/display in list
+                  value={item.nama_barang} // Use item name for search/display in list
                   onSelect={() => {
                     onSelectItemId(item.id); // Pass the ID of the selected item
-                    onInputValueChange(item["NAMA BARANG"]); // Update input text to selected item's name
+                    onInputValueChange(item.nama_barang); // Update input text to selected item's name
                     setOpen(false);
                   }}
                 >
@@ -106,7 +106,7 @@ const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed componen
                       selectedItemId === item.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {item["NAMA BARANG"]} ({item["KODE BARANG"]}) - {formatStockInventories(item.inventories)}
+                  {item.nama_barang} ({item.kode_barang}) - {formatStockInventories(item.inventories)}
                 </CommandItem>
               ))}
             </CommandGroup>

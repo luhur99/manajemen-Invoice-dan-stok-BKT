@@ -41,11 +41,11 @@ const EditStockItemForm: React.FC<EditProductFormProps> = ({ product, isOpen, on
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      kode_barang: product["KODE BARANG"],
-      nama_barang: product["NAMA BARANG"],
-      satuan: product.SATUAN,
-      harga_beli: product["HARGA BELI"],
-      harga_jual: product["HARGA JUAL"],
+      kode_barang: product.kode_barang,
+      nama_barang: product.nama_barang,
+      satuan: product.satuan,
+      harga_beli: product.harga_beli,
+      harga_jual: product.harga_jual,
       safe_stock_limit: product.safe_stock_limit || 0,
     },
   });
@@ -54,11 +54,11 @@ const EditStockItemForm: React.FC<EditProductFormProps> = ({ product, isOpen, on
   useEffect(() => {
     if (isOpen && product) {
       form.reset({
-        kode_barang: product["KODE BARANG"],
-        nama_barang: product["NAMA BARANG"],
-        satuan: product.SATUAN,
-        harga_beli: product["HARGA BELI"],
-        harga_jual: product["HARGA JUAL"],
+        kode_barang: product.kode_barang,
+        nama_barang: product.nama_barang,
+        satuan: product.satuan,
+        harga_beli: product.harga_beli,
+        harga_jual: product.harga_jual,
         safe_stock_limit: product.safe_stock_limit || 0,
       });
     }
@@ -96,7 +96,7 @@ const EditStockItemForm: React.FC<EditProductFormProps> = ({ product, isOpen, on
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Produk Metadata</DialogTitle> {/* Changed title */}
-          <DialogDescription>Perbarui detail metadata untuk produk "{product["NAMA BARANG"]}".</DialogDescription> {/* Changed description */}
+          <DialogDescription>Perbarui detail metadata untuk produk "{product.nama_barang}".</DialogDescription> {/* Changed description */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -86,11 +86,11 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       } else {
         setProducts(data.map(item => ({ // Changed from setStockItems
           id: item.id,
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          "HARGA BELI": item.harga_beli,
-          "HARGA JUAL": item.harga_jual,
-          SATUAN: item.satuan || "",
+          kode_barang: item.kode_barang,
+          nama_barang: item.nama_barang,
+          harga_beli: item.harga_beli,
+          harga_jual: item.harga_jual,
+          satuan: item.satuan || "",
           supplier_id: item.supplier_id || undefined, // Include supplier_id
           inventories: item.warehouse_inventories || [],
           safe_stock_limit: 0,
@@ -125,11 +125,11 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
     if (selectedItemId) {
       const selectedProduct = products.find(item => item.id === selectedItemId); // Changed from selectedStock
       if (selectedProduct) {
-        form.setValue("item_name", selectedProduct["NAMA BARANG"]);
-        form.setValue("item_code", selectedProduct["KODE BARANG"]);
-        form.setValue("unit_price", selectedProduct["HARGA BELI"]);
-        form.setValue("suggested_selling_price", selectedProduct["HARGA JUAL"]);
-        form.setValue("satuan", selectedProduct.SATUAN || "");
+        form.setValue("item_name", selectedProduct.nama_barang);
+        form.setValue("item_code", selectedProduct.kode_barang);
+        form.setValue("unit_price", selectedProduct.harga_beli);
+        form.setValue("suggested_selling_price", selectedProduct.harga_jual);
+        form.setValue("satuan", selectedProduct.satuan || "");
         form.setValue("supplier_id", selectedProduct.supplier_id || "");
         const selectedSupplier = suppliers.find(s => s.id === selectedProduct.supplier_id);
         form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
@@ -150,7 +150,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
     form.setValue("item_name", value);
     // If the user types, clear the selected item ID and other prepopulated fields
     // unless the typed value exactly matches an existing item.
-    const matchedItem = products.find(item => item["NAMA BARANG"] === value); // Changed from stockItems
+    const matchedItem = products.find(item => item.nama_barang === value); // Changed from stockItems
     if (!matchedItem) {
       form.setValue("selected_product_id", ""); // Changed from selected_stock_item_id
       form.setValue("item_code", "");

@@ -156,10 +156,6 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
   const endIndex = startIndex + itemsPerPage;
   const currentItems = transactions.slice(startIndex, endIndex);
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
   if (!product) return null; // Changed from stockItem
 
   const totalStockAkhir = currentInventories.reduce((sum, inv) => sum + inv.quantity, 0);
@@ -169,20 +165,20 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Produk: {product["NAMA BARANG"]}</DialogTitle> {/* Changed title */}
+          <DialogTitle>Detail Produk: {product.nama_barang}</DialogTitle> {/* Changed title */}
           <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription> {/* Changed description */}
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
-            <p><strong>Kode Barang:</strong> {product["KODE BARANG"]}</p>
-            <p><strong>Nama Barang:</strong> {product["NAMA BARANG"]}</p>
-            <p><strong>Satuan:</strong> {product.SATUAN || "-"}</p>
+            <p><strong>Kode Barang:</strong> {product.kode_barang}</p>
+            <p><strong>Nama Barang:</strong> {product.nama_barang}</p>
+            <p><strong>Satuan:</strong> {product.satuan || "-"}</p>
             <p><strong>Batas Stok Aman:</strong> {product.safe_stock_limit || 0}</p>
           </div>
           <div>
-            <p><strong>Harga Beli:</strong> {product["HARGA BELI"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Harga Jual:</strong> {product["HARGA JUAL"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+            <p><strong>Harga Beli:</strong> {product.harga_beli.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+            <p><strong>Harga Jual:</strong> {product.harga_jual.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
             <p><strong>Total Stok Akhir:</strong> <span className={isLowStock ? "font-bold text-red-600 dark:text-red-400" : ""}>{totalStockAkhir}</span></p>
             <p className="mt-2"><strong>Stok per Kategori:</strong></p>
             {loadingInventories ? (

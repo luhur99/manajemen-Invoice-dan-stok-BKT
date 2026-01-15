@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Package, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, PlusCircle, Edit, Trash2, ArrowUp, ArrowDown, Eye } from "lucide-react"; // Added Eye icon
 import { showSuccess, showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
@@ -15,36 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
+import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog"; // Import the details dialog
+import { Product as ProductType, WarehouseInventory } from "@/types/data"; // Use alias for Product interface
 
-interface Product {
-  id: string;
-  kode_barang: string;
-  nama_barang: string;
-  satuan?: string;
-  harga_beli: number;
-  harga_jual: number;
-  safe_stock_limit: number;
-  created_at: string;
-  supplier_id?: string;
-  user_id: string;
-  current_stock?: number; // Aggregated stock from warehouse_inventories
-}
-
-interface WarehouseInventory {
-  product_id: string;
-  warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
-  quantity: number;
-}
-
-interface StockTransaction {
-  id: string;
-  product_id: string;
-  transaction_type: 'inbound' | 'outbound' | 'initial' | 'transfer' | 'damage_loss';
-  quantity: number;
-  warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
-  notes?: string;
-  transaction_date: string;
-  created_at: string;
+// Extend ProductType to include aggregated stock and inventories for display
+interface ProductWithDetails extends ProductType {
+  current_stock?: number; // Aggregated total stock
+  inventories?: WarehouseInventory[]; // Detailed inventories per category
 }
 
 const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
@@ -61,58 +38,74 @@ const StockPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
-  const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = React.useState<ProductWithDetails | null>(null);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
-  const [initialTransactionType, setInitialTransactionType] = React.useState<"outbound" | "initial">("outbound"); // Restricted types
+  const [initialTransactionType, setInitialTransactionType] = React.useState<"outbound" | "initial">("outbound");
 
-  const { data: products, isLoading, error, refetch: fetchStockItems } = useQuery<Product[], Error>({
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false); // State for View Details dialog
+  const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null); // State for product to view
+
+  const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
     queryKey: ["products"],
     queryFn: async () => {
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("*");
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          supplier_id,
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
+        `);
 
       if (productsError) throw productsError;
 
-      const { data: inventoriesData, error: inventoriesError } = await supabase
-        .from("warehouse_inventories")
-        .select("product_id, quantity");
-
-      if (inventoriesError) throw inventoriesError;
-
-      const productStockMap = new Map<string, number>();
-      inventoriesData.forEach(inventory => {
-        productStockMap.set(inventory.product_id, (productStockMap.get(inventory.product_id) || 0) + inventory.quantity);
+      return productsData.map(product => {
+        const totalStock = product.warehouse_inventories?.reduce((sum: number, inv: { quantity: number }) => sum + inv.quantity, 0) || 0;
+        return {
+          ...product,
+          current_stock: totalStock,
+          inventories: product.warehouse_inventories as WarehouseInventory[],
+        };
       });
-
-      return productsData.map(product => ({
-        ...product,
-        current_stock: productStockMap.get(product.id) || 0,
-      }));
     },
   });
 
-  const handleEditClick = (product: Product) => {
+  const handleEditClick = (product: ProductWithDetails) => {
     setSelectedProduct(product);
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteClick = (product: Product) => {
+  const handleDeleteClick = (product: ProductWithDetails) => {
     setSelectedProduct(product);
     setIsDeleteModalOpen(true);
   };
 
-  const handleOpenTransactionForm = (product: Product, type: "outbound" | "initial") => {
+  const handleOpenTransactionForm = (product: ProductWithDetails, type: "outbound" | "initial") => {
     setSelectedProduct(product);
     setInitialTransactionType(type);
     setIsTransactionFormOpen(true);
+  };
+
+  const handleViewDetails = (product: ProductWithDetails) => {
+    setProductToView(product);
+    setIsViewDetailsOpen(true);
   };
 
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
 
-    const { id, user_id, created_at, current_stock, ...updateData } = selectedProduct; // Exclude non-updatable fields
+    const { id, user_id, created_at, current_stock, inventories, ...updateData } = selectedProduct; // Exclude non-updatable fields
 
     try {
       const { error } = await supabase
@@ -124,7 +117,7 @@ const StockPage = () => {
 
       showSuccess("Produk berhasil diperbarui!");
       setIsEditModalOpen(false);
-      fetchStockItems();
+      fetchProducts();
     } catch (err: any) {
       showError(`Gagal memperbarui produk: ${err.message}`);
       console.error("Error updating product:", err);
@@ -144,7 +137,7 @@ const StockPage = () => {
 
       showSuccess("Produk berhasil dihapus!");
       setIsDeleteModalOpen(false);
-      fetchStockItems();
+      fetchProducts();
     } catch (err: any) {
       showError(`Gagal menghapus produk: ${err.message}`);
       console.error("Error deleting product:", err);
@@ -155,6 +148,11 @@ const StockPage = () => {
     product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const formatInventories = (inventories?: WarehouseInventory[]) => {
+    if (!inventories || inventories.length === 0) return "Tidak ada stok";
+    return inventories.map(inv => `${getCategoryDisplay(inv.warehouse_category)}: ${inv.quantity}`).join(', ');
+  };
 
   if (isLoading) {
     return (
@@ -179,7 +177,7 @@ const StockPage = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        <AddStockItemForm onSuccess={fetchStockItems} />
+        <AddStockItemForm onSuccess={fetchProducts} />
       </div>
 
       <div className="overflow-x-auto rounded-md border">
@@ -191,9 +189,10 @@ const StockPage = () => {
               <TableHead>Satuan</TableHead>
               <TableHead>Harga Beli</TableHead>
               <TableHead>Harga Jual</TableHead>
-              <TableHead>Stok Saat Ini</TableHead>
+              <TableHead>Stok per Kategori</TableHead> {/* New column */}
+              <TableHead>Total Stok</TableHead> {/* Renamed from Stok Saat Ini */}
               <TableHead>Batas Stok Aman</TableHead>
-              <TableHead>Aksi</TableHead>
+              <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -204,20 +203,24 @@ const StockPage = () => {
                 <TableCell>{product.satuan || '-'}</TableCell>
                 <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
                 <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
+                <TableCell className="max-w-[250px] truncate">{formatInventories(product.inventories)}</TableCell> {/* Display inventories */}
                 <TableCell>{product.current_stock}</TableCell>
                 <TableCell>{product.safe_stock_limit}</TableCell>
-                <TableCell className="flex space-x-2">
-                  <Button variant="outline" size="sm" onClick={() => handleEditClick(product)}>
+                <TableCell className="flex space-x-2 justify-center">
+                  <Button variant="ghost" size="icon" onClick={() => handleViewDetails(product)} title="Lihat Detail">
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleEditClick(product)} title="Edit Produk">
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleDeleteClick(product)}>
+                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(product)} title="Hapus Produk">
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "outbound")}>
-                    <ArrowDown className="h-4 w-4" /> Stok Keluar
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "outbound")} title="Stok Keluar">
+                    <ArrowDown className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "initial")}>
-                    <PlusCircle className="h-4 w-4" /> Stok Awal
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "initial")} title="Stok Awal">
+                    <PlusCircle className="h-4 w-4" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -348,7 +351,16 @@ const StockPage = () => {
           initialTransactionType={initialTransactionType}
           isOpen={isTransactionFormOpen}
           onOpenChange={setIsTransactionFormOpen}
-          onSuccess={fetchStockItems}
+          onSuccess={fetchProducts}
+        />
+      )}
+
+      {/* View Stock Item Details Dialog */}
+      {productToView && (
+        <ViewStockItemDetailsDialog
+          product={productToView}
+          isOpen={isViewDetailsOpen}
+          onOpenChange={setIsViewDetailsOpen}
         />
       )}
     </div>

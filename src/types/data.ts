@@ -22,19 +22,19 @@ export interface Supplier {
   no?: number; // New: Sequential number for display
 }
 
-export interface Product { // Renamed from StockItem
-  id?: string; // UUID from Supabase, made optional for initial data loading
-  user_id?: string; // User ID for RLS, made optional for initial data loading
-  "KODE BARANG": string;
-  "NAMA BARANG": string;
-  SATUAN: string;
-  "HARGA BELI": number;
-  "HARGA JUAL": number;
-  safe_stock_limit?: number; // Batas stok aman
-  created_at?: string; // Add created_at for consistency
-  supplier_id?: string; // New: Foreign key to Supplier
-  supplier_name?: string; // New: For displaying supplier name
-  inventories?: WarehouseInventory[]; // New: Joined inventories for display
+export interface Product {
+  id: string; // Changed from id?: string; to make it required
+  user_id?: string;
+  kode_barang: string;
+  nama_barang: string;
+  satuan: string;
+  harga_beli: number;
+  harga_jual: number;
+  safe_stock_limit?: number;
+  created_at?: string;
+  supplier_id?: string;
+  supplier_name?: string;
+  inventories?: WarehouseInventory[];
 }
 
 export interface StockTransaction {

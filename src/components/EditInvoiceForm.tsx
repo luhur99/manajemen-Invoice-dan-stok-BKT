@@ -108,13 +108,13 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       } else {
         setProducts(data.map(item => ({ // Changed from setStockItems
           id: item.id,
-          "KODE BARANG": item.kode_barang,
-          "NAMA BARANG": item.nama_barang,
-          "HARGA JUAL": item.harga_jual,
-          SATUAN: item.satuan || "", // Ensure SATUAN is always a string
+          kode_barang: item.kode_barang,
+          nama_barang: item.nama_barang,
+          harga_jual: item.harga_jual,
+          satuan: item.satuan || "", // Ensure SATUAN is always a string
           inventories: item.warehouse_inventories || [], // Assign inventories
           // Default values for other Product fields not used here
-          "HARGA BELI": 0, safe_stock_limit: 0,
+          harga_beli: 0, safe_stock_limit: 0,
         })) as Product[]); // Changed from StockItem[]
       }
       setLoadingProducts(false); // Changed from setLoadingStockItems
@@ -140,7 +140,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         unit_price: item.unit_price,
         subtotal: item.quantity * item.unit_price,
         unit_type: item.unit_type || "",
-        selected_product_id: products.find(product => product["NAMA BARANG"] === item.item_name)?.id || "", // Changed from selected_stock_item_id and stock
+        selected_product_id: products.find(product => product.nama_barang === item.item_name)?.id || "", // Changed from selected_stock_item_id and stock
       }));
       form.reset({
         ...form.getValues(),
@@ -517,13 +517,13 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                               if (selectedProduct) {
                                 update(index, {
                                   ...form.getValues().items[index],
-                                  item_name: selectedProduct["NAMA BARANG"],
-                                  item_code: selectedProduct["KODE BARANG"],
-                                  unit_price: selectedProduct["HARGA JUAL"],
-                                  unit_type: selectedProduct.SATUAN || "",
+                                  item_name: selectedProduct.nama_barang,
+                                  item_code: selectedProduct.kode_barang,
+                                  unit_price: selectedProduct.harga_jual,
+                                  unit_type: selectedProduct.satuan || "",
                                   selected_product_id: selectedProduct.id, // Changed from selected_stock_item_id
                                 });
-                                field.onChange(selectedProduct["NAMA BARANG"]); // Update item_name field
+                                field.onChange(selectedProduct.nama_barang); // Update item_name field
                               } else {
                                 update(index, {
                                   ...form.getValues().items[index],
