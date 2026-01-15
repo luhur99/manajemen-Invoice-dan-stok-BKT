@@ -19,8 +19,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data";
+import { StockItem, Supplier } from "@/types/data";
 import StockItemCombobox from "@/components/StockItemCombobox";
+import SupplierCombobox from "@/components/SupplierCombobox"; // Import new SupplierCombobox
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -29,9 +30,10 @@ const formSchema = z.object({
   quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
   unit_price: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   suggested_selling_price: z.coerce.number().min(0, "Harga Jual yang disarankan tidak boleh negatif"),
-  supplier: z.string().optional(),
+  supplier_id: z.string().uuid("ID Pemasok tidak valid").optional().or(z.literal("")), // Changed to supplier_id
+  supplier_name_input: z.string().optional(), // For the combobox input text
   notes: z.string().optional(),
-  satuan: z.string().optional(), // New field for satuan
+  satuan: z.string().optional(),
 });
 
 interface AddPurchaseRequestFormProps {
@@ -41,7 +43,9 @@ interface AddPurchaseRequestFormProps {
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]); // New state for suppliers
   const [loadingStockItems, setLoadingStockItems] = useState(true);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,9 +55,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       quantity: 1,
       unit_price: 0,
       suggested_selling_price: 0,
-      supplier: "",
+      supplier_id: "",
+      supplier_name_input: "",
       notes: "",
-      satuan: "", // Initialize new field
+      satuan: "",
     },
   });
 
@@ -62,7 +67,16 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       setLoadingStockItems(true);
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, kode_barang, nama_barang, harga_beli, harga_jual, satuan, warehouse_inventories(warehouse_category, quantity)"); // Fetch inventories
+        .select(`
+          id,
+          kode_barang,
+          nama_barang,
+          harga_beli,
+          harga_jual,
+          satuan,
+          supplier_id,
+          warehouse_inventories(warehouse_category, quantity)
+        `);
 
       if (error) {
         showError("Gagal memuat daftar item stok.");
@@ -75,15 +89,32 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           "HARGA BELI": item.harga_beli,
           "HARGA JUAL": item.harga_jual,
           SATUAN: item.satuan || "",
-          inventories: item.warehouse_inventories || [], // Assign inventories
-          // Default values for other StockItem fields not used here
+          supplier_id: item.supplier_id || undefined, // Include supplier_id
+          inventories: item.warehouse_inventories || [],
           safe_stock_limit: 0,
         })) as StockItem[]);
       }
       setLoadingStockItems(false);
     };
 
+    const fetchSuppliers = async () => {
+      setLoadingSuppliers(true);
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat daftar pemasok.");
+        console.error("Error fetching suppliers:", error);
+      } else {
+        setSuppliers(data as Supplier[]);
+      }
+      setLoadingSuppliers(false);
+    };
+
     fetchStockItems();
+    fetchSuppliers();
   }, []);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -108,10 +139,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           unit_price: values.unit_price,
           suggested_selling_price: values.suggested_selling_price,
           total_price: total_price,
-          supplier: values.supplier || null,
+          supplier_id: values.supplier_id || null, // Save supplier_id
           notes: values.notes || null,
-          status: "pending", // Default status
-          satuan: values.satuan || null, // Save new field
+          status: "pending",
+          satuan: values.satuan || null,
         });
 
       if (error) {
@@ -152,24 +183,26 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                     <StockItemCombobox
                       name={field.name}
                       items={stockItems}
-                      value={field.value} // This is the selected item_name for marking
-                      inputValue={field.value} // This is the actual text in the input
-                      onInputValueChange={field.onChange} // Update form's item_name directly
+                      value={field.value}
+                      inputValue={field.value}
+                      onInputValueChange={field.onChange}
                       onValueChange={(selectedStock) => {
                         if (selectedStock) {
                           form.setValue("item_name", selectedStock["NAMA BARANG"]);
                           form.setValue("item_code", selectedStock["KODE BARANG"]);
                           form.setValue("unit_price", selectedStock["HARGA BELI"]);
                           form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
-                          form.setValue("satuan", selectedStock.SATUAN || ""); // Set satuan
+                          form.setValue("satuan", selectedStock.SATUAN || "");
+                          form.setValue("supplier_id", selectedStock.supplier_id || ""); // Set supplier_id from stock item
+                          const selectedSupplier = suppliers.find(s => s.id === selectedStock.supplier_id);
+                          form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : ""); // Set supplier name for combobox
                         } else {
-                          // If no stock item is selected (e.g., user cleared or typed new)
-                          // Keep item_name as is (from onInputValueChange)
-                          // Clear other related fields or set to default for manual input
                           form.setValue("item_code", "");
                           form.setValue("unit_price", 0);
                           form.setValue("suggested_selling_price", 0);
-                          form.setValue("satuan", ""); // Clear satuan
+                          form.setValue("satuan", "");
+                          form.setValue("supplier_id", "");
+                          form.setValue("supplier_name_input", "");
                         }
                       }}
                       disabled={loadingStockItems}
@@ -247,12 +280,24 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
             />
             <FormField
               control={form.control}
-              name="supplier"
+              name="supplier_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Pemasok (Opsional)</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <SupplierCombobox
+                      name={field.name}
+                      suppliers={suppliers}
+                      value={field.value}
+                      inputValue={form.watch("supplier_name_input") || ""}
+                      onInputValueChange={(val) => form.setValue("supplier_name_input", val)}
+                      onValueChange={(selectedSupplier) => {
+                        form.setValue("supplier_id", selectedSupplier ? selectedSupplier.id : "");
+                        form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
+                      }}
+                      disabled={loadingSuppliers}
+                      placeholder={loadingSuppliers ? "Memuat pemasok..." : "Pilih pemasok..."}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -45,7 +45,10 @@ const PurchaseRequestPage = () => {
     try {
       let query = supabase
         .from("purchase_requests")
-        .select("*")
+        .select(`
+          *,
+          suppliers (name)
+        `) // Join with suppliers table
         .order("created_at", { ascending: false });
 
       if (filterStatus !== "all") {
@@ -61,6 +64,7 @@ const PurchaseRequestPage = () => {
       const requestsWithNo: PurchaseRequest[] = data.map((req, index) => ({
         ...req,
         no: index + 1,
+        supplier_name: req.suppliers?.name || undefined, // Extract supplier name
       }));
 
       setPurchaseRequests(requestsWithNo);
@@ -86,7 +90,7 @@ const PurchaseRequestPage = () => {
     const filtered = purchaseRequests.filter(item =>
       item.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.supplier?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.supplier_name?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by supplier_name
       item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.status.toLowerCase().includes(lowerCaseSearchTerm)
     );
@@ -113,7 +117,7 @@ const PurchaseRequestPage = () => {
       // 2. Check if stock item exists or create new
       const { data: existingStockItem, error: fetchStockError } = await supabase
         .from("stock_items")
-        .select("id, harga_beli, harga_jual, satuan")
+        .select("id, harga_beli, harga_jual, satuan, supplier_id") // Select supplier_id
         .eq("kode_barang", request.item_code)
         .single();
 
@@ -131,6 +135,7 @@ const PurchaseRequestPage = () => {
             harga_beli: request.unit_price,
             harga_jual: request.suggested_selling_price,
             safe_stock_limit: 10, // Default safe stock limit
+            supplier_id: request.supplier_id || null, // Set supplier_id from request
           })
           .select("id")
           .single();
@@ -139,13 +144,14 @@ const PurchaseRequestPage = () => {
         stockItemId = newStockData.id;
 
       } else if (existingStockItem) {
-        // Update existing stock item metadata (prices, satuan)
+        // Update existing stock item metadata (prices, satuan, supplier_id)
         const { error: updateStockMetadataError } = await supabase
           .from("stock_items")
           .update({
             harga_beli: request.unit_price,
             harga_jual: request.suggested_selling_price,
             satuan: request.satuan || existingStockItem.satuan,
+            supplier_id: request.supplier_id || existingStockItem.supplier_id || null, // Update supplier_id
           })
           .eq("id", existingStockItem.id);
 
@@ -356,7 +362,7 @@ const PurchaseRequestPage = () => {
                       <TableCell className="text-right">{request.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                       <TableCell className="text-right">{request.suggested_selling_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                       <TableCell className="text-right">{request.total_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                      <TableCell>{request.supplier || "-"}</TableCell>
+                      <TableCell>{request.supplier_name || "-"}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
                           {request.status.charAt(0).toUpperCase() + request.status.slice(1)}

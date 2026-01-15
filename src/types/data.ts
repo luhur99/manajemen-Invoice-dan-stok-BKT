@@ -8,6 +8,19 @@ export interface WarehouseInventory {
   updated_at?: string;
 }
 
+export interface Supplier {
+  id: string;
+  user_id: string;
+  name: string;
+  contact_person?: string;
+  phone_number?: string;
+  email?: string;
+  address?: string;
+  notes?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface StockItem {
   id?: string; // UUID from Supabase, made optional for initial data loading
   user_id?: string; // User ID for RLS, made optional for initial data loading
@@ -18,8 +31,8 @@ export interface StockItem {
   "HARGA JUAL": number;
   safe_stock_limit?: number; // Batas stok aman
   created_at?: string; // Add created_at for consistency
-  // Removed: "STOCK AWAL", "STOCK MASUK", "STOCK KELUAR", "STOCK AKHIR", warehouse_category
-  // These will now be managed via WarehouseInventory
+  supplier_id?: string; // New: Foreign key to Supplier
+  supplier_name?: string; // New: For displaying supplier name
   inventories?: WarehouseInventory[]; // New: Joined inventories for display
 }
 
@@ -172,7 +185,8 @@ export interface PurchaseRequest {
   unit_price: number; // This will be the purchase price (harga_beli)
   suggested_selling_price: number; // This will be the suggested selling price (harga_jual)
   total_price: number;
-  supplier?: string;
+  supplier_id?: string; // Changed from supplier (TEXT) to supplier_id (UUID)
+  supplier_name?: string; // For displaying supplier name
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
