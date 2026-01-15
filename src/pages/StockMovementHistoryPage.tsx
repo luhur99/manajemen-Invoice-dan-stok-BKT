@@ -6,17 +6,21 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye } from "lucide-react"; // Import Eye icon
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
 import { showError } from "@/utils/toast"; // Import showError
+import ViewNotesDialog from "@/components/ViewNotesDialog"; // Import ViewNotesDialog
 
 const StockMovementHistoryPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedFromCategory, setSelectedFromCategory] = React.useState<string | "all">("all");
   const [selectedToCategory, setSelectedToCategory] = React.useState<string | "all">("all");
   
+  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false); // State for ViewNotesDialog
+  const [notesToView, setNotesToView] = useState<string>(""); // State for notes content
+
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
@@ -59,6 +63,11 @@ const StockMovementHistoryPage = () => {
       }));
     },
   });
+
+  const handleViewNotes = (notes: string) => {
+    setNotesToView(notes);
+    setIsViewNotesOpen(true);
+  };
 
   const filteredMovements = movements?.filter((item) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -148,7 +157,7 @@ const StockMovementHistoryPage = () => {
               <TableHead>Dari Kategori</TableHead>
               <TableHead>Ke Kategori</TableHead>
               <TableHead className="text-right">Kuantitas</TableHead>
-              <TableHead>Alasan</TableHead>
+              <TableHead>Catatan</TableHead> {/* Changed to button */}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -167,13 +176,29 @@ const StockMovementHistoryPage = () => {
                   <TableCell>{movement.from_warehouse_category ? getCategoryDisplayName(movement.from_warehouse_category) : "-"}</TableCell>
                   <TableCell>{movement.to_warehouse_category ? getCategoryDisplayName(movement.to_warehouse_category) : "-"}</TableCell>
                   <TableCell className="text-right">{movement.quantity}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{movement.notes || "-"}</TableCell> {/* Changed from reason to notes */}
+                  <TableCell>
+                    {movement.notes ? (
+                      <Button variant="outline" size="sm" onClick={() => handleViewNotes(movement.notes!)} className="h-7 px-2">
+                        <Eye className="h-3 w-3 mr-1" /> Lihat
+                      </Button>
+                    ) : (
+                      "-"
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* View Notes Dialog */}
+      <ViewNotesDialog
+        notes={notesToView}
+        isOpen={isViewNotesOpen}
+        onOpenChange={setIsViewNotesOpen}
+        title="Catatan Perpindahan Stok"
+      />
     </div>
   );
 };
