@@ -38,12 +38,14 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
   onValueChange,
   inputValue,
   onInputValueChange,
-  placeholder = "Cari pemasok...", // Changed default placeholder
+  placeholder = "Pilih pemasok...",
   disabled = false,
   id,
   name,
 }) => {
   const [open, setOpen] = React.useState(false);
+
+  const selectedSupplier = suppliers.find((supplier) => supplier.id === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -57,8 +59,10 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
           id={id}
           name={name}
         >
-          {/* Display inputValue directly, as it should be controlled by the parent form */}
-          {inputValue || placeholder} 
+          {/* Display selected supplier name, otherwise inputValue, otherwise placeholder */}
+          {selectedSupplier
+            ? selectedSupplier.name
+            : inputValue || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -75,23 +79,17 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
               {suppliers.map((supplier) => (
                 <CommandItem
                   key={supplier.id}
-                  value={supplier.name} // Use supplier name for CommandItem value
+                  value={supplier.name}
                   onSelect={(currentCommandItemValue) => {
                     const selected = suppliers.find(s => s.name === currentCommandItemValue);
-                    if (selected) {
-                      onValueChange(selected); // Update parent's supplier_id
-                      onInputValueChange(selected.name); // Update parent's supplier_name_input
-                    } else {
-                      onValueChange(undefined);
-                      onInputValueChange("");
-                    }
+                    onValueChange(selected); // Update parent's supplier_id and supplier_name_input
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === supplier.id ? "opacity-100" : "opacity-0" // Use 'value' (supplier_id) for checkmark
+                      value === supplier.id ? "opacity-100" : "opacity-0"
                     )}
                   />
                   {supplier.name}
