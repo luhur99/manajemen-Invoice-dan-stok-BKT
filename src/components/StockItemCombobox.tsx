@@ -22,25 +22,30 @@ import { StockItem } from "@/types/data";
 
 interface StockItemComboboxProps {
   items: StockItem[];
-  value?: string; // The selected item_name
-  onValueChange: (item: StockItem | undefined) => void;
+  value?: string; // The selected item_name (for display in trigger)
+  onValueChange: (item: StockItem | undefined) => void; // For selecting an actual StockItem object
+  inputValue: string; // The current text in the input field
+  onInputValueChange: (value: string) => void; // Callback for raw input text changes
   placeholder?: string;
   disabled?: boolean;
-  id?: string; // Added for accessibility
-  name?: string; // Added for accessibility
+  id?: string;
+  name?: string;
 }
 
 const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   items,
-  value,
+  value, // This is the `item_name` from the form, used to mark selected item
   onValueChange,
+  inputValue, // This is the actual text in the CommandInput
+  onInputValueChange,
   placeholder = "Pilih item...",
   disabled = false,
-  id, // Destructure id
-  name, // Destructure name
+  id,
+  name,
 }) => {
   const [open, setOpen] = React.useState(false);
 
+  // Find the selected item based on the `value` prop (item_name from form)
   const selectedItem = items.find((item) => item["NAMA BARANG"] === value);
 
   const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
@@ -61,32 +66,33 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           aria-expanded={open}
           className="w-full justify-between"
           disabled={disabled}
-          id={id} // Pass id to the button
-          name={name} // Pass name to the button
+          id={id}
+          name={name}
         >
-          {/* Wrap children in a single span to ensure PopoverTrigger asChild receives one child */}
-          <span>
-            {selectedItem
-              ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${getCategoryDisplay(selectedItem.warehouse_category)}`
-              : placeholder}
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </span>
+          {/* Display the current input value, or the selected item's name if available */}
+          {inputValue || (selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${getCategoryDisplay(selectedItem.warehouse_category)}` : placeholder)}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
-          <CommandInput placeholder="Cari item..." />
+          <CommandInput
+            placeholder="Cari item..."
+            value={inputValue} // Controlled by inputValue prop
+            onValueChange={onInputValueChange} // Updates inputValue in parent form
+          />
           <CommandList>
             <CommandEmpty>Tidak ada item ditemukan.</CommandEmpty>
             <CommandGroup>
               {items.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item["NAMA BARANG"]}
-                  onSelect={(currentValue) => {
-                    onValueChange(
-                      currentValue === selectedItem?.["NAMA BARANG"] ? undefined : item
-                    );
+                  value={item["NAMA BARANG"]} // Use item name for CommandItem value
+                  onSelect={(currentCommandItemValue) => {
+                    // When an item is selected from the list
+                    const selected = items.find(i => i["NAMA BARANG"] === currentCommandItemValue);
+                    onValueChange(selected); // Pass the full StockItem object
+                    onInputValueChange(selected ? selected["NAMA BARANG"] : ""); // Update input text to selected item's name
                     setOpen(false);
                   }}
                 >

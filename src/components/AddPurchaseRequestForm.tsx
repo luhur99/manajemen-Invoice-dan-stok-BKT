@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm } from "react-hook-form"; // Corrected import
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -149,7 +149,9 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                     <StockItemCombobox
                       name={field.name}
                       items={stockItems}
-                      value={field.value}
+                      value={field.value} // This is the selected item_name for marking
+                      inputValue={field.value} // This is the actual text in the input
+                      onInputValueChange={field.onChange} // Update form's item_name directly
                       onValueChange={(selectedStock) => {
                         if (selectedStock) {
                           form.setValue("item_name", selectedStock["NAMA BARANG"]);
@@ -157,7 +159,9 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                           form.setValue("unit_price", selectedStock["HARGA BELI"]);
                           form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
                         } else {
-                          form.setValue("item_name", "");
+                          // If no stock item is selected (e.g., user cleared or typed new)
+                          // Keep item_name as is (from onInputValueChange)
+                          // Clear other related fields or set to default for manual input
                           form.setValue("item_code", "");
                           form.setValue("unit_price", 0);
                           form.setValue("suggested_selling_price", 0);

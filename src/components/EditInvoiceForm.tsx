@@ -487,6 +487,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                             name={field.name}
                             items={stockItems}
                             value={field.value}
+                            inputValue={field.value} // Pass inputValue
+                            onInputValueChange={field.onChange} // Pass onInputValueChange
                             onValueChange={(selectedStock) => {
                               if (selectedStock) {
                                 update(index, {
