@@ -190,7 +190,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         throw movementError;
       }
 
-      showSuccess(`Stok produk "${product["NAMA BARANG"]}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`); // Changed message
+      showSuccess(`Stok produk "${product.nama_barang}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`); // Changed message
       onOpenChange(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
@@ -204,7 +204,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Pindahkan Stok Produk</DialogTitle> {/* Changed title */}
-          <DialogDescription>Pindahkan produk "{product["NAMA BARANG"]}" antar kategori gudang.</DialogDescription> {/* Changed description */}
+          <DialogDescription>Pindahkan produk "{product.nama_barang}" antar kategori gudang.</DialogDescription> {/* Changed description */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

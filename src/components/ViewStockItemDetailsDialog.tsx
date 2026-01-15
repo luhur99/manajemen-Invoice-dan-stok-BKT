@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Product, StockTransactionWithItemName, WarehouseInventory } from "@/types/data"; // Changed from StockItem
+import { Product, StockTransactionWithItemName, WarehouseInventory } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
@@ -12,14 +12,14 @@ import { Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
 
-interface ViewProductDetailsDialogProps { // Changed from ViewStockItemDetailsDialogProps
-  product: Product; // Changed from stockItem
+interface ViewProductDetailsDialogProps {
+  product: Product;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ // Changed component name and prop
-  product, // Changed from stockItem
+const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({
+  product,
   isOpen,
   onOpenChange,
 }) => {
@@ -46,12 +46,12 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
   };
 
   const fetchInventories = useCallback(async () => {
-    if (!product?.id) return; // Changed from stockItem?.id
+    if (!product?.id) return;
     setLoadingInventories(true);
     const { data, error } = await supabase
       .from("warehouse_inventories")
       .select("*")
-      .eq("product_id", product.id); // Changed from stockItem.id
+      .eq("product_id", product.id);
 
     if (error) {
       showError("Gagal memuat inventaris item.");
@@ -61,10 +61,10 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
       setCurrentInventories(data as WarehouseInventory[]);
     }
     setLoadingInventories(false);
-  }, [product?.id]); // Changed from stockItem?.id
+  }, [product?.id]);
 
   const fetchStockTransactions = useCallback(async () => {
-    if (!product?.id) return; // Changed from stockItem?.id
+    if (!product?.id) return;
 
     setLoadingTransactions(true);
     setTransactionsError(null);
@@ -83,8 +83,8 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
             nama_barang,
             kode_barang
           )
-        `) // Changed from stock_items to products
-        .eq("product_id", product.id) // Changed from stock_item_id
+        `)
+        .eq("product_id", product.id)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -93,19 +93,19 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
 
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        products: item.products ? [item.products] : null, // Changed from stock_items to products
+        products: item.products ? [item.products] : null,
       }));
 
       setTransactions(processedData);
       setCurrentPage(1); // Reset to first page on new data fetch
     } catch (err: any) {
       setTransactionsError(`Gagal memuat riwayat transaksi: ${err.message}`);
-      console.error("Error fetching product transactions:", err); // Changed message
+      console.error("Error fetching product transactions:", err);
       setTransactions([]);
     } finally {
       setLoadingTransactions(false);
     }
-  }, [product?.id]); // Changed from stockItem?.id
+  }, [product?.id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -156,17 +156,21 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
   const endIndex = startIndex + itemsPerPage;
   const currentItems = transactions.slice(startIndex, endIndex);
 
-  if (!product) return null; // Changed from stockItem
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  if (!product) return null;
 
   const totalStockAkhir = currentInventories.reduce((sum, inv) => sum + inv.quantity, 0);
-  const isLowStock = totalStockAkhir < (product.safe_stock_limit || 10); // Changed from stockItem.safe_stock_limit
+  const isLowStock = totalStockAkhir < (product.safe_stock_limit || 10);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Produk: {product.nama_barang}</DialogTitle> {/* Changed title */}
-          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription> {/* Changed description */}
+          <DialogTitle>Detail Produk: {product.nama_barang}</DialogTitle>
+          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -213,7 +217,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
                     <TableHead>Tanggal Transaksi</TableHead>
                     <TableHead>Waktu Dibuat</TableHead>
                     <TableHead>Tipe Transaksi</TableHead>
-                    <TableHead>Kategori Gudang</TableHead> {/* New column */}
+                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead className="text-right">Kuantitas</TableHead>
                     <TableHead>Catatan</TableHead>
                   </TableRow>
@@ -228,7 +232,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ /
                           {getTransactionTypeDisplay(transaction.transaction_type)}
                         </span>
                       </TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell> {/* Display category */}
+                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
                       <TableCell>
                         {transaction.notes ? (

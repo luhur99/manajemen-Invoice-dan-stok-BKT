@@ -466,7 +466,7 @@ const StockHistoryPage = () => {
                           {getTransactionTypeDisplay(transaction.transaction_type)}
                         </span>
                       </TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell>
+                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell> {/* Display category */}
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
                       <TableCell>
                         {transaction.notes ? (

@@ -39,6 +39,16 @@ interface StockAdjustmentFormProps {
   onSuccess: () => void;
 }
 
+const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
+  switch (category) {
+    case "siap_jual": return "Siap Jual";
+    case "riset": return "Riset";
+    case "retur": return "Retur";
+    case "backup_teknisi": return "Backup Teknisi";
+    default: return "-";
+  }
+};
+
 const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
   product, // Changed from stockItem
   isOpen,
@@ -47,16 +57,6 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
 }) => {
   const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
   const [loadingInventories, setLoadingInventories] = useState(true);
-
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return "-";
-    }
-  };
 
   const fetchInventories = useCallback(async () => {
     if (!product?.id) return; // Changed from stockItem?.id
@@ -175,7 +175,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Penyesuaian Stok Produk</DialogTitle> {/* Changed title */}
-          <DialogDescription>Sesuaikan kuantitas stok untuk produk "{product["NAMA BARANG"]}" di kategori tertentu.</DialogDescription> {/* Changed description */}
+          <DialogDescription>Sesuaikan kuantitas stok untuk produk "{product.nama_barang}" di kategori tertentu.</DialogDescription> {/* Changed description */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

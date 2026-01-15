@@ -116,18 +116,18 @@ const PurchaseRequestPage = () => {
       }
 
       // 2. Check if product exists or create new
-      const { data: existingProduct, error: fetchProductError } = await supabase // Changed from existingStockItem, fetchStockError
-        .from("products") // Changed from stock_items
-        .select("id, harga_beli, harga_jual, satuan, supplier_id") // Select supplier_id
+      const { data: existingProduct, error: fetchProductError } = await supabase
+        .from("products")
+        .select("id, harga_beli, harga_jual, satuan, supplier_id")
         .eq("kode_barang", request.item_code)
         .single();
 
-      let productId: string; // Changed from stockItemId
+      let productId: string;
 
       if (fetchProductError && fetchProductError.code === 'PGRST116') { // No rows found
         // Create new product
-        const { data: newProductData, error: createProductError } = await supabase // Changed from newStockData, createStockError
-          .from("products") // Changed from stock_items
+        const { data: newProductData, error: createProductError } = await supabase
+          .from("products")
           .insert({
             user_id: session?.user?.id,
             kode_barang: request.item_code,
@@ -142,12 +142,12 @@ const PurchaseRequestPage = () => {
           .single();
 
         if (createProductError) throw createProductError;
-        productId = newProductData.id; // Changed from stockItemId
+        productId = newProductData.id;
 
-      } else if (existingProduct) { // Changed from existingStockItem
+      } else if (existingProduct) {
         // Update existing product metadata (prices, satuan, supplier_id)
-        const { error: updateProductMetadataError } = await supabase // Changed from updateStockMetadataError
-          .from("products") // Changed from stock_items
+        const { error: updateProductMetadataError } = await supabase
+          .from("products")
           .update({
             harga_beli: request.unit_price,
             harga_jual: request.suggested_selling_price,
@@ -157,17 +157,17 @@ const PurchaseRequestPage = () => {
           .eq("id", existingProduct.id);
 
         if (updateProductMetadataError) throw updateProductMetadataError;
-        productId = existingProduct.id; // Changed from stockItemId
+        productId = existingProduct.id;
 
       } else {
-        throw new Error("Gagal memproses item produk."); // Changed message
+        throw new Error("Gagal memproses item produk.");
       }
 
       // 3. Update or insert into warehouse_inventories for 'siap_jual' category
       const { data: currentInventory, error: fetchInventoryError } = await supabase
         .from("warehouse_inventories")
         .select("quantity")
-        .eq("product_id", productId) // Changed from stockItemId
+        .eq("product_id", productId)
         .eq("warehouse_category", "siap_jual")
         .single();
 
@@ -178,7 +178,7 @@ const PurchaseRequestPage = () => {
         .from("warehouse_inventories")
         .upsert(
           {
-            product_id: productId, // Changed from stockItemId
+            product_id: productId,
             warehouse_category: "siap_jual",
             quantity: newQuantityInInventory,
             user_id: session?.user?.id,
@@ -196,7 +196,7 @@ const PurchaseRequestPage = () => {
         .from("stock_transactions")
         .insert({
           user_id: session?.user?.id,
-          product_id: productId, // Changed from stockItemId
+          product_id: productId,
           transaction_type: "in",
           quantity: request.quantity,
           notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,
