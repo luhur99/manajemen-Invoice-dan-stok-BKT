@@ -34,7 +34,7 @@ const formSchema = z.object({
   transaction_type: z.enum(["in", "out", "return", "damage_loss"], {
     required_error: "Tipe transaksi wajib dipilih",
   }),
-  warehouse_category: z.enum(["siap_jual", "riset", "retur"], {
+  warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], {
     required_error: "Kategori Gudang wajib dipilih",
   }),
 });
@@ -174,11 +174,12 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     }
   };
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
     switch (category) {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return "-";
     }
   };
@@ -237,9 +238,9 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {["siap_jual", "riset", "retur"].map(category => (
+                      {["siap_jual", "riset", "retur", "backup_teknisi"].map(category => (
                         <SelectItem key={category} value={category}>
-                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
+                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
                         </SelectItem>
                       ))}
                     </SelectContent>

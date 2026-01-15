@@ -78,6 +78,7 @@ const DashboardOverviewPage = () => {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return category;
     }
   };

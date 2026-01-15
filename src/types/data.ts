@@ -1,7 +1,7 @@
 export interface WarehouseInventory {
   id?: string;
   product_id: string; // Foreign key to StockItem
-  warehouse_category: 'siap_jual' | 'riset' | 'retur';
+  warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
   quantity: number;
   user_id: string;
   created_at?: string;
@@ -46,7 +46,7 @@ export interface StockTransaction {
   notes?: string;
   transaction_date: string; // ISO date string
   created_at: string;
-  warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Category affected by transaction
+  warehouse_category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi'; // New: Category affected by transaction
 }
 
 // New interface for Stock Transaction with Item Name for display
@@ -62,8 +62,8 @@ export interface StockMovement {
   id: string;
   user_id: string;
   stock_item_id: string; // Renamed from product_id to match stock_items.id
-  from_category: 'siap_jual' | 'riset' | 'retur';
-  to_category: 'siap_jual' | 'riset' | 'retur';
+  from_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
+  to_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
   quantity: number;
   reason?: string;
   movement_date: string; // YYYY-MM-DD

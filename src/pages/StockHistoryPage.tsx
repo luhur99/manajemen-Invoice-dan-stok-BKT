@@ -76,11 +76,12 @@ const StockHistoryPage = () => {
     calculateDateRange(selectedDatePreset);
   }, [selectedDatePreset, calculateDateRange]);
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | string) => {
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi' | string) => {
     switch (category) {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return String(category || "-");
     }
   };
@@ -264,7 +265,6 @@ const StockHistoryPage = () => {
     { key: "item_name", label: "Nama Barang" },
     { key: "item_code", label: "Kode Barang" },
     { key: "transaction_type", label: "Tipe Transaksi" },
-    { key: "quantity", label: "Kuantitas" },
     { key: "warehouse_category", label: "Kategori Gudang" },
     { key: "notes", label: "Catatan" },
   ];
@@ -372,6 +372,7 @@ const StockHistoryPage = () => {
               <SelectItem value="siap_jual">Siap Jual</SelectItem>
               <SelectItem value="riset">Riset</SelectItem>
               <SelectItem value="retur">Retur</SelectItem>
+              <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
             </SelectContent>
           </Select>
           <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>

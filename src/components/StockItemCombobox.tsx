@@ -47,11 +47,12 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
 
   const selectedItem = items.find((item) => item.id === selectedItemId);
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
     switch (category) {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return "";
     }
   };

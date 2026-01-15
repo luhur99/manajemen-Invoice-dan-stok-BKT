@@ -78,6 +78,7 @@ const StockMovementHistoryPage = () => {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return category;
     }
   };
@@ -286,6 +287,7 @@ const StockMovementHistoryPage = () => {
               <SelectItem value="siap_jual">Siap Jual</SelectItem>
               <SelectItem value="riset">Riset</SelectItem>
               <SelectItem value="retur">Retur</SelectItem>
+              <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterToCategory} onValueChange={setFilterToCategory}>
@@ -297,6 +299,7 @@ const StockMovementHistoryPage = () => {
               <SelectItem value="siap_jual">Siap Jual</SelectItem>
               <SelectItem value="riset">Riset</SelectItem>
               <SelectItem value="retur">Retur</SelectItem>
+              <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
             </SelectContent>
           </Select>
           <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>

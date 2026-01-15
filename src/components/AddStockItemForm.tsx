@@ -30,7 +30,7 @@ const formSchema = z.object({
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
   initial_stock_quantity: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0), // Renamed
   safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
-  initial_warehouse_category: z.enum(["siap_jual", "riset", "retur"], { // Renamed
+  initial_warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], { // Renamed
     required_error: "Kategori Gudang Awal wajib dipilih",
   }).default("siap_jual"),
 });
@@ -39,11 +39,12 @@ interface AddStockItemFormProps {
   onSuccess: () => void;
 }
 
-const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
   switch (category) {
     case "siap_jual": return "Siap Jual";
     case "riset": return "Riset";
     case "retur": return "Retur";
+    case "backup_teknisi": return "Backup Teknisi";
     default: return "-";
   }
 };
@@ -252,6 +253,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
                       <SelectItem value="siap_jual">Siap Jual</SelectItem>
                       <SelectItem value="riset">Riset</SelectItem>
                       <SelectItem value="retur">Retur</SelectItem>
+                      <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

@@ -35,11 +35,12 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5; // Fewer items per page for a dialog
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | string) => {
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi' | string) => {
     switch (category) {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return String(category || "-");
     }
   };

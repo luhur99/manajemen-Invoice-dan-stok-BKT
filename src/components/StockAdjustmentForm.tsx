@@ -25,7 +25,7 @@ import { format } from "date-fns";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  warehouse_category: z.enum(["siap_jual", "riset", "retur"], {
+  warehouse_category: z.enum(["siap_jual", "riset", "retur", "backup_teknisi"], {
     required_error: "Kategori Gudang wajib dipilih",
   }),
   new_quantity: z.coerce.number().min(0, "Kuantitas baru tidak boleh negatif"),
@@ -48,11 +48,12 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
   const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
   const [loadingInventories, setLoadingInventories] = useState(true);
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
     switch (category) {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return "-";
     }
   };
@@ -195,9 +196,9 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {["siap_jual", "riset", "retur"].map(category => (
+                      {["siap_jual", "riset", "retur", "backup_teknisi"].map(category => (
                         <SelectItem key={category} value={category}>
-                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
+                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
                         </SelectItem>
                       ))}
                     </SelectContent>

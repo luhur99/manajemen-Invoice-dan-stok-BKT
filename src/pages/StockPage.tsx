@@ -36,6 +36,7 @@ interface FlattenedStockItemForExport {
   "STOK SIAP JUAL": number;
   "STOK RISET": number;
   "STOK RETUR": number;
+  "STOK BACKUP TEKNISI": number; // New category for export
   "TOTAL STOK AKHIR": number;
   "BATAS AMAN": number;
   "CREATED AT": string;
@@ -63,11 +64,12 @@ const StockPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
     switch (category) {
       case "siap_jual": return "Siap Jual";
       case "riset": return "Riset";
       case "retur": return "Retur";
+      case "backup_teknisi": return "Backup Teknisi";
       default: return "-";
     }
   };
@@ -171,6 +173,7 @@ const StockPage = () => {
           "STOK SIAP JUAL": stockByCategory.siap_jual || 0,
           "STOK RISET": stockByCategory.riset || 0,
           "STOK RETUR": stockByCategory.retur || 0,
+          "STOK BACKUP TEKNISI": stockByCategory.backup_teknisi || 0, // Include new category
           "TOTAL STOK AKHIR": inventories.reduce((sum: number, inv: any) => sum + inv.quantity, 0),
           "BATAS AMAN": item.safe_stock_limit || 0,
           "CREATED AT": item.created_at,
@@ -193,6 +196,7 @@ const StockPage = () => {
     { key: "STOK SIAP JUAL", label: "Stok Siap Jual" },
     { key: "STOK RISET", label: "Stok Riset" },
     { key: "STOK RETUR", label: "Stok Retur" },
+    { key: "STOK BACKUP TEKNISI", label: "Stok Backup Teknisi" }, // New header
     { key: "TOTAL STOK AKHIR", label: "Total Stok Akhir" },
     { key: "BATAS AMAN", label: "Batas Aman" },
     { key: "CREATED AT", label: "Created At" },
@@ -376,7 +380,9 @@ const StockPage = () => {
                               <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Tambah/Kurangi Stok
                               </DropdownMenuItem>
-                              {/* Removed "Pindah Stok Antar Kategori" */}
+                              <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}> {/* Re-added for movement */}
+                                <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindahkan Stok Antar Kategori
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
                                 <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
                               </DropdownMenuItem>
