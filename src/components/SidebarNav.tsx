@@ -3,7 +3,7 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users } from "lucide-react"; // Import Users icon
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse } from "lucide-react"; // Import Warehouse icon
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -25,17 +25,17 @@ const navItems = [
     icon: CalendarDays,
   },
   {
-    title: "Manajemen Produk", // Changed from Manajemen Stok
-    href: "/stock", // Kept the same href for now, but it will display products
+    title: "Manajemen Produk",
+    href: "/stock",
     icon: Package,
   },
   {
-    title: "Riwayat Transaksi Produk", // Changed from Riwayat Stok
+    title: "Riwayat Transaksi Produk",
     href: "/stock-history",
     icon: History,
   },
   {
-    title: "Riwayat Perpindahan Produk", // Changed from Riwayat Perpindahan Stok
+    title: "Riwayat Perpindahan Produk",
     href: "/stock-movement-history",
     icon: ArrowRightLeft,
   },
@@ -45,9 +45,14 @@ const navItems = [
     icon: ShoppingCart,
   },
   {
-    title: "Manajemen Pemasok", // New nav item
+    title: "Manajemen Pemasok",
     href: "/suppliers",
-    icon: Users, // Using Users icon for suppliers
+    icon: Users,
+  },
+  {
+    title: "Kategori Gudang", // New nav item
+    href: "/warehouse-categories",
+    icon: Warehouse, // Using Warehouse icon
   },
   {
     title: "Profil Saya",
