@@ -220,13 +220,13 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   };
 
   // Custom DayContent component to show schedule count
-  const CustomDayContent: React.FC<DayContentProps> = ({ date, children }) => { // Changed 'day' to 'date'
-    const dateKey = format(date, 'yyyy-MM-dd'); // Changed 'day' to 'date'
+  const CustomDayContent = (props: DayContentProps & { children?: React.ReactNode }) => { // Adjusted props type
+    const dateKey = format(props.date, 'yyyy-MM-dd');
     const count = dayCounts.get(dateKey);
 
     return (
       <div className="relative w-full h-full flex items-center justify-center">
-        {children}
+        {props.children} {/* Access children from props */}
         {count && count > 0 && (
           <span className="absolute bottom-0 right-0 text-xs bg-primary text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center">
             {count}
