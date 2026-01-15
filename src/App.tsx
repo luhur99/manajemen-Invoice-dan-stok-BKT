@@ -1,62 +1,61 @@
-"use client";
-
-import { Toaster } from "react-hot-toast";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import MainLayout from "./components/MainLayout"; // Import MainLayout
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import MainLayout from "./components/MainLayout";
 import DashboardOverviewPage from "./pages/DashboardOverviewPage";
-import SchedulingRequestManagementPage from "./pages/SchedulingRequestManagementPage";
 import InvoiceManagementPage from "./pages/InvoiceManagementPage";
-import PurchaseRequestManagementPage from "./pages/PurchaseRequestManagementPage";
-import DeliveryOrderManagementPage from "./pages/DeliveryOrderManagementPage";
-import TechnicianScheduleCalendar from "./pages/TechnicianScheduleCalendar";
-import StockLedgerPage from "./pages/StockLedgerPage";
-import WarehouseInventoryPage from "./pages/WarehouseInventoryPage";
+import ScheduleManagementPage from "./pages/ScheduleManagementPage";
+import StockPage from "./pages/StockPage";
 import SalesDetailsPage from "./pages/SalesDetailsPage";
-import SettingsPage from "./pages/SettingsPage";
-import ProductManagementPage from "./pages/ProductManagementPage";
+import ProfilePage from "./pages/ProfilePage";
+import StockHistoryPage from "./pages/StockHistoryPage";
+import StockMovementHistoryPage from "./pages/StockMovementHistoryPage";
+import PurchaseRequestPage from "./pages/PurchaseRequestPage";
 import SupplierManagementPage from "./pages/SupplierManagementPage";
+import WarehouseCategoryPage from "./pages/WarehouseCategoryPage";
+import StockManagementPage from "./pages/StockManagementPage";
+import SchedulingRequestPage from "./pages/SchedulingRequestPage";
 import CustomerManagementPage from "./pages/CustomerManagementPage";
-import TechnicianManagementPage from "./pages/TechnicianManagementPage";
-import WarehouseCategoryManagementPage from "./pages/WarehouseCategoryManagementPage";
+import TechnicianManagementPage from "./pages/TechnicianManagementPage"; // Import the new page
+import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
 
 const queryClient = new QueryClient();
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router>
-          <SessionContextProvider>
-            <MainLayout> {/* Wrap Routes with MainLayout */}
-              <Routes>
-                <Route path="/" element={<DashboardOverviewPage />} />
-                <Route path="/auth" element={<AuthPage />} />
-                <Route path="/scheduling-requests" element={<SchedulingRequestManagementPage />} />
-                <Route path="/invoices" element={<InvoiceManagementPage />} />
-                <Route path="/purchase-requests" element={<PurchaseRequestManagementPage />} />
-                <Route path="/delivery-orders" element={<DeliveryOrderManagementPage />} />
-                <Route path="/technician-schedule-calendar" element={<TechnicianScheduleCalendar />} />
-                <Route path="/stock-ledger" element={<StockLedgerPage />} />
-                <Route path="/warehouse-inventory" element={<WarehouseInventoryPage />} />
-                <Route path="/sales-details" element={<SalesDetailsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/product-management" element={<ProductManagementPage />} />
-                <Route path="/supplier-management" element={<SupplierManagementPage />} />
-                <Route path="/customer-management" element={<CustomerManagementPage />} />
-                <Route path="/technician-management" element={<TechnicianManagementPage />} />
-                <Route path="/warehouse-category-management" element={<WarehouseCategoryManagementPage />} />
-              </Routes>
-            </MainLayout>
-          </SessionContextProvider>
-        </Router>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <SessionContextProvider>
+          <Routes>
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
+            <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
+            <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
+            <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} /> {/* Product Metadata */}
+            <Route path="/stock-management" element={<MainLayout><StockManagementPage /></MainLayout>} /> {/* New Stock Management */}
+            <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
+            <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
+            <Route path="/stock-history" element={<MainLayout><StockHistoryPage /></MainLayout>} />
+            <Route path="/stock-movement-history" element={<MainLayout><StockMovementHistoryPage /></MainLayout>} />
+            <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} />
+            <Route path="/suppliers" element={<MainLayout><SupplierManagementPage /></MainLayout>} />
+            <Route path="/warehouse-categories" element={<MainLayout><WarehouseCategoryPage /></MainLayout>} />
+            <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} />
+            <Route path="/customers" element={<MainLayout><CustomerManagementPage /></MainLayout>} />
+            <Route path="/technicians" element={<MainLayout><TechnicianManagementPage /></MainLayout>} /> {/* New route */}
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
+          </Routes>
+        </SessionContextProvider>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

@@ -1,22 +1,236 @@
 "use client";
 
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import React, { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { SupplierWithDetails } from "@/types/data"; // Changed import to SupplierWithDetails
+import { supabase } from "@/integrations/supabase/client";
+import { showError, showSuccess } from "@/utils/toast";
+import AddSupplierForm from "@/components/AddSupplierForm";
+import EditSupplierForm from "@/components/EditSupplierForm";
+import PaginationControls from "@/components/PaginationControls";
+import { format } from "date-fns";
+import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react";
+import ViewNotesDialog from "@/components/ViewNotesDialog";
 
 const SupplierManagementPage = () => {
-  return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manajemen Pemasok</h1>
-      <Card>
+  const [suppliers, setSuppliers] = useState<SupplierWithDetails[]>([]); // Changed type
+  const [filteredSuppliers, setFilteredSuppliers] = useState<SupplierWithDetails[]>([]); // Changed type
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<SupplierWithDetails | null>(null); // Changed type
+
+  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
+  const [notesToView, setNotesToView] = useState<string>("");
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  const fetchSuppliers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        throw error;
+      }
+
+      const suppliersWithNo: SupplierWithDetails[] = data.map((sup, index) => ({ // Changed type
+        ...sup,
+        no: index + 1, // Assign sequential number for display
+      }));
+
+      setSuppliers(suppliersWithNo);
+      setFilteredSuppliers(suppliersWithNo);
+      setCurrentPage(1);
+    } catch (err: any) {
+      setError(`Gagal memuat data pemasok: ${err.message}`);
+      console.error("Error fetching suppliers:", err);
+      showError("Gagal memuat data pemasok.");
+      setSuppliers([]);
+      setFilteredSuppliers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
+
+  useEffect(() => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const filtered = suppliers.filter(item =>
+      item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.contact_person?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.email?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
+    );
+    setFilteredSuppliers(filtered);
+    setCurrentPage(1);
+  }, [searchTerm, suppliers]);
+
+  const handleDeleteSupplier = async (supplierId: string) => {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus pemasok ini?")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("suppliers")
+        .delete()
+        .eq("id", supplierId);
+
+      if (error) {
+        throw error;
+      }
+
+      showSuccess("Pemasok berhasil dihapus!");
+      fetchSuppliers(); // Refresh the list
+    } catch (err: any) {
+      showError(`Gagal menghapus pemasok: ${err.message}`);
+      console.error("Error deleting supplier:", err);
+    }
+  };
+
+  const handleEditClick = (supplier: SupplierWithDetails) => { // Changed type
+    setSelectedSupplier(supplier);
+    setIsEditFormOpen(true);
+  };
+
+  const handleViewNotes = (notes: string) => {
+    setNotesToView(notes);
+    setIsViewNotesOpen(true);
+  };
+
+  const totalPages = Math.ceil(filteredSuppliers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentItems = filteredSuppliers.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  if (loading) {
+    return (
+      <Card className="border shadow-sm">
         <CardHeader>
-          <CardTitle>Daftar Pemasok</CardTitle>
-          <CardDescription>Kelola informasi pemasok Anda di sini.</CardDescription>
+          <CardTitle className="text-2xl font-semibold">Manajemen Pemasok</CardTitle>
+          <CardDescription>Memuat daftar pemasok...</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p>Konten untuk manajemen pemasok akan datang di sini.</p>
+        <CardContent className="space-y-4">
+          <p className="text-gray-700 dark:text-gray-300">Memuat data pemasok...</p>
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  return (
+    <Card className="border shadow-sm">
+      <CardHeader>
+        <div className="flex justify-between items-center mb-4">
+          <CardTitle className="text-2xl font-semibold">Manajemen Pemasok</CardTitle>
+          <AddSupplierForm onSuccess={fetchSuppliers} />
+        </div>
+        <CardDescription>Kelola semua informasi pemasok Anda di sini.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
+        <Input
+          type="text"
+          placeholder="Cari berdasarkan nama, kontak, telepon, email, atau alamat..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex-grow"
+        />
+        {filteredSuppliers.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <Table className="min-w-full">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>No</TableHead>
+                    <TableHead>Nama Pemasok</TableHead>
+                    <TableHead>Kontak Person</TableHead>
+                    <TableHead>Nomor Telepon</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Alamat</TableHead>
+                    <TableHead>Catatan</TableHead>
+                    <TableHead>Dibuat Pada</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {currentItems.map((supplier) => (
+                    <TableRow key={supplier.id}>
+                      <TableCell>{supplier.no}</TableCell>
+                      <TableCell>{supplier.name}</TableCell>
+                      <TableCell>{supplier.contact_person || "-"}</TableCell>
+                      <TableCell>{supplier.phone_number || "-"}</TableCell>
+                      <TableCell>{supplier.email || "-"}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{supplier.address || "-"}</TableCell>
+                      <TableCell>
+                        {supplier.notes ? (
+                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(supplier.notes!)} className="h-7 px-2">
+                            <Eye className="h-3 w-3 mr-1" /> Lihat
+                          </Button>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
+                      <TableCell>{format(new Date(supplier.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
+                      <TableCell className="text-center flex items-center justify-center space-x-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(supplier)} title="Edit Pemasok">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteSupplier(supplier.id)} title="Hapus Pemasok">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {totalPages > 1 && (
+              <PaginationControls
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+              />
+            )}
+          </>
+        ) : (
+          <p className="text-gray-700 dark:text-gray-300">Tidak ada data pemasok yang tersedia atau cocok dengan pencarian Anda.</p>
+        )}
+      </CardContent>
+
+      {selectedSupplier && (
+        <EditSupplierForm
+          supplier={selectedSupplier}
+          isOpen={isEditFormOpen}
+          onOpenChange={setIsEditFormOpen}
+          onSuccess={fetchSuppliers}
+        />
+      )}
+
+      <ViewNotesDialog
+        notes={notesToView}
+        isOpen={isViewNotesOpen}
+        onOpenChange={setIsViewNotesOpen}
+      />
+    </Card>
   );
 };
 

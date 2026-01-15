@@ -1,93 +1,130 @@
 "use client";
 
 import React from "react";
-import { Link } from "react-router-dom";
-import {
-  Home,
-  Calendar,
-  FileText,
-  Package,
-  Truck,
-  Users,
-  Wrench,
-  Warehouse,
-  Settings, // Import Settings icon
-} from "lucide-react";
+import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { buttonVariants } from "@/components/ui/button";
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo, User, HardHat } from "lucide-react"; // Import HardHat icon for Technician Management
+import { supabase } from "@/integrations/supabase/client";
+import { showError, showSuccess } from "@/utils/toast";
+import { Button } from "@/components/ui/button";
 
 const navItems = [
   {
-    to: "/",
-    icon: <Home className="h-4 w-4" />,
-    text: "Dashboard",
+    title: "Dashboard",
+    href: "/",
+    icon: LayoutDashboard,
   },
   {
-    to: "/scheduling-requests",
-    icon: <Calendar className="h-4 w-4" />,
-    text: "Manajemen Jadwal",
+    title: "Manajemen Invoice",
+    href: "/invoices",
+    icon: ReceiptText,
   },
   {
-    to: "/invoices",
-    icon: <FileText className="h-4 w-4" />,
-    text: "Manajemen Invoice",
+    title: "Manajemen Jadwal",
+    href: "/schedules",
+    icon: CalendarDays,
   },
   {
-    to: "/purchase-requests",
-    icon: <Package className="h-4 w-4" />,
-    text: "Manajemen Permintaan Pembelian",
+    title: "Permintaan Jadwal Teknis",
+    href: "/scheduling-requests",
+    icon: ListTodo,
   },
   {
-    to: "/delivery-orders",
-    icon: <Truck className="h-4 w-4" />,
-    text: "Manajemen Pesanan Pengiriman",
+    title: "Manajemen Produk",
+    href: "/stock",
+    icon: Package,
   },
   {
-    to: "/technician-schedule-calendar",
-    icon: <Calendar className="h-4 w-4" />,
-    text: "Kalender Jadwal Teknisi",
+    title: "Manajemen Stok",
+    href: "/stock-management",
+    icon: Boxes,
   },
   {
-    to: "/stock-ledger",
-    icon: <Warehouse className="h-4 w-4" />,
-    text: "Buku Besar Stok",
+    title: "Riwayat Transaksi Produk",
+    href: "/stock-history",
+    icon: History,
   },
   {
-    to: "/warehouse-inventory",
-    icon: <Warehouse className="h-4 w-4" />,
-    text: "Inventaris Gudang",
+    title: "Riwayat Perpindahan Produk",
+    href: "/stock-movement-history",
+    icon: ArrowRightLeft,
   },
   {
-    to: "/sales-details",
-    icon: <FileText className="h-4 w-4" />,
-    text: "Detail Penjualan",
+    title: "Pengajuan Pembelian",
+    href: "/purchase-requests",
+    icon: ShoppingCart,
   },
   {
-    to: "/settings", // New settings item
-    icon: <Settings className="h-4 w-4" />,
-    text: "Pengaturan",
+    title: "Manajemen Pemasok",
+    href: "/suppliers",
+    icon: Users,
+  },
+  {
+    title: "Manajemen Pelanggan",
+    href: "/customers",
+    icon: User,
+  },
+  {
+    title: "Manajemen Teknisi", // New nav item
+    href: "/technicians",
+    icon: HardHat, // Using HardHat icon
+  },
+  {
+    title: "Kategori Gudang",
+    href: "/warehouse-categories",
+    icon: Warehouse,
+  },
+  {
+    title: "Profil Saya",
+    href: "/profile",
+    icon: UserCircle,
   },
 ];
 
 const SidebarNav = () => {
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+      showSuccess("Anda telah berhasil logout.");
+    } catch (error: any) {
+      showError(`Gagal logout: ${error.message}`);
+      console.error("Error logging out:", error);
+    }
+  };
+
   return (
     <nav className="flex flex-col space-y-1 p-4 bg-sidebar dark:bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border h-full">
       <h2 className="text-xl font-bold mb-4 text-sidebar-primary-foreground">Budi Karya Teknologi</h2>
       <div className="flex-1">
         {navItems.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "w-full justify-start text-sidebar-foreground hover:bg-sidebar-hover dark:hover:bg-sidebar-hover h-auto py-2" // Added h-auto and py-2 for better spacing with two lines
-            )}
+          <NavLink
+            key={item.href}
+            to={item.href}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                isActive
+                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                  : "text-sidebar-foreground"
+              )
+            }
           >
-            {item.icon}
-            <span className="ml-2 flex-1 text-left line-clamp-2">{item.text}</span> {/* Changed here */}
-          </Link>
+            <item.icon className="h-5 w-5" />
+            {item.title}
+          </NavLink>
         ))}
       </div>
+      <Button
+        variant="ghost"
+        onClick={handleLogout}
+        className="flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground justify-start"
+      >
+        <LogOut className="h-5 w-5" />
+        Logout
+      </Button>
     </nav>
   );
 };

@@ -2,16 +2,15 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Calendar } from "@/components/ui/calendar";
-import { DayContentProps } from "react-day-picker"; // Import DayContentProps directly from react-day-picker
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician } from "@/types/data";
-import { Loader2, CalendarDays, User, Clock, MapPin, Info, AlertTriangle } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician } from "@/types/data"; // Import Technician interface
+import { Loader2, CalendarDays, User, Clock, MapPin, Info, AlertTriangle } from "lucide-react"; // Added AlertTriangle
+import { useQuery } from "@tanstack/react-query"; // Import useQuery
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
 
 interface TechnicianScheduleCalendarProps {
   // No props needed for now, it will manage its own state and data fetching
@@ -86,6 +85,16 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     return technicianColorMap[technicianName || "Belum Ditugaskan"]?.bgClass || technicianColorMap["Belum Ditugaskan"].bgClass;
   }, [technicianColorMap]);
 
+  // Define colors for calendar day markers (using HSL for consistency with shadcn/ui)
+  const calendarModifierStyles: Record<string, React.CSSProperties> = useMemo(() => {
+    const styles: Record<string, React.CSSProperties> = {};
+    technicians?.forEach((tech) => {
+      const key = tech.name.toLowerCase().replace(/\s/g, '_');
+      styles[key] = { backgroundColor: technicianColorMap[tech.name]?.hsl || 'hsl(0 0% 100%)', color: 'hsl(0 0% 100%)' };
+    });
+    return styles;
+  }, [technicians, technicianColorMap]);
+
   const fetchSchedulesForMonth = useCallback(async (monthDate: Date) => {
     setLoading(true);
     setSelectedDaySchedules([]); // Clear schedules for selected day when month changes
@@ -139,39 +148,6 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     }
   }, [date, schedules]);
 
-  // Calculate total schedule counts for each day
-  const dayCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    schedules.forEach(s => {
-      const dateKey = format(parseISO(s.schedule_date), 'yyyy-MM-dd');
-      counts.set(dateKey, (counts.get(dateKey) || 0) + 1);
-    });
-    return counts;
-  }, [schedules]);
-
-  // Calculate days with multiple distinct technicians
-  const daysWithMultipleTechnicians = useMemo(() => {
-    const days: Date[] = [];
-    const schedulesByDay = new Map<string, Set<string>>(); // dateKey -> Set<technicianName>
-
-    schedules.forEach(s => {
-      const dateKey = format(parseISO(s.schedule_date), 'yyyy-MM-dd');
-      if (!schedulesByDay.has(dateKey)) {
-        schedulesByDay.set(dateKey, new Set());
-      }
-      if (s.technician_name && s.technician_name !== "Belum Ditugaskan") {
-        schedulesByDay.get(dateKey)?.add(s.technician_name);
-      }
-    });
-
-    schedulesByDay.forEach((technicianNames, dateKey) => {
-      if (technicianNames.size > 1) {
-        days.push(parseISO(dateKey));
-      }
-    });
-    return days;
-  }, [schedules]);
-
   // Create modifiers for each technician for the calendar
   const technicianDayModifiers = useMemo(() => {
     const modifiers: Record<string, Date[]> = {};
@@ -199,41 +175,11 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   // Combine all modifiers for the Calendar component
   const allModifiers = {
     ...technicianDayModifiers,
-    multipleTechnicians: daysWithMultipleTechnicians, // Add new modifier
     selected: date, // Keep the selected date modifier
   };
 
-  // Define colors for calendar day markers (using HSL for consistency with shadcn/ui)
-  const calendarModifierStyles: Record<string, React.CSSProperties> = useMemo(() => {
-    const styles: Record<string, React.CSSProperties> = {};
-    technicians?.forEach((tech) => {
-      const key = tech.name.toLowerCase().replace(/\s/g, '_');
-      styles[key] = { backgroundColor: technicianColorMap[tech.name]?.hsl || 'hsl(0 0% 100%)', color: 'hsl(0 0% 100%)' };
-    });
-    // Define style for multiple technicians, ensuring it overrides individual tech colors
-    styles.multipleTechnicians = { backgroundColor: 'hsl(0 84.2% 60.2%)', color: 'hsl(0 0% 100%)' }; // Red-500 equivalent
-    return styles;
-  }, [technicians, technicianColorMap]);
-
   const handleDaySelect = (selectedDay: Date | undefined) => {
     setDate(selectedDay);
-  };
-
-  // Custom DayContent component to show schedule count
-  const CustomDayContent = (props: DayContentProps & { children?: React.ReactNode }) => { // Adjusted props type
-    const dateKey = format(props.date, 'yyyy-MM-dd');
-    const count = dayCounts.get(dateKey);
-
-    return (
-      <div className="relative w-full h-full flex items-center justify-center">
-        {props.children} {/* Access children from props */}
-        {count && count > 0 && (
-          <span className="absolute bottom-0 right-0 text-xs bg-primary text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center">
-            {count}
-          </span>
-        )}
-      </div>
-    );
   };
 
   // Group schedules by technician for display
@@ -285,11 +231,6 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
               <span className="h-4 w-4 rounded-full bg-gray-500"></span>
               <span>Belum Ditugaskan</span>
             </div>
-            {/* New legend for multiple technicians */}
-            <div className="flex items-center gap-2">
-              <span className="h-4 w-4 rounded-full bg-red-500"></span>
-              <span>Banyak Teknisi</span>
-            </div>
           </div>
           <Calendar
             mode="single"
@@ -300,9 +241,6 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
             modifiersStyles={calendarModifierStyles}
             locale={id}
             onMonthChange={(newMonth) => setDate(newMonth)}
-            components={{
-              DayContent: CustomDayContent,
-            }}
           />
         </div>
         <div className="flex-1 lg:max-h-[400px] overflow-y-auto p-4 border rounded-md bg-gray-50 dark:bg-gray-700">
@@ -318,7 +256,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
           ) : (
             <div className="space-y-4">
               {numberOfDistinctTechniciansToday > 1 && (
-                <Alert variant="default" className="mb-4">
+                <Alert variant="default" className="mb-4"> {/* Changed variant to "default" */}
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Perhatian!</AlertTitle>
                   <AlertDescription>
