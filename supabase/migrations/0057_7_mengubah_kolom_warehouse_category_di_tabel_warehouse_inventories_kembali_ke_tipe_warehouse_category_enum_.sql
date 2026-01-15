@@ -1,0 +1,2 @@
+ALTER TABLE public.warehouse_inventories
+ALTER COLUMN warehouse_category TYPE public.warehouse_category_enum USING warehouse_category::public.warehouse_category_enum;

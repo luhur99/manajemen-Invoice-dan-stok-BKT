@@ -1,0 +1,1 @@
+DROP TYPE public.stock_category_enum;
