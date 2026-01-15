@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -16,15 +16,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data";
+import { StockItem, WarehouseInventory } from "@/types/data";
 import { format } from "date-fns";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  new_stock_akhir: z.coerce.number().min(0, "Stok Akhir tidak boleh negatif"),
+  warehouse_category: z.enum(["siap_jual", "riset", "retur"], {
+    required_error: "Kategori Gudang wajib dipilih",
+  }),
+  new_quantity: z.coerce.number().min(0, "Kuantitas baru tidak boleh negatif"),
   reason: z.string().min(1, "Alasan penyesuaian wajib diisi"),
 });
 
@@ -41,22 +45,64 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
   onOpenChange,
   onSuccess,
 }) => {
+  const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
+  const [loadingInventories, setLoadingInventories] = useState(true);
+
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return "-";
+    }
+  };
+
+  const fetchInventories = useCallback(async () => {
+    if (!stockItem?.id) return;
+    setLoadingInventories(true);
+    const { data, error } = await supabase
+      .from("warehouse_inventories")
+      .select("*")
+      .eq("product_id", stockItem.id);
+
+    if (error) {
+      showError("Gagal memuat inventaris item.");
+      console.error("Error fetching warehouse inventories:", error);
+      setCurrentInventories([]);
+    } else {
+      setCurrentInventories(data as WarehouseInventory[]);
+    }
+    setLoadingInventories(false);
+  }, [stockItem?.id]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      new_stock_akhir: stockItem["STOCK AKHIR"],
+      warehouse_category: stockItem.inventories?.[0]?.warehouse_category || "siap_jual",
+      new_quantity: 0, // Will be set in useEffect
       reason: "",
     },
   });
 
+  // Update default new_quantity when category changes or dialog opens
   useEffect(() => {
-    if (isOpen && stockItem) {
-      form.reset({
-        new_stock_akhir: stockItem["STOCK AKHIR"],
-        reason: "",
+    if (isOpen) {
+      fetchInventories().then(() => {
+        const defaultCategory = stockItem.inventories?.[0]?.warehouse_category || "siap_jual";
+        const initialQuantity = currentInventories.find(inv => inv.warehouse_category === defaultCategory)?.quantity || 0;
+        form.reset({
+          warehouse_category: defaultCategory,
+          new_quantity: initialQuantity,
+          reason: "",
+        });
       });
     }
-  }, [isOpen, stockItem, form]);
+  }, [isOpen, stockItem, form, fetchInventories, currentInventories.length]); // Depend on currentInventories.length to re-run after fetch
+
+  const selectedCategory = form.watch("warehouse_category");
+  const currentQuantityForSelectedCategory = currentInventories.find(
+    (inv) => inv.warehouse_category === selectedCategory
+  )?.quantity || 0;
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -68,40 +114,33 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     }
 
     try {
-      const currentStockAkhir = stockItem["STOCK AKHIR"];
-      const newStockAkhir = values.new_stock_akhir;
-      const difference = newStockAkhir - currentStockAkhir;
+      const oldQuantity = currentQuantityForSelectedCategory;
+      const newQuantity = values.new_quantity;
+      const difference = newQuantity - oldQuantity;
 
-      let newStockMasuk = stockItem["STOCK MASUK"];
-      let newStockKeluar = stockItem["STOCK KELUAR"];
-      let transactionQuantity = Math.abs(difference);
-      let transactionType: 'in' | 'out' | 'adjustment';
-
-      if (difference > 0) {
-        newStockMasuk += difference;
-        transactionType = 'in'; // Treat as 'in' for cumulative, but record 'adjustment' type
-      } else if (difference < 0) {
-        newStockKeluar += Math.abs(difference);
-        transactionType = 'out'; // Treat as 'out' for cumulative, but record 'adjustment' type
-      } else {
+      if (difference === 0) {
         showSuccess("Tidak ada perubahan stok yang dilakukan.");
         onOpenChange(false);
         onSuccess();
         return;
       }
 
-      // Update stock_items table
-      const { error: updateStockError } = await supabase
-        .from("stock_items")
-        .update({
-          stock_masuk: newStockMasuk,
-          stock_keluar: newStockKeluar,
-          stock_akhir: newStockAkhir,
-        })
-        .eq("id", stockItem.id);
+      // Update or insert into warehouse_inventories
+      const { error: upsertInventoryError } = await supabase
+        .from("warehouse_inventories")
+        .upsert(
+          {
+            product_id: stockItem.id,
+            warehouse_category: values.warehouse_category,
+            quantity: newQuantity,
+            user_id: userId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "product_id, warehouse_category" }
+        );
 
-      if (updateStockError) {
-        throw updateStockError;
+      if (upsertInventoryError) {
+        throw upsertInventoryError;
       }
 
       // Insert into stock_transactions table with 'adjustment' type
@@ -110,10 +149,11 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
         .insert({
           user_id: userId,
           stock_item_id: stockItem.id,
-          transaction_type: 'adjustment', // Use the new 'adjustment' type
-          quantity: transactionQuantity,
-          notes: `Penyesuaian stok dari ${currentStockAkhir} menjadi ${newStockAkhir}. Alasan: ${values.reason}`,
+          transaction_type: 'adjustment',
+          quantity: Math.abs(difference), // Record the absolute change
+          notes: `Penyesuaian stok di kategori ${getCategoryDisplay(values.warehouse_category)} dari ${oldQuantity} menjadi ${newQuantity}. Alasan: ${values.reason}`,
           transaction_date: format(new Date(), "yyyy-MM-dd"),
+          warehouse_category: values.warehouse_category,
         });
 
       if (transactionError) {
@@ -134,22 +174,50 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Penyesuaian Stok Barang</DialogTitle>
-          <DialogDescription>Sesuaikan stok akhir untuk item "{stockItem["NAMA BARANG"]}".</DialogDescription>
+          <DialogDescription>Sesuaikan kuantitas stok untuk item "{stockItem["NAMA BARANG"]}" di kategori tertentu.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="warehouse_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Gudang</FormLabel>
+                  <Select onValueChange={(value) => {
+                    field.onChange(value);
+                    const quantityForNewCategory = currentInventories.find(inv => inv.warehouse_category === value)?.quantity || 0;
+                    form.setValue("new_quantity", quantityForNewCategory);
+                  }} value={field.value} disabled={loadingInventories}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingInventories ? "Memuat kategori..." : "Pilih kategori gudang"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {["siap_jual", "riset", "retur"].map(category => (
+                        <SelectItem key={category} value={category}>
+                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormItem>
-              <FormLabel>Stok Akhir Saat Ini</FormLabel>
+              <FormLabel>Stok Saat Ini ({getCategoryDisplay(selectedCategory)})</FormLabel>
               <FormControl>
-                <Input type="number" value={stockItem["STOCK AKHIR"]} disabled />
+                <Input type="number" value={currentQuantityForSelectedCategory} disabled />
               </FormControl>
             </FormItem>
             <FormField
               control={form.control}
-              name="new_stock_akhir"
+              name="new_quantity"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Stok Akhir Baru</FormLabel>
+                  <FormLabel>Kuantitas Baru</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
                   </FormControl>

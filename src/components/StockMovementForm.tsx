@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -20,8 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data";
-import { format } from "date-fns"; // Import format
+import { StockItem, WarehouseInventory } from "@/types/data";
+import { format } from "date-fns";
 
 // Define the ENUM type for warehouse categories
 type WarehouseCategory = 'siap_jual' | 'riset' | 'retur';
@@ -51,11 +51,41 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
   onOpenChange,
   onSuccess,
 }) => {
+  const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
+  const [loadingInventories, setLoadingInventories] = useState(true);
+
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return "-";
+    }
+  };
+
+  const fetchInventories = useCallback(async () => {
+    if (!stockItem?.id) return;
+    setLoadingInventories(true);
+    const { data, error } = await supabase
+      .from("warehouse_inventories")
+      .select("*")
+      .eq("product_id", stockItem.id);
+
+    if (error) {
+      showError("Gagal memuat inventaris item.");
+      console.error("Error fetching warehouse inventories:", error);
+      setCurrentInventories([]);
+    } else {
+      setCurrentInventories(data as WarehouseInventory[]);
+    }
+    setLoadingInventories(false);
+  }, [stockItem?.id]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      from_category: stockItem.warehouse_category || "siap_jual",
-      to_category: stockItem.warehouse_category === "siap_jual" ? "riset" : "siap_jual", // Suggest a different category
+      from_category: stockItem.inventories?.[0]?.warehouse_category || "siap_jual", // Default to first category or siap_jual
+      to_category: stockItem.inventories?.[0]?.warehouse_category === "siap_jual" ? "riset" : "siap_jual",
       quantity: 1,
       reason: "",
     },
@@ -63,15 +93,16 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
 
   // Reset form when dialog opens or stockItem changes
   useEffect(() => {
-    if (isOpen && stockItem) {
+    if (isOpen) {
+      fetchInventories();
       form.reset({
-        from_category: stockItem.warehouse_category || "siap_jual",
-        to_category: stockItem.warehouse_category === "siap_jual" ? "riset" : "siap_jual",
+        from_category: stockItem.inventories?.[0]?.warehouse_category || "siap_jual",
+        to_category: stockItem.inventories?.[0]?.warehouse_category === "siap_jual" ? "riset" : "siap_jual",
         quantity: 1,
         reason: "",
       });
     }
-  }, [isOpen, stockItem, form]);
+  }, [isOpen, stockItem, form, fetchInventories]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -88,57 +119,57 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
     }
 
     try {
-      // Fetch current stock item to get the latest stock_akhir for the 'from_category'
-      const { data: currentStockItem, error: fetchError } = await supabase
-        .from("stock_items")
-        .select("stock_akhir, warehouse_category")
-        .eq("id", stockItem.id)
-        .single();
+      // Get current quantities for from_category and to_category
+      const fromInventory = currentInventories.find(
+        (inv) => inv.warehouse_category === values.from_category
+      );
+      const fromQuantity = fromInventory ? fromInventory.quantity : 0;
 
-      if (fetchError || !currentStockItem) {
-        throw new Error("Gagal memuat data stok saat ini.");
-      }
-
-      if (currentStockItem.warehouse_category !== values.from_category) {
-        showError(`Item ini saat ini berada di kategori "${currentStockItem.warehouse_category}", bukan "${values.from_category}". Harap perbarui kategori asal.`);
+      if (fromQuantity < values.quantity) {
+        showError(`Stok tidak mencukupi di kategori "${getCategoryDisplay(values.from_category)}". Tersedia: ${fromQuantity}, Diminta: ${values.quantity}`);
         return;
       }
 
-      if (currentStockItem.stock_akhir < values.quantity) {
-        showError(`Stok tidak mencukupi di kategori "${values.from_category}". Tersedia: ${currentStockItem.stock_akhir}, Diminta: ${values.quantity}`);
-        return;
+      const toInventory = currentInventories.find(
+        (inv) => inv.warehouse_category === values.to_category
+      );
+      const toQuantity = toInventory ? toInventory.quantity : 0;
+
+      // Update quantities in warehouse_inventories
+      // Decrease from_category quantity
+      const { error: fromUpdateError } = await supabase
+        .from("warehouse_inventories")
+        .upsert(
+          {
+            product_id: stockItem.id,
+            warehouse_category: values.from_category,
+            quantity: fromQuantity - values.quantity,
+            user_id: userId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "product_id, warehouse_category" }
+        );
+
+      if (fromUpdateError) {
+        throw fromUpdateError;
       }
 
-      // Update stock_items: decrease from 'from_category' and increase in 'to_category'
-      // This requires two updates if the item is conceptually "moving" categories.
-      // For simplicity, we'll update the existing item's category and adjust its stock_akhir.
-      // If we were tracking separate stock counts per category for the *same* item, it would be more complex.
-      // Given the current schema, `stock_akhir` is a single value for the item.
-      // The `stock_movements` table tracks the *event* of moving, not separate stock levels.
+      // Increase to_category quantity
+      const { error: toUpdateError } = await supabase
+        .from("warehouse_inventories")
+        .upsert(
+          {
+            product_id: stockItem.id,
+            warehouse_category: values.to_category,
+            quantity: toQuantity + values.quantity,
+            user_id: userId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "product_id, warehouse_category" }
+        );
 
-      // So, the `stock_akhir` of the item itself will remain the same,
-      // but its `warehouse_category` will change.
-      // The `stock_movements` table will record the historical event.
-
-      const { error: updateError } = await supabase
-        .from("stock_items")
-        .update({
-          warehouse_category: values.to_category,
-          // stock_akhir is not directly changed by a *movement* between categories for the same item.
-          // It's changed by 'in'/'out' transactions.
-          // If the intent is to *transfer* stock, then the stock_akhir should remain the same.
-          // If the intent is to *reduce* stock from one category and *add* to another,
-          // then we need to adjust stock_akhir.
-          // For now, let's assume `stock_akhir` represents the total available stock for the item,
-          // regardless of its current category. The movement just changes its classification.
-          // If the requirement is to have separate `stock_akhir` per category, the `stock_items` schema needs to change.
-          // For this implementation, we'll just change the `warehouse_category` of the item.
-          // The `quantity` in `stock_movements` will represent the amount *moved* conceptually.
-        })
-        .eq("id", stockItem.id);
-
-      if (updateError) {
-        throw updateError;
+      if (toUpdateError) {
+        throw toUpdateError;
       }
 
       // Insert into stock_movements table
@@ -158,7 +189,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         throw movementError;
       }
 
-      showSuccess(`Stok item "${stockItem["NAMA BARANG"]}" berhasil dipindahkan dari ${values.from_category} ke ${values.to_category}!`);
+      showSuccess(`Stok item "${stockItem["NAMA BARANG"]}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`);
       onOpenChange(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
@@ -182,16 +213,18 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Dari Kategori</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled> {/* Disabled as it's the item's current category */}
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingInventories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori asal" />
+                        <SelectValue placeholder={loadingInventories ? "Memuat kategori..." : "Pilih kategori asal"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
-                      <SelectItem value="riset">Riset</SelectItem>
-                      <SelectItem value="retur">Retur</SelectItem>
+                      {currentInventories.map(inv => (
+                        <SelectItem key={inv.warehouse_category} value={inv.warehouse_category}>
+                          {getCategoryDisplay(inv.warehouse_category)} (Stok: {inv.quantity})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -204,16 +237,18 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Ke Kategori</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingInventories}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih kategori tujuan" />
+                        <SelectValue placeholder={loadingInventories ? "Memuat kategori..." : "Pilih kategori tujuan"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="siap_jual">Siap Jual</SelectItem>
-                      <SelectItem value="riset">Riset</SelectItem>
-                      <SelectItem value="retur">Retur</SelectItem>
+                      {["siap_jual", "riset", "retur"].map(category => (
+                        <SelectItem key={category} value={category}>
+                          {getCategoryDisplay(category as WarehouseCategory)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

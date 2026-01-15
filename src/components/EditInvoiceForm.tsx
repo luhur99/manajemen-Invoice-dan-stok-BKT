@@ -97,7 +97,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       setLoadingStockItems(true);
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, kode_barang, nama_barang, harga_jual, satuan");
+        .select("id, kode_barang, nama_barang, harga_jual, satuan, warehouse_inventories(warehouse_category, quantity)"); // Fetch inventories
 
       if (error) {
         showError("Gagal memuat daftar item stok.");
@@ -109,8 +109,9 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           "NAMA BARANG": item.nama_barang,
           "HARGA JUAL": item.harga_jual,
           SATUAN: item.satuan || "", // Ensure SATUAN is always a string
+          inventories: item.warehouse_inventories || [], // Assign inventories
           // Default values for other StockItem fields not used here
-          NO: 0, "HARGA BELI": 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
+          "HARGA BELI": 0, safe_stock_limit: 0,
         })) as StockItem[]);
       }
       setLoadingStockItems(false);
@@ -211,10 +212,11 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           invoice_id: invoice.id,
           user_id: userId,
           item_name: item.item_name,
+          item_code: item.item_code || null, // Save item_code
           quantity: item.quantity,
           unit_price: item.unit_price,
           subtotal: item.quantity * item.unit_price,
-          unit_type: item.unit_type,
+          unit_type: item.unit_type || null, // Save unit_type
         };
 
         if (item.id && initialItemIds.has(item.id)) {

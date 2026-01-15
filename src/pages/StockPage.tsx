@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StockItem } from "@/types/data";
+import { StockItem, WarehouseInventory } from "@/types/data"; // Import WarehouseInventory
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
@@ -13,10 +13,10 @@ import EditStockItemForm from "@/components/EditStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import StockMovementForm from "@/components/StockMovementForm";
 import StockAdjustmentForm from "@/components/StockAdjustmentForm";
-import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog"; // Import new component
+import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
 import PaginationControls from "@/components/PaginationControls";
 import ExportDataButton from "@/components/ExportDataButton";
-import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle, SlidersHorizontal, Eye } from "lucide-react"; // Import Eye icon
+import { Loader2, Edit, Trash2, PlusCircle, Settings, ArrowRightLeft, AlertCircle, SlidersHorizontal, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +25,21 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Toggle } from "@/components/ui/toggle";
+
+// Define a flattened type for export
+interface FlattenedStockItemForExport {
+  "KODE BARANG": string;
+  "NAMA BARANG": string;
+  SATUAN: string;
+  "HARGA BELI": number;
+  "HARGA JUAL": number;
+  "STOK SIAP JUAL": number;
+  "STOK RISET": number;
+  "STOK RETUR": number;
+  "TOTAL STOK AKHIR": number;
+  "BATAS AMAN": number;
+  "CREATED AT": string;
+}
 
 const StockPage = () => {
   const [stockData, setStockData] = useState<StockItem[]>([]);
@@ -40,47 +55,68 @@ const StockPage = () => {
 
   const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
   const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false);
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // New state for View Details dialog
-  const [stockItemToView, setStockItemToView] = useState<StockItem | null>(null); // New state for item to view
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [stockItemToView, setStockItemToView] = useState<StockItem | null>(null);
 
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return "-";
+    }
+  };
+
   const fetchStockData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase
+      const { data: stockItems, error: stockItemsError } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at")
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
+        `)
         .order("nama_barang", { ascending: true });
 
-      if (error) {
-        throw error;
+      if (stockItemsError) {
+        throw stockItemsError;
       }
 
-      const fetchedStock: StockItem[] = data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        NO: 0, // This will be assigned sequentially for display if needed, but not stored in DB
-        "KODE BARANG": item.kode_barang,
-        "NAMA BARANG": item.nama_barang,
-        SATUAN: item.satuan || "",
-        "HARGA BELI": item.harga_beli,
-        "HARGA JUAL": item.harga_jual,
-        "STOCK AWAL": item.stock_awal,
-        "STOCK MASUK": item.stock_masuk,
-        "STOCK KELUAR": item.stock_keluar,
-        "STOCK AKHIR": item.stock_akhir,
-        safe_stock_limit: item.safe_stock_limit,
-        warehouse_category: item.warehouse_category,
-        created_at: item.created_at,
-      }));
+      const processedStock: StockItem[] = stockItems.map(item => {
+        const inventories = item.warehouse_inventories || [];
+        return {
+          id: item.id,
+          user_id: item.user_id,
+          "KODE BARANG": item.kode_barang,
+          "NAMA BARANG": item.nama_barang,
+          SATUAN: item.satuan || "",
+          "HARGA BELI": item.harga_beli,
+          "HARGA JUAL": item.harga_jual,
+          safe_stock_limit: item.safe_stock_limit,
+          created_at: item.created_at,
+          inventories: inventories as WarehouseInventory[],
+        };
+      });
 
-      setStockData(fetchedStock);
-      setFilteredStockData(fetchedStock);
+      setStockData(processedStock);
+      setFilteredStockData(processedStock);
       setCurrentPage(1);
     } catch (err: any) {
       setError(`Gagal memuat data stok dari database: ${err.message}`);
@@ -95,31 +131,52 @@ const StockPage = () => {
 
   const fetchAllStockDataForExport = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const { data: stockItems, error: stockItemsError } = await supabase
         .from("stock_items")
-        .select("id, user_id, kode_barang, nama_barang, satuan, harga_beli, harga_jual, stock_awal, stock_masuk, stock_keluar, stock_akhir, safe_stock_limit, warehouse_category, created_at")
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
+        `)
         .order("nama_barang", { ascending: true });
 
-      if (error) {
-        throw error;
+      if (stockItemsError) {
+        throw stockItemsError;
       }
-      return data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        NO: 0, // Placeholder, actual NO might be assigned during export if needed
-        "KODE BARANG": item.kode_barang,
-        "NAMA BARANG": item.nama_barang,
-        SATUAN: item.satuan || "",
-        "HARGA BELI": item.harga_beli,
-        "HARGA JUAL": item.harga_jual,
-        "STOCK AWAL": item.stock_awal,
-        "STOCK MASUK": item.stock_masuk,
-        "STOCK KELUAR": item.stock_keluar,
-        "STOCK AKHIR": item.stock_akhir,
-        safe_stock_limit: item.safe_stock_limit,
-        warehouse_category: item.warehouse_category,
-        created_at: item.created_at,
-      })) as StockItem[];
+
+      // Flatten the data for CSV export
+      const flattenedData: FlattenedStockItemForExport[] = stockItems.map(item => {
+        const inventories = item.warehouse_inventories || [];
+        const stockByCategory: { [key: string]: number } = {};
+        inventories.forEach((inv: any) => {
+          stockByCategory[inv.warehouse_category] = inv.quantity;
+        });
+
+        return {
+          "KODE BARANG": item.kode_barang,
+          "NAMA BARANG": item.nama_barang,
+          SATUAN: item.satuan || "",
+          "HARGA BELI": item.harga_beli,
+          "HARGA JUAL": item.harga_jual,
+          "STOK SIAP JUAL": stockByCategory.siap_jual || 0,
+          "STOK RISET": stockByCategory.riset || 0,
+          "STOK RETUR": stockByCategory.retur || 0,
+          "TOTAL STOK AKHIR": inventories.reduce((sum: number, inv: any) => sum + inv.quantity, 0),
+          "BATAS AMAN": item.safe_stock_limit || 0,
+          "CREATED AT": item.created_at,
+        };
+      });
+      return flattenedData;
     } catch (err: any) {
       console.error("Error fetching all stock data for export:", err);
       showError("Gagal memuat semua data stok untuk ekspor.");
@@ -127,19 +184,18 @@ const StockPage = () => {
     }
   }, []);
 
-  const stockItemHeaders: { key: keyof StockItem; label: string }[] = [
+  const stockItemHeaders: { key: keyof FlattenedStockItemForExport; label: string }[] = [
     { key: "KODE BARANG", label: "Kode Barang" },
     { key: "NAMA BARANG", label: "Nama Barang" },
     { key: "SATUAN", label: "Satuan" },
     { key: "HARGA BELI", label: "Harga Beli" },
     { key: "HARGA JUAL", label: "Harga Jual" },
-    { key: "STOCK AWAL", label: "Stok Awal" },
-    { key: "STOCK MASUK", label: "Stok Masuk" },
-    { key: "STOCK KELUAR", label: "Stok Keluar" },
-    { key: "STOCK AKHIR", label: "Stok Akhir" },
-    { key: "safe_stock_limit", label: "Batas Aman" },
-    { key: "warehouse_category", label: "Kategori Gudang" },
-    { key: "created_at", label: "Created At" },
+    { key: "STOK SIAP JUAL", label: "Stok Siap Jual" },
+    { key: "STOK RISET", label: "Stok Riset" },
+    { key: "STOK RETUR", label: "Stok Retur" },
+    { key: "TOTAL STOK AKHIR", label: "Total Stok Akhir" },
+    { key: "BATAS AMAN", label: "Batas Aman" },
+    { key: "CREATED AT", label: "Created At" },
   ];
 
   useEffect(() => {
@@ -152,13 +208,14 @@ const StockPage = () => {
       item["KODE BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item["NAMA BARANG"].toLowerCase().includes(lowerCaseSearchTerm) ||
       item.SATUAN.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.warehouse_category?.toLowerCase().includes(lowerCaseSearchTerm)
+      item.inventories?.some(inv => getCategoryDisplay(inv.warehouse_category).toLowerCase().includes(lowerCaseSearchTerm))
     );
 
     if (showLowStockOnly) {
       filtered = filtered.filter(item => {
+        const totalStock = item.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
         const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
-        return item["STOCK AKHIR"] < limit;
+        return totalStock < limit;
       });
     }
 
@@ -167,11 +224,12 @@ const StockPage = () => {
   }, [searchTerm, stockData, showLowStockOnly]);
 
   const handleDeleteStockItem = async (stockItemId: string) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
+    if (!window.confirm("Apakah Anda yakin ingin menghapus item stok ini? Ini akan menghapus semua data inventaris dan transaksi terkait.")) {
       return;
     }
 
     try {
+      // Supabase RLS with CASCADE should handle deleting related warehouse_inventories, stock_transactions, stock_movements
       const { error } = await supabase
         .from("stock_items")
         .delete()
@@ -210,7 +268,7 @@ const StockPage = () => {
     setIsAdjustmentFormOpen(true);
   };
 
-  const handleViewDetailsClick = (item: StockItem) => { // New handler
+  const handleViewDetailsClick = (item: StockItem) => {
     setStockItemToView(item);
     setIsViewDetailsOpen(true);
   };
@@ -265,74 +323,75 @@ const StockPage = () => {
                     <TableHead>Satuan</TableHead>
                     <TableHead className="text-right">Harga Beli</TableHead>
                     <TableHead className="text-right">Harga Jual</TableHead>
-                    <TableHead className="text-right">Stok Awal</TableHead>
-                    <TableHead className="text-right">Stok Masuk</TableHead>
-                    <TableHead className="text-right">Stok Keluar</TableHead>
-                    <TableHead className="text-right">Stok Akhir</TableHead>
+                    <TableHead className="text-right">Stok per Kategori</TableHead> {/* Updated header */}
+                    <TableHead className="text-right">Total Stok Akhir</TableHead> {/* New header */}
                     <TableHead className="text-right">Batas Aman</TableHead>
-                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead className="text-center">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentItems.map((item) => (
-                    <TableRow key={item.id} className={item["STOCK AKHIR"] < (item.safe_stock_limit || 10) ? "bg-red-50 dark:bg-red-950" : ""}>
-                      <TableCell>{item["KODE BARANG"]}</TableCell>
-                      <TableCell>{item["NAMA BARANG"]}</TableCell>
-                      <TableCell>{item.SATUAN}</TableCell>
-                      <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
-                      <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
-                      <TableCell className="text-right">{item["STOCK AWAL"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK MASUK"]}</TableCell>
-                      <TableCell className="text-right">{item["STOCK KELUAR"]}</TableCell>
-                      <TableCell className="text-right">
-                        <span className={item["STOCK AKHIR"] < (item.safe_stock_limit || 10) ? "font-bold text-red-600 dark:text-red-400" : ""}>
-                          {item["STOCK AKHIR"]}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          item.warehouse_category === 'siap_jual' ? 'bg-blue-100 text-blue-800' :
-                          item.warehouse_category === 'riset' ? 'bg-yellow-100 text-yellow-800' :
-                          item.warehouse_category === 'retur' ? 'bg-orange-100 text-orange-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {item.warehouse_category?.replace(/_/g, ' ').split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') || "-"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="flex items-center gap-1">
-                              <Settings className="h-4 w-4" /> Atur Barang
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleViewDetailsClick(item)}> {/* New dropdown item */}
-                              <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditClick(item)}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit Item
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
-                              <Settings className="mr-2 h-4 w-4" /> Atur Stok (Masuk/Keluar)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
-                              <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
-                              <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" /> Hapus Item
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {currentItems.map((item) => {
+                    const totalStock = item.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
+                    const isLowStock = totalStock < (item.safe_stock_limit || 10);
+                    return (
+                      <TableRow key={item.id} className={isLowStock ? "bg-red-50 dark:bg-red-950" : ""}>
+                        <TableCell>{item["KODE BARANG"]}</TableCell>
+                        <TableCell>{item["NAMA BARANG"]}</TableCell>
+                        <TableCell>{item.SATUAN}</TableCell>
+                        <TableCell className="text-right">{item["HARGA BELI"].toLocaleString('id-ID')}</TableCell>
+                        <TableCell className="text-right">{item["HARGA JUAL"].toLocaleString('id-ID')}</TableCell>
+                        <TableCell className="text-right">
+                          {item.inventories && item.inventories.length > 0 ? (
+                            <div className="flex flex-col items-end">
+                              {item.inventories.map(inv => (
+                                <span key={inv.warehouse_category} className="text-xs">
+                                  {getCategoryDisplay(inv.warehouse_category)}: {inv.quantity}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <span className={isLowStock ? "font-bold text-red-600 dark:text-red-400" : ""}>
+                            {totalStock}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">{item.safe_stock_limit}</TableCell>
+                        <TableCell className="text-center">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="flex items-center gap-1">
+                                <Settings className="h-4 w-4" /> Atur Barang
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleViewDetailsClick(item)}>
+                                <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditClick(item)}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit Item Metadata
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
+                                <PlusCircle className="mr-2 h-4 w-4" /> Tambah/Kurangi Stok
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
+                                <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok Antar Kategori
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
+                                <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDeleteStockItem(item.id!)} className="text-red-600">
+                                <Trash2 className="mr-2 h-4 w-4" /> Hapus Item
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -386,7 +445,7 @@ const StockPage = () => {
         />
       )}
 
-      {stockItemToView && ( // Render new dialog
+      {stockItemToView && (
         <ViewStockItemDetailsDialog
           stockItem={stockItemToView}
           isOpen={isViewDetailsOpen}

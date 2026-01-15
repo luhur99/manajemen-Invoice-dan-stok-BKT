@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { StockItem } from "@/types/data";
+import { StockItem, WarehouseInventory } from "@/types/data"; // Import WarehouseInventory
 
 interface StockItemComboboxProps {
   items: StockItem[];
@@ -57,6 +57,11 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
     }
   };
 
+  const formatStockInventories = (inventories?: WarehouseInventory[]) => {
+    if (!inventories || inventories.length === 0) return "Stok: 0";
+    return inventories.map(inv => `${getCategoryDisplay(inv.warehouse_category)}: ${inv.quantity}`).join(', ');
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -70,7 +75,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           name={name}
         >
           {/* Display the current input value, or the selected item's name if available */}
-          {inputValue || (selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${getCategoryDisplay(selectedItem.warehouse_category)}` : placeholder)}
+          {inputValue || (selectedItem ? `${selectedItem["NAMA BARANG"]} (${selectedItem["KODE BARANG"]}) - ${formatStockInventories(selectedItem.inventories)}` : placeholder)}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -102,7 +107,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
                       selectedItem?.["NAMA BARANG"] === item["NAMA BARANG"] ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {item["NAMA BARANG"]} ({item["KODE BARANG"]}) - {getCategoryDisplay(item.warehouse_category)}
+                  {item["NAMA BARANG"]} ({item["KODE BARANG"]}) - {formatStockInventories(item.inventories)}
                 </CommandItem>
               ))}
             </CommandGroup>

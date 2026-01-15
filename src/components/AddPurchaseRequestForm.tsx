@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { useForm } from "react-hook-form"; // Corrected import
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -60,7 +60,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       setLoadingStockItems(true);
       const { data, error } = await supabase
         .from("stock_items")
-        .select("id, kode_barang, nama_barang, harga_beli, harga_jual, satuan, warehouse_category");
+        .select("id, kode_barang, nama_barang, harga_beli, harga_jual, satuan, warehouse_inventories(warehouse_category, quantity)"); // Fetch inventories
 
       if (error) {
         showError("Gagal memuat daftar item stok.");
@@ -73,9 +73,9 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           "HARGA BELI": item.harga_beli,
           "HARGA JUAL": item.harga_jual,
           SATUAN: item.satuan || "",
-          warehouse_category: item.warehouse_category,
+          inventories: item.warehouse_inventories || [], // Assign inventories
           // Default values for other StockItem fields not used here
-          NO: 0, "STOCK AWAL": 0, "STOCK MASUK": 0, "STOCK KELUAR": 0, "STOCK AKHIR": 0,
+          safe_stock_limit: 0,
         })) as StockItem[]);
       }
       setLoadingStockItems(false);

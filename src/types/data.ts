@@ -1,30 +1,38 @@
+export interface WarehouseInventory {
+  id?: string;
+  product_id: string; // Foreign key to StockItem
+  warehouse_category: 'siap_jual' | 'riset' | 'retur';
+  quantity: number;
+  user_id: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface StockItem {
-  id?: string; // New: UUID from Supabase, made optional for initial data loading
-  user_id?: string; // New: User ID for RLS, made optional for initial data loading
-  NO: number;
+  id?: string; // UUID from Supabase, made optional for initial data loading
+  user_id?: string; // User ID for RLS, made optional for initial data loading
   "KODE BARANG": string;
   "NAMA BARANG": string;
   SATUAN: string;
   "HARGA BELI": number;
   "HARGA JUAL": number;
-  "STOCK AWAL": number;
-  "STOCK MASUK": number;
-  "STOCK KELUAR": number;
-  "STOCK AKHIR": number;
-  safe_stock_limit?: number; // New: Batas stok aman
-  warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Kategori gudang stok
+  safe_stock_limit?: number; // Batas stok aman
   created_at?: string; // Add created_at for consistency
+  // Removed: "STOCK AWAL", "STOCK MASUK", "STOCK KELUAR", "STOCK AKHIR", warehouse_category
+  // These will now be managed via WarehouseInventory
+  inventories?: WarehouseInventory[]; // New: Joined inventories for display
 }
 
 export interface StockTransaction {
   id: string;
   user_id: string;
-  stock_item_id: string;
-  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment'; // Updated transaction types
+  stock_item_id: string; // Renamed from product_id to match stock_items.id
+  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment';
   quantity: number;
   notes?: string;
   transaction_date: string; // ISO date string
   created_at: string;
+  warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // New: Category affected by transaction
 }
 
 // New interface for Stock Transaction with Item Name for display
@@ -32,15 +40,14 @@ export interface StockTransactionWithItemName extends StockTransaction {
   stock_items: {
     nama_barang: string;
     kode_barang: string;
-    warehouse_category?: 'siap_jual' | 'riset' | 'retur'; // Added warehouse_category here
-  }[] | null; // Diperbaiki: sekarang array objek atau null
+  }[] | null;
 }
 
 // New interface for Stock Movement
 export interface StockMovement {
   id: string;
   user_id: string;
-  stock_item_id: string;
+  stock_item_id: string; // Renamed from product_id to match stock_items.id
   from_category: 'siap_jual' | 'riset' | 'retur';
   to_category: 'siap_jual' | 'riset' | 'retur';
   quantity: number;
@@ -54,7 +61,7 @@ export interface StockMovementWithItemName extends StockMovement {
   stock_items: {
     nama_barang: string;
     kode_barang: string;
-  }[] | null; // Diperbarui: sekarang array objek atau null
+  }[] | null;
 }
 
 export interface SalesDetailItem {
@@ -170,4 +177,5 @@ export interface PurchaseRequest {
   status: 'pending' | 'approved' | 'rejected';
   created_at: string;
   no?: number; // For display purposes
+  satuan?: string; // Added satuan field
 }

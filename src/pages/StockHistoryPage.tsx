@@ -26,8 +26,8 @@ interface FlattenedStockTransactionForExport {
   item_code: string;
   transaction_type: string;
   quantity: number;
+  warehouse_category: string; // New field for export
   notes: string;
-  warehouse_category: string;
 }
 
 const StockHistoryPage = () => {
@@ -76,6 +76,15 @@ const StockHistoryPage = () => {
     calculateDateRange(selectedDatePreset);
   }, [selectedDatePreset, calculateDateRange]);
 
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | string) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return String(category || "-");
+    }
+  };
+
   const fetchStockTransactions = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -91,10 +100,10 @@ const StockHistoryPage = () => {
           notes,
           transaction_date,
           created_at,
+          warehouse_category,
           stock_items (
             nama_barang,
-            kode_barang,
-            warehouse_category
+            kode_barang
           )
         `);
 
@@ -113,6 +122,11 @@ const StockHistoryPage = () => {
         query = query.eq("transaction_type", filterType);
       }
 
+      // Apply warehouse category filter
+      if (filterWarehouseCategory !== "all") {
+        query = query.eq("warehouse_category", filterWarehouseCategory);
+      }
+
       query = query.order("created_at", { ascending: false });
 
       const { data, error } = await query;
@@ -128,20 +142,15 @@ const StockHistoryPage = () => {
         stock_items: item.stock_items ? [item.stock_items] : null,
       }));
 
-      // Client-side search filtering
+      // Client-side search filtering (only for text search, category filter already applied server-side)
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
-        const matchesSearch = (
+        return (
           item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
         );
-
-        const matchesCategory = filterWarehouseCategory === "all" ||
-                                item.stock_items?.[0]?.warehouse_category === filterWarehouseCategory;
-        
-        return matchesSearch && matchesCategory;
       });
 
       setTransactions(processedData); // Keep all fetched data (date & type filtered)
@@ -170,10 +179,10 @@ const StockHistoryPage = () => {
           notes,
           transaction_date,
           created_at,
+          warehouse_category,
           stock_items (
             nama_barang,
-            kode_barang,
-            warehouse_category
+            kode_barang
           )
         `);
 
@@ -189,6 +198,11 @@ const StockHistoryPage = () => {
       // Apply type filter for export
       if (filterType !== "all") {
         query = query.eq("transaction_type", filterType);
+      }
+
+      // Apply warehouse category filter for export
+      if (filterWarehouseCategory !== "all") {
+        query = query.eq("warehouse_category", filterWarehouseCategory);
       }
 
       query = query.order("created_at", { ascending: false });
@@ -232,8 +246,8 @@ const StockHistoryPage = () => {
           item_code: item.stock_items?.[0]?.kode_barang || "N/A",
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
+          warehouse_category: getCategoryDisplay(item.warehouse_category), // Include category in export
           notes: processedNotes,
-          warehouse_category: getCategoryDisplay(item.stock_items?.[0]?.warehouse_category || "N/A"),
         };
       }));
       return flattenedData;
@@ -242,7 +256,7 @@ const StockHistoryPage = () => {
       showError("Gagal memuat semua data riwayat stok untuk ekspor.");
       return null;
     }
-  }, [startDate, endDate, filterType]);
+  }, [startDate, endDate, filterType, filterWarehouseCategory]);
 
   const stockTransactionHeaders: { key: keyof FlattenedStockTransactionForExport; label: string }[] = [
     { key: "transaction_date", label: "Tanggal Transaksi" },
@@ -312,29 +326,6 @@ const StockHistoryPage = () => {
     }
   };
 
-  const getCategoryDisplay = (category: string) => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      default: return category;
-    }
-  };
-
-  if (loading) {
-    return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Riwayat Transaksi Stok</CardTitle>
-          <CardDescription>Memuat riwayat transaksi stok...</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-gray-700 dark:text-gray-300">Memuat data riwayat stok...</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
     <Card className="border shadow-sm">
       <CardHeader>
@@ -369,7 +360,7 @@ const StockHistoryPage = () => {
               <SelectItem value="out">Stok Keluar</SelectItem>
               <SelectItem value="return">Retur Barang</SelectItem>
               <SelectItem value="damage_loss">Rusak/Hilang</SelectItem>
-              <SelectItem value="adjustment">Penyesuaian Stok</SelectItem> {/* New filter option */}
+              <SelectItem value="adjustment">Penyesuaian Stok</SelectItem>
             </SelectContent>
           </Select>
           <Select value={filterWarehouseCategory} onValueChange={setFilterWarehouseCategory}>
@@ -458,8 +449,8 @@ const StockHistoryPage = () => {
                     <TableHead>Nama Barang</TableHead>
                     <TableHead>Kode Barang</TableHead>
                     <TableHead>Tipe Transaksi</TableHead>
+                    <TableHead>Kategori Gudang</TableHead> {/* New TableHead */}
                     <TableHead className="text-right">Kuantitas</TableHead>
-                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead>Catatan</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -475,8 +466,8 @@ const StockHistoryPage = () => {
                           {getTransactionTypeDisplay(transaction.transaction_type)}
                         </span>
                       </TableCell>
+                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell> {/* New TableCell */}
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.stock_items?.[0]?.warehouse_category || "N/A")}</TableCell>
                       <TableCell>
                         {transaction.notes ? (
                           <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">

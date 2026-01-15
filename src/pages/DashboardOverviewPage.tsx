@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReceiptText, CalendarDays, Package, ShoppingCart } from "lucide-react"; // Import ShoppingCart icon
+import { ReceiptText, CalendarDays, Package, ShoppingCart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { format, parseISO, subMonths, startOfMonth, endOfMonth } from "date-fns";
@@ -12,15 +12,15 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts"; // Import Legend
-import { StockItem } from "@/types/data"; // Import StockItem type
-import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar"; // Import the new component
-import { Link } from "react-router-dom"; // For navigation
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
+import { StockItem } from "@/types/data";
+import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
+import { Link } from "react-router-dom";
 
 // Define a type for combined activities
 interface LatestActivity {
   id: string;
-  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement' | 'purchase_request'; // Added purchase_request
+  type: 'invoice' | 'schedule' | 'stock_transaction' | 'stock_movement' | 'purchase_request';
   description: string;
   date: string; // ISO date string
 }
@@ -32,7 +32,8 @@ interface StockTransactionWithItem {
   quantity: number;
   notes: string | null;
   created_at: string;
-  stock_items: { nama_barang: string }[] | null; // Changed to array of objects or null
+  warehouse_category: string | null; // Added warehouse_category
+  stock_items: { nama_barang: string }[] | null;
 }
 
 // Define interface for stock movement data with joined stock_items
@@ -43,7 +44,7 @@ interface StockMovementWithItem {
   quantity: number;
   reason: string | null;
   created_at: string;
-  stock_items: { nama_barang: string }[] | null; // Changed to array of objects or null
+  stock_items: { nama_barang: string }[] | null;
 }
 
 // Chart configuration
@@ -62,20 +63,14 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-// Define a specific interface for the data fetched for low stock check
-interface LowStockCheckItem {
-  stock_akhir: number;
-  safe_stock_limit: number | null;
-}
-
 const DashboardOverviewPage = () => {
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [todaySchedules, setTodaySchedules] = useState(0);
   const [lowStockItems, setLowStockItems] = useState(0);
-  const [pendingPurchaseRequests, setPendingPurchaseRequests] = useState(0); // New state for pending purchase requests
+  const [pendingPurchaseRequests, setPendingPurchaseRequests] = useState(0);
   const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
   const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
-  const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]); // New state for stock chart
+  const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const getCategoryDisplay = (category: string) => {
@@ -110,19 +105,25 @@ const DashboardOverviewPage = () => {
         if (schedulesError) throw schedulesError;
         setTodaySchedules(schedulesCount || 0);
 
-        // Fetch Low Stock Items (using safe_stock_limit)
+        // Fetch Low Stock Items (using safe_stock_limit and aggregated warehouse_inventories)
         const { data: stockItemsData, error: stockError } = await supabase
           .from("stock_items")
-          .select("stock_akhir, safe_stock_limit");
+          .select(`
+            id,
+            safe_stock_limit,
+            warehouse_inventories (
+              quantity
+            )
+          `);
 
         if (stockError) throw stockError;
 
         let lowStockCount = 0;
         if (stockItemsData) {
-          // Use the specific interface for the fetched data
-          stockItemsData.forEach((item: LowStockCheckItem) => {
-            const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10; // Default to 10 if limit not set
-            if (item.stock_akhir < limit) { // Accessing correct property name
+          stockItemsData.forEach((item) => {
+            const totalStock = item.warehouse_inventories?.reduce((sum: number, inv: { quantity: number }) => sum + inv.quantity, 0) || 0;
+            const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
+            if (totalStock < limit) {
               lowStockCount++;
             }
           });
@@ -157,7 +158,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
           .from("stock_transactions")
-          .select("id, transaction_type, quantity, notes, created_at, stock_items(nama_barang)")
+          .select("id, transaction_type, quantity, notes, created_at, warehouse_category, stock_items(nama_barang)")
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -204,21 +205,21 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockTransactions.forEach(trans => {
-          // Access the first element of the stock_items array
           const itemName = trans.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal";
+          const category = trans.warehouse_category ? ` di ${getCategoryDisplay(trans.warehouse_category)}` : "";
           let desc = "";
           if (trans.transaction_type === 'initial') {
-            desc = `Stok awal ${trans.quantity} unit untuk ${itemName}`;
+            desc = `Stok awal ${trans.quantity} unit untuk ${itemName}${category}`;
           } else if (trans.transaction_type === 'in') {
-            desc = `Stok masuk ${trans.quantity} unit untuk ${itemName}`;
+            desc = `Stok masuk ${trans.quantity} unit untuk ${itemName}${category}`;
           } else if (trans.transaction_type === 'out') {
-            desc = `Stok keluar ${trans.quantity} unit dari ${itemName}`;
+            desc = `Stok keluar ${trans.quantity} unit dari ${itemName}${category}`;
           } else if (trans.transaction_type === 'return') {
-            desc = `Retur ${trans.quantity} unit untuk ${itemName}`;
+            desc = `Retur ${trans.quantity} unit untuk ${itemName}${category}`;
           } else if (trans.transaction_type === 'damage_loss') {
-            desc = `Rusak/Hilang ${trans.quantity} unit dari ${itemName}`;
+            desc = `Rusak/Hilang ${trans.quantity} unit dari ${itemName}${category}`;
           } else if (trans.transaction_type === 'adjustment') {
-            desc = `Penyesuaian stok ${trans.quantity} unit untuk ${itemName}`;
+            desc = `Penyesuaian stok ${trans.quantity} unit untuk ${itemName}${category}`;
           }
           allActivities.push({
             id: trans.id,
@@ -229,7 +230,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal"; // Access first element of array
+          const itemName = mov.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal";
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({
@@ -336,7 +337,7 @@ const DashboardOverviewPage = () => {
       <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">Dashboard Budi Karya Teknologi</h1>
       <p className="text-gray-600 dark:text-gray-300">Selamat datang di aplikasi manajemen penjualan dan stok Anda. Berikut adalah ringkasan aktivitas terbaru.</p>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"> {/* Changed to lg:grid-cols-4 */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Invoice Pending</CardTitle>
@@ -390,7 +391,7 @@ const DashboardOverviewPage = () => {
             )}
           </CardContent>
         </Card>
-        <Card> {/* New Card for Pending Purchase Requests */}
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pengajuan Pembelian Pending</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
@@ -474,7 +475,7 @@ const DashboardOverviewPage = () => {
                     allowDecimals={false}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend /> {/* Add legend to distinguish bars */}
+                  <Legend />
                   <Bar dataKey="stock_in" fill="var(--color-stock_in)" radius={4} />
                   <Bar dataKey="stock_out" fill="var(--color-stock_out)" radius={4} />
                 </BarChart>
@@ -483,7 +484,7 @@ const DashboardOverviewPage = () => {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2"> {/* Span two columns for better layout */}
+        <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Aktivitas Terbaru</CardTitle>
             <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
@@ -511,7 +512,6 @@ const DashboardOverviewPage = () => {
         </Card>
       </div>
 
-      {/* New Technician Schedule Calendar */}
       <TechnicianScheduleCalendar />
     </div>
   );

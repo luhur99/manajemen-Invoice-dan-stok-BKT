@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem } from "@/types/data";
+import { StockItem, WarehouseInventory } from "@/types/data";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -33,6 +33,9 @@ const formSchema = z.object({
   notes: z.string().optional(),
   transaction_type: z.enum(["in", "out", "return", "damage_loss"], {
     required_error: "Tipe transaksi wajib dipilih",
+  }),
+  warehouse_category: z.enum(["siap_jual", "riset", "retur"], {
+    required_error: "Kategori Gudang wajib dipilih",
   }),
 });
 
@@ -51,6 +54,9 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   onSuccess,
   initialTransactionType,
 }) => {
+  const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
+  const [loadingInventories, setLoadingInventories] = useState(true);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -58,8 +64,30 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       transaction_date: new Date(),
       notes: "",
       transaction_type: initialTransactionType || "in",
+      warehouse_category: "siap_jual", // Default category
     },
   });
+
+  const selectedCategory = form.watch("warehouse_category");
+  const transactionTypeWatch = form.watch("transaction_type");
+
+  const fetchInventories = useCallback(async () => {
+    if (!stockItem?.id) return;
+    setLoadingInventories(true);
+    const { data, error } = await supabase
+      .from("warehouse_inventories")
+      .select("*")
+      .eq("product_id", stockItem.id);
+
+    if (error) {
+      showError("Gagal memuat inventaris item.");
+      console.error("Error fetching warehouse inventories:", error);
+      setCurrentInventories([]);
+    } else {
+      setCurrentInventories(data as WarehouseInventory[]);
+    }
+    setLoadingInventories(false);
+  }, [stockItem?.id]);
 
   useEffect(() => {
     if (isOpen) {
@@ -68,9 +96,11 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         transaction_date: new Date(),
         notes: "",
         transaction_type: initialTransactionType || "in",
+        warehouse_category: "siap_jual",
       });
+      fetchInventories();
     }
-  }, [isOpen, initialTransactionType, form]);
+  }, [isOpen, initialTransactionType, form, fetchInventories]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -82,45 +112,40 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     }
 
     try {
-      // Fetch current stock item to ensure we have the latest cumulative values
-      const { data: currentStock, error: fetchError } = await supabase
-        .from("stock_items")
-        .select("stock_masuk, stock_keluar, stock_akhir")
-        .eq("id", stockItem.id)
-        .single();
+      // Get current quantity for the selected category
+      const currentInventory = currentInventories.find(
+        (inv) => inv.warehouse_category === values.warehouse_category
+      );
+      const currentQuantity = currentInventory ? currentInventory.quantity : 0;
 
-      if (fetchError || !currentStock) {
-        throw new Error("Gagal memuat data stok saat ini.");
-      }
-
-      let newStockMasuk = currentStock.stock_masuk;
-      let newStockKeluar = currentStock.stock_keluar;
-      let newStockAkhir = currentStock.stock_akhir;
+      let newQuantityInInventory = currentQuantity;
 
       if (values.transaction_type === "in" || values.transaction_type === "return") {
-        newStockMasuk += values.quantity;
-        newStockAkhir += values.quantity;
+        newQuantityInInventory += values.quantity;
       } else if (values.transaction_type === "out" || values.transaction_type === "damage_loss") {
-        if (newStockAkhir < values.quantity) {
-          showError(`Stok akhir tidak mencukupi. Tersedia: ${newStockAkhir}, Diminta: ${values.quantity}`);
+        if (currentQuantity < values.quantity) {
+          showError(`Stok tidak mencukupi di kategori "${getCategoryDisplay(values.warehouse_category)}". Tersedia: ${currentQuantity}, Diminta: ${values.quantity}`);
           return;
         }
-        newStockKeluar += values.quantity;
-        newStockAkhir -= values.quantity;
+        newQuantityInInventory -= values.quantity;
       }
 
-      // Update stock_items table
-      const { error: updateStockError } = await supabase
-        .from("stock_items")
-        .update({
-          stock_masuk: newStockMasuk,
-          stock_keluar: newStockKeluar,
-          stock_akhir: newStockAkhir,
-        })
-        .eq("id", stockItem.id);
+      // Update or insert into warehouse_inventories
+      const { error: upsertInventoryError } = await supabase
+        .from("warehouse_inventories")
+        .upsert(
+          {
+            product_id: stockItem.id,
+            warehouse_category: values.warehouse_category,
+            quantity: newQuantityInInventory,
+            user_id: userId,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "product_id, warehouse_category" }
+        );
 
-      if (updateStockError) {
-        throw updateStockError;
+      if (upsertInventoryError) {
+        throw upsertInventoryError;
       }
 
       // Insert into stock_transactions table
@@ -133,6 +158,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
           quantity: values.quantity,
           notes: values.notes || null,
           transaction_date: format(values.transaction_date, "yyyy-MM-dd"),
+          warehouse_category: values.warehouse_category, // Save the category
         });
 
       if (transactionError) {
@@ -148,12 +174,21 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     }
   };
 
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur') => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return "-";
+    }
+  };
+
   const dialogTitle = {
     in: "Tambah Stok Masuk",
     out: "Kurangi Stok Keluar",
     return: "Catat Retur Barang",
     damage_loss: "Catat Stok Rusak/Hilang",
-  }[form.watch("transaction_type")];
+  }[transactionTypeWatch];
 
   const dialogDescription = `Catat transaksi stok untuk item "${stockItem["NAMA BARANG"]}".`;
 
@@ -183,6 +218,30 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                       <SelectItem value="out">Stok Keluar (Manual)</SelectItem>
                       <SelectItem value="return">Retur Barang</SelectItem>
                       <SelectItem value="damage_loss">Rusak/Hilang</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="warehouse_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Gudang</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingInventories}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={loadingInventories ? "Memuat kategori..." : "Pilih kategori gudang"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {["siap_jual", "riset", "retur"].map(category => (
+                        <SelectItem key={category} value={category}>
+                          {getCategoryDisplay(category as 'siap_jual' | 'riset' | 'retur')} (Stok: {currentInventories.find(inv => inv.warehouse_category === category)?.quantity || 0})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

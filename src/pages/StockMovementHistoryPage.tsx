@@ -73,6 +73,15 @@ const StockMovementHistoryPage = () => {
     calculateDateRange(selectedDatePreset);
   }, [selectedDatePreset, calculateDateRange]);
 
+  const getCategoryDisplay = (category: string) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return category;
+    }
+  };
+
   const fetchStockMovements = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -243,15 +252,6 @@ const StockMovementHistoryPage = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-  };
-
-  const getCategoryDisplay = (category: string) => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      default: return category;
-    }
   };
 
   return (

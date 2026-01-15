@@ -30,6 +30,15 @@ const PurchaseRequestPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | string) => {
+    switch (category) {
+      case "siap_jual": return "Siap Jual";
+      case "riset": return "Riset";
+      case "retur": return "Retur";
+      default: return String(category || "-");
+    }
+  };
+
   const fetchPurchaseRequests = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -104,13 +113,11 @@ const PurchaseRequestPage = () => {
       // 2. Check if stock item exists or create new
       const { data: existingStockItem, error: fetchStockError } = await supabase
         .from("stock_items")
-        .select("id, stock_masuk, stock_akhir, harga_beli, harga_jual, satuan, warehouse_category")
+        .select("id, harga_beli, harga_jual, satuan")
         .eq("kode_barang", request.item_code)
         .single();
 
       let stockItemId: string;
-      let newStockMasuk: number;
-      let newStockAkhir: number;
 
       if (fetchStockError && fetchStockError.code === 'PGRST116') { // No rows found
         // Create new stock item
@@ -120,47 +127,64 @@ const PurchaseRequestPage = () => {
             user_id: session?.user?.id,
             kode_barang: request.item_code,
             nama_barang: request.item_name,
-            satuan: "PCS", // Default to PCS if not specified in request, or add to form
+            satuan: request.satuan || "PCS", // Use satuan from request or default
             harga_beli: request.unit_price,
             harga_jual: request.suggested_selling_price,
-            stock_awal: 0, // Initial stock is 0, then add via stock_masuk
-            stock_masuk: request.quantity,
-            stock_keluar: 0,
-            stock_akhir: request.quantity,
             safe_stock_limit: 10, // Default safe stock limit
-            warehouse_category: "siap_jual", // Default category for new purchased items
           })
-          .select("id, stock_masuk, stock_akhir")
+          .select("id")
           .single();
 
         if (createStockError) throw createStockError;
         stockItemId = newStockData.id;
-        newStockMasuk = newStockData.stock_masuk;
-        newStockAkhir = newStockData.stock_akhir;
 
       } else if (existingStockItem) {
-        // Update existing stock item
-        newStockMasuk = existingStockItem.stock_masuk + request.quantity;
-        newStockAkhir = existingStockItem.stock_akhir + request.quantity;
-
-        const { error: updateStockError } = await supabase
+        // Update existing stock item metadata (prices, satuan)
+        const { error: updateStockMetadataError } = await supabase
           .from("stock_items")
           .update({
-            stock_masuk: newStockMasuk,
-            stock_akhir: newStockAkhir,
-            harga_beli: request.unit_price, // Update purchase price
-            harga_jual: request.suggested_selling_price, // Update selling price
+            harga_beli: request.unit_price,
+            harga_jual: request.suggested_selling_price,
+            satuan: request.satuan || existingStockItem.satuan,
           })
           .eq("id", existingStockItem.id);
 
-        if (updateStockError) throw updateStockError;
+        if (updateStockMetadataError) throw updateStockMetadataError;
         stockItemId = existingStockItem.id;
 
       } else {
         throw new Error("Gagal memproses item stok.");
       }
 
-      // 3. Record transaction in stock_transactions
+      // 3. Update or insert into warehouse_inventories for 'siap_jual' category
+      const { data: currentInventory, error: fetchInventoryError } = await supabase
+        .from("warehouse_inventories")
+        .select("quantity")
+        .eq("product_id", stockItemId)
+        .eq("warehouse_category", "siap_jual")
+        .single();
+
+      const currentQuantity = currentInventory ? currentInventory.quantity : 0;
+      const newQuantityInInventory = currentQuantity + request.quantity;
+
+      const { error: upsertInventoryError } = await supabase
+        .from("warehouse_inventories")
+        .upsert(
+          {
+            product_id: stockItemId,
+            warehouse_category: "siap_jual",
+            quantity: newQuantityInInventory,
+            user_id: session?.user?.id,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "product_id, warehouse_category" }
+        );
+
+      if (upsertInventoryError) {
+        throw upsertInventoryError;
+      }
+
+      // 4. Record transaction in stock_transactions
       const { error: transactionError } = await supabase
         .from("stock_transactions")
         .insert({
@@ -170,6 +194,7 @@ const PurchaseRequestPage = () => {
           quantity: request.quantity,
           notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,
           transaction_date: format(new Date(), "yyyy-MM-dd"),
+          warehouse_category: "siap_jual", // Transaction happened in 'siap_jual'
         });
 
       if (transactionError) {
