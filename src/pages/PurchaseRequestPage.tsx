@@ -262,7 +262,7 @@ const PurchaseRequestPage = () => {
     mutationFn: async (request: PurchaseRequest) => {
       const { data, error } = await supabase
         .from("purchase_requests")
-        .update({ status: PurchaseRequestStatus.APPROVED, updated_at: new Date().toISOString() })
+        .update({ status: PurchaseRequestStatus.APPROVED }) // Removed manual updated_at
         .eq("id", request.id)
         .select()
         .single();
@@ -344,7 +344,7 @@ const PurchaseRequestPage = () => {
       if (existingInventory) {
         const { error: updateInventoryError } = await supabase
           .from("warehouse_inventories")
-          .update({ quantity: existingInventory.quantity + formData.received_quantity, updated_at: new Date().toISOString() })
+          .update({ quantity: existingInventory.quantity + formData.received_quantity }) // Removed manual updated_at
           .eq("id", existingInventory.id);
         if (updateInventoryError) throw new Error(`Gagal memperbarui inventaris gudang: ${updateInventoryError.message}`);
       } else {
@@ -471,7 +471,7 @@ const PurchaseRequestPage = () => {
 
     const { error: updateError } = await supabase
       .from("purchase_requests")
-      .update({ document_url: publicUrl, status: PurchaseRequestStatus.WAITING_FOR_RECEIPT }) // Set status to WAITING_FOR_RECEIPT
+      .update({ document_url: publicUrl }) // Removed manual updated_at
       .eq("id", selectedRequest.id);
 
     if (updateError) {

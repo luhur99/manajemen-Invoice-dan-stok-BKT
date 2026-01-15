@@ -162,6 +162,7 @@ export interface PurchaseRequest {
   notes?: string;
   status: PurchaseRequestStatus;
   created_at: string;
+  updated_at?: string; // Added updated_at
   document_url?: string;
   received_quantity?: number;
   returned_quantity?: number;
