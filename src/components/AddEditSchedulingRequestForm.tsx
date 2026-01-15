@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, CustomerTypeEnum } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer } from "@/types/data"; // Removed CustomerTypeEnum from here
 import { useSession } from "@/components/SessionContextProvider";
 import { useQuery } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
@@ -48,8 +48,7 @@ const formSchema = z.object({
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
   requested_time: z.string().optional().nullable(),
   contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
-  phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  // customer_type is removed from formSchema as it's not a column in scheduling_requests
+  phone_number: z.string().min(1, "Nomor telepon wajib diisi."), // Kept as it exists in DB schema
   payment_method: z.string().optional().nullable(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
   notes: z.string().optional().nullable(),
@@ -114,7 +113,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       requested_time: null,
       contact_person: "",
       phone_number: "",
-      // customer_type is removed from defaultValues
       payment_method: null,
       status: SchedulingRequestStatus.PENDING,
       notes: null,
@@ -186,7 +184,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           company_name: initialData.company_name || null,
           full_address: initialData.full_address || "",
           phone_number: initialData.phone_number || "",
-          // customer_type is removed from reset
           payment_method: initialData.payment_method || null,
         });
         if (initialData.customer_name) {
@@ -207,7 +204,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             requested_time: null,
             contact_person: "",
             phone_number: "",
-            // customer_type is removed from reset
             payment_method: null,
             status: SchedulingRequestStatus.PENDING,
             notes: null,
@@ -229,7 +225,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("company_name", customer.company_name || null);
       form.setValue("full_address", customer.address || "");
       form.setValue("phone_number", customer.phone_number || "");
-      // customer_type is not set here as it's not a column in scheduling_requests
       setCustomerSearchInput(customer.customer_name);
       // Clear errors for autofilled fields
       form.clearErrors(["customer_name", "company_name", "full_address", "phone_number"]);
@@ -239,7 +234,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("company_name", null);
       form.setValue("full_address", "");
       form.setValue("phone_number", "");
-      // customer_type is not set here
       setCustomerSearchInput("");
     }
   };
@@ -253,10 +247,11 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
 
     try {
       const dataToSubmit = {
-        ...values,
         sr_number: values.sr_number?.trim() || null,
+        customer_id: values.customer_id || null,
         customer_name: values.customer_name.trim(),
         company_name: values.company_name?.trim() || null,
+        type: values.type,
         vehicle_details: values.vehicle_details?.trim() || null,
         full_address: values.full_address.trim(),
         landmark: values.landmark?.trim() || null,
@@ -265,10 +260,9 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         contact_person: values.contact_person.trim(),
         phone_number: values.phone_number.trim(),
         payment_method: values.payment_method?.trim() || null,
+        status: values.status,
         notes: values.notes?.trim() || null,
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
-        customer_id: values.customer_id || null,
-        // customer_type is explicitly removed from dataToSubmit
       };
 
       if (initialData) {
@@ -543,7 +537,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 </FormItem>
               )}
             />
-            {/* customer_type field is removed from the form */}
             <FormField
               control={form.control}
               name="payment_method"
