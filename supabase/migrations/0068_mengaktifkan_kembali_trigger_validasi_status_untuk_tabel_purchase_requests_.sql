@@ -1,0 +1,1 @@
+ALTER TABLE public.purchase_requests ENABLE TRIGGER on_purchase_request_update_validate_status;
