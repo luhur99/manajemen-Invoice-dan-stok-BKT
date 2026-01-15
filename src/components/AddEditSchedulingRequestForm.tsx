@@ -51,7 +51,7 @@ const formSchema = z.object({
   contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
   phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
   customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
-  payment_method: z.string().optional(),
+  payment_method: z.string().optional(), // Keep as string, will use specific values
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
   notes: z.string().optional(),
   invoice_id: z.string().uuid().optional().nullable(),
@@ -76,7 +76,8 @@ const generateSrNumber = async (): Promise<string> => {
     .limit(1);
 
   if (error) {
-    console.error("Error fetching latest SR number:", error);
+    console.error("Error fetching latest PR number:", error);
+    // Fallback to a less ideal but unique number
     return `${prefix}-${Date.now().toString().slice(-4)}`;
   }
 
@@ -108,8 +109,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       customer_name: "",
       company_name: "",
       type: SchedulingRequestType.INSTALLATION,
-      // Removed vehicle_units, vehicle_type, vehicle_year
-      vehicle_details: "", // New default value
+      vehicle_details: "",
       full_address: "",
       landmark: "",
       requested_date: new Date(),
@@ -117,16 +117,13 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       contact_person: "",
       phone_number: "",
       customer_type: undefined,
-      payment_method: "",
+      payment_method: "", // Default empty string for select
       status: SchedulingRequestStatus.PENDING,
       notes: "",
       invoice_id: null,
     },
   });
 
-  // Removed useFieldArray hooks for vehicle_type and vehicle_year
-
-  // Removed watchedVehicleUnits
   const watchedRequestType = form.watch("type");
   const watchedCustomerId = form.watch("customer_id");
   const [customerSearchInput, setCustomerSearchInput] = useState("");
@@ -184,8 +181,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         form.reset({
           ...initialData,
           requested_date: new Date(initialData.requested_date),
-          // Removed vehicle_units, vehicle_type, vehicle_year from reset
-          vehicle_details: initialData.vehicle_details || "", // New reset for vehicle_details
+          vehicle_details: initialData.vehicle_details || "",
           sr_number: initialData.sr_number || "",
           invoice_id: initialData.invoice_id || null,
           customer_name: initialData.customer_name || "",
@@ -193,6 +189,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           full_address: initialData.full_address || "",
           phone_number: initialData.phone_number || "",
           customer_type: initialData.customer_type as CustomerTypeEnum || undefined,
+          payment_method: initialData.payment_method || "", // Ensure payment_method is reset
         });
         if (initialData.customer_name) {
           setCustomerSearchInput(initialData.customer_name);
@@ -205,8 +202,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             customer_name: "",
             company_name: "",
             type: SchedulingRequestType.INSTALLATION,
-            // Removed vehicle_units, vehicle_type, vehicle_year from reset
-            vehicle_details: "", // New reset for vehicle_details
+            vehicle_details: "",
             full_address: "",
             landmark: "",
             requested_date: new Date(),
@@ -214,7 +210,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             contact_person: "",
             phone_number: "",
             customer_type: undefined,
-            payment_method: "",
+            payment_method: "", // Reset to empty string
             status: SchedulingRequestStatus.PENDING,
             notes: "",
             invoice_id: null,
@@ -224,8 +220,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
     }
   }, [isOpen, initialData, form]);
-
-  // Removed useEffect for syncing vehicle_type and vehicle_year arrays with vehicle_units
 
   const handleCustomerSelect = (customer: Customer | undefined) => {
     if (customer) {
@@ -258,15 +252,14 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       const dataToSubmit = {
         ...values,
         requested_date: format(values.requested_date, "yyyy-MM-dd"),
-        // Removed vehicle_year and vehicle_type from dataToSubmit
-        // vehicle_units is also removed from schema and form
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
         customer_id: values.customer_id || null,
         customer_name: values.customer_name,
         company_name: values.company_name,
         phone_number: values.phone_number,
         customer_type: values.customer_type || null,
-        vehicle_details: values.vehicle_details || null, // New field
+        vehicle_details: values.vehicle_details || null,
+        payment_method: values.payment_method || null, // Ensure payment_method is handled
       };
 
       if (initialData) {
@@ -424,7 +417,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               />
             )}
 
-            {/* New: Single Textarea for Vehicle Details */}
             <FormField
               control={form.control}
               name="vehicle_details"
@@ -572,9 +564,19 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih metode pembayaran" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="Transfer">Transfer</SelectItem>
+                      <SelectItem value="DP">DP</SelectItem>
+                      <SelectItem value="Lainnya">Lainnya</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -605,18 +607,18 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                           <SelectValue placeholder="Pilih status" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {Object.values(SchedulingRequestStatus).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.charAt(0).toUpperCase() + status.slice(1)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    <SelectContent>
+                      {Object.values(SchedulingRequestStatus).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             )}
             <DialogFooter className="md:col-span-2">
               <Button type="submit" disabled={form.formState.isSubmitting}>
