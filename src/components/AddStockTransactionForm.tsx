@@ -25,7 +25,7 @@ import { format } from "date-fns";
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk wajib dipilih"),
-  transaction_type: z.enum(["out", "initial"], { // Changed from "outbound" to "out"
+  transaction_type: z.enum(["out", "initial"], {
     required_error: "Tipe Transaksi wajib dipilih",
   }),
   quantity: z.coerce.number().min(1, "Kuantitas harus lebih dari 0"),
@@ -39,10 +39,10 @@ const formSchema = z.object({
 interface AddStockTransactionFormProps {
   onSuccess: () => void;
   products: { id: string; nama_barang: string; kode_barang: string }[];
-  isOpen: boolean; // Added to control dialog from parent
-  onOpenChange: (open: boolean) => void; // Added to control dialog from parent
-  initialProductId?: string; // New prop for pre-selecting a product
-  initialTransactionType?: "out" | "initial"; // Changed from "outbound" to "out"
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialProductId?: string;
+  initialTransactionType?: "out" | "initial";
 }
 
 const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
@@ -67,7 +67,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       product_id: initialProductId || "",
-      transaction_type: initialTransactionType || "out", // Changed from "outbound" to "out"
+      transaction_type: initialTransactionType || "out",
       quantity: 1,
       warehouse_category: "siap_jual",
       notes: "",
@@ -75,12 +75,11 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     },
   });
 
-  // Reset form when dialog opens with new initial values
   React.useEffect(() => {
     if (isOpen) {
       form.reset({
         product_id: initialProductId || "",
-        transaction_type: initialTransactionType || "out", // Changed from "outbound" to "out"
+        transaction_type: initialTransactionType || "out",
         quantity: 1,
         warehouse_category: "siap_jual",
         notes: "",
@@ -100,7 +99,6 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     }
 
     try {
-      // Update warehouse inventory
       const { data: existingInventory, error: fetchError } = await supabase
         .from("warehouse_inventories")
         .select("id, quantity")
@@ -108,22 +106,22 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         .eq("warehouse_category", values.warehouse_category)
         .single();
 
-      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 means no rows found
+      if (fetchError && fetchError.code !== 'PGRST116') {
         throw fetchError;
       }
 
       let newQuantity = existingInventory ? existingInventory.quantity : 0;
 
-      if (values.transaction_type === "out") { // Changed from "outbound" to "out"
+      if (values.transaction_type === "out") {
         if (newQuantity < values.quantity) {
-          showError("Kuantitas stok tidak mencukupi untuk transaksi keluar.");
+          // Pesan kesalahan yang lebih spesifik
+          showError(`Kuantitas stok tidak mencukupi di kategori '${getCategoryDisplay(values.warehouse_category)}'. Tersedia: ${newQuantity}, Diminta: ${values.quantity}.`);
           return;
         }
         newQuantity -= values.quantity;
       } else if (values.transaction_type === "initial") {
         newQuantity += values.quantity;
       }
-      // No 'inbound' logic here as it's removed
 
       if (existingInventory) {
         const { error: updateError } = await supabase
@@ -152,7 +150,6 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         return;
       }
 
-      // Insert into stock_transactions
       const { error: transactionError } = await supabase
         .from("stock_transactions")
         .insert({
@@ -171,7 +168,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
 
       showSuccess("Transaksi stok berhasil ditambahkan!");
       form.reset();
-      onOpenChange(false); // Close dialog
+      onOpenChange(false);
       onSuccess();
     } catch (error: any) {
       showError(`Gagal menambahkan transaksi stok: ${error.message}`);
@@ -182,7 +179,6 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        {/* This trigger is hidden because the parent controls the dialog */}
         <Button className="hidden">Tambah Transaksi Stok</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
@@ -229,7 +225,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="out">Stok Keluar</SelectItem> {/* Changed from "outbound" to "out" */}
+                      <SelectItem value="out">Stok Keluar</SelectItem>
                       <SelectItem value="initial">Stok Awal</SelectItem>
                     </SelectContent>
                   </Select>
@@ -260,7 +256,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih kategori gudang" />
-                      </SelectTrigger>
+                    </SelectTrigger>
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="siap_jual">Siap Jual</SelectItem>
