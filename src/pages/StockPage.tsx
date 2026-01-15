@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, ArrowUp, ArrowDown, Eye } from "lucide-react"; // Added Eye icon
+import { Loader2, PlusCircle, Edit, Trash2, ArrowUp, ArrowDown, Eye, ArrowRightLeft } from "lucide-react"; // Added ArrowRightLeft icon
 import { showSuccess, showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
@@ -15,13 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
-import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog"; // Import the details dialog
-import { Product as ProductType, WarehouseInventory } from "@/types/data"; // Use alias for Product interface
+import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
+import StockMovementForm from "@/components/StockMovementForm"; // Import StockMovementForm
+import { Product as ProductType, WarehouseInventory } from "@/types/data";
 
-// Extend ProductType to include aggregated stock and inventories for display
 interface ProductWithDetails extends ProductType {
-  current_stock?: number; // Aggregated total stock
-  inventories?: WarehouseInventory[]; // Detailed inventories per category
+  current_stock?: number;
+  inventories?: WarehouseInventory[];
 }
 
 const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
@@ -42,8 +42,11 @@ const StockPage = () => {
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
   const [initialTransactionType, setInitialTransactionType] = React.useState<"out" | "initial">("out");
 
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false); // State for View Details dialog
-  const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null); // State for product to view
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
+  const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null);
+
+  const [isMovementFormOpen, setIsMovementFormOpen] = React.useState(false); // New state for movement form
+  const [productForMovement, setProductForMovement] = React.useState<ProductWithDetails | null>(null); // New state for product in movement form
 
   const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
     queryKey: ["products"],
@@ -101,11 +104,16 @@ const StockPage = () => {
     setIsViewDetailsOpen(true);
   };
 
+  const handleOpenMovementForm = (product: ProductWithDetails) => { // New handler
+    setProductForMovement(product);
+    setIsMovementFormOpen(true);
+  };
+
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
 
-    const { id, user_id, created_at, current_stock, inventories, ...updateData } = selectedProduct; // Exclude non-updatable fields
+    const { id, user_id, created_at, current_stock, inventories, ...updateData } = selectedProduct;
 
     try {
       const { error } = await supabase
@@ -196,8 +204,8 @@ const StockPage = () => {
               <TableHead>Satuan</TableHead>
               <TableHead>Harga Beli</TableHead>
               <TableHead>Harga Jual</TableHead>
-              <TableHead className="min-w-[200px]">Stok per Kategori</TableHead> {/* Removed truncate and adjusted min-width */}
-              <TableHead>Total Stok</TableHead> {/* Renamed from Stok Saat Ini */}
+              <TableHead className="min-w-[200px]">Stok per Kategori</TableHead>
+              <TableHead>Total Stok</TableHead>
               <TableHead>Batas Stok Aman</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
@@ -210,7 +218,7 @@ const StockPage = () => {
                 <TableCell>{product.satuan || '-'}</TableCell>
                 <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
                 <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
-                <TableCell className="whitespace-normal">{formatInventories(product.inventories)}</TableCell> {/* Removed truncate and added whitespace-normal */}
+                <TableCell className="whitespace-normal">{formatInventories(product.inventories)}</TableCell>
                 <TableCell>{product.current_stock}</TableCell>
                 <TableCell>{product.safe_stock_limit}</TableCell>
                 <TableCell className="flex space-x-2 justify-center">
@@ -222,6 +230,9 @@ const StockPage = () => {
                   </Button>
                   <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(product)} title="Hapus Produk">
                     <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok"> {/* New button */}
+                    <ArrowRightLeft className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "out")} title="Stok Keluar">
                     <ArrowDown className="h-4 w-4" />
@@ -368,6 +379,16 @@ const StockPage = () => {
           product={productToView}
           isOpen={isViewDetailsOpen}
           onOpenChange={setIsViewDetailsOpen}
+        />
+      )}
+
+      {/* Stock Movement Form */}
+      {isMovementFormOpen && productForMovement && (
+        <StockMovementForm
+          product={productForMovement}
+          isOpen={isMovementFormOpen}
+          onOpenChange={setIsMovementFormOpen}
+          onSuccess={fetchProducts}
         />
       )}
     </div>
