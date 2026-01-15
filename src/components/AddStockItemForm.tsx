@@ -149,7 +149,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Tambah Produk
+          <PlusCircle className="h-4 w-4" /> Tambah Produk baru
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
