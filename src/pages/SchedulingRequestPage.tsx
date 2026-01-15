@@ -6,14 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, CheckCircle, XCircle, RefreshCcw, Clock, PlayCircle } from "lucide-react"; // Changed CalendarRefresh to RefreshCcw
+import { Loader2, PlusCircle, Edit, Trash2, Eye, CheckCircle, Clock } from "lucide-react"; // Removed XCircle, RefreshCcw, PlayCircle
 import { showSuccess, showError } from "@/utils/toast";
 import AddEditSchedulingRequestForm from "@/components/AddEditSchedulingRequestForm";
 import ViewSchedulingRequestDetailsDialog from "@/components/ViewSchedulingRequestDetailsDialog";
-import RejectRequestDialog from "@/components/RejectRequestDialog"; // New import
-import RescheduleRequestDialog from "@/components/RescheduleRequestDialog"; // New import
-import CancelRequestDialog from "@/components/CancelRequestDialog"; // New import
-import CompleteRequestDialog from "@/components/CompleteRequestDialog"; // New import
+import CancelRequestDialog from "@/components/CancelRequestDialog"; // Keep CancelRequestDialog
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType } from "@/types/data";
@@ -67,10 +64,7 @@ const SchedulingRequestPage = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
 
   // States for new action dialogs
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
-  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false); // For technician name input on approve
 
   const { data: requests, isLoading, isError, error, refetch } = useQuery<SchedulingRequestWithDetails[], Error>({
@@ -135,10 +129,7 @@ const SchedulingRequestPage = () => {
       queryClient.invalidateQueries({ queryKey: ["schedules"] }); // Invalidate schedules cache as well
       showSuccess("Status permintaan jadwal berhasil diperbarui!");
       setSelectedRequest(null);
-      setIsRejectModalOpen(false);
-      setIsRescheduleModalOpen(false);
       setIsCancelModalOpen(false);
-      setIsCompleteModalOpen(false);
       setIsApproveModalOpen(false);
     },
     onError: (err) => {
@@ -173,28 +164,9 @@ const SchedulingRequestPage = () => {
   };
 
   // Handlers for new status transitions
-  const handleInProgressClick = (request: SchedulingRequestWithDetails) => {
-    updateStatusMutation.mutate({ id: request.id, status: SchedulingRequestStatus.IN_PROGRESS });
-  };
-
-  const handleRejectClick = (request: SchedulingRequestWithDetails) => {
-    setSelectedRequest(request);
-    setIsRejectModalOpen(true);
-  };
-
-  const handleRescheduleClick = (request: SchedulingRequestWithDetails) => {
-    setSelectedRequest(request);
-    setIsRescheduleModalOpen(true);
-  };
-
   const handleCancelClick = (request: SchedulingRequestWithDetails) => {
     setSelectedRequest(request);
     setIsCancelModalOpen(true);
-  };
-
-  const handleCompleteClick = (request: SchedulingRequestWithDetails) => {
-    setSelectedRequest(request);
-    setIsCompleteModalOpen(true);
   };
 
   const handleApproveClick = (request: SchedulingRequestWithDetails) => {
@@ -270,8 +242,8 @@ const SchedulingRequestPage = () => {
               <TableHead>Pelanggan</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Tanggal Diminta</TableHead>
-              <TableHead>Nama Teknisi</TableHead> {/* New column */}
-              <TableHead>No. Invoice Terkait</TableHead> {/* Renamed column */}
+              <TableHead>Nama Teknisi</TableHead>
+              <TableHead>No. Invoice Terkait</TableHead>
               <TableHead>Kontak Person</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
@@ -285,7 +257,7 @@ const SchedulingRequestPage = () => {
                 <TableCell>{request.customer_name_from_customers || request.customer_name}</TableCell>
                 <TableCell>{getTypeDisplay(request.type)}</TableCell>
                 <TableCell>{format(new Date(request.requested_date), "dd-MM-yyyy")}</TableCell>
-                <TableCell>{request.technician_name || "-"}</TableCell> {/* Display technician name */}
+                <TableCell>{request.technician_name || "-"}</TableCell>
                 <TableCell>{request.invoice_number || "-"}</TableCell>
                 <TableCell>{request.contact_person}</TableCell>
                 <TableCell>
@@ -294,42 +266,38 @@ const SchedulingRequestPage = () => {
                   </span>
                 </TableCell>
                 <TableCell className="flex space-x-2 justify-center">
+                  {/* 1. View */}
                   <Button variant="ghost" size="icon" onClick={() => handleViewDetails(request)} title="Lihat Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
-                  {/* Conditional Action Buttons based on status */}
+
+                  {/* 2. Edit (only if PENDING) */}
                   {request.status === SchedulingRequestStatus.PENDING && (
-                    <>
-                      <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request)} title="Edit Permintaan">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleApproveClick(request)} title="Setujui Permintaan">
-                        <CheckCircle className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleInProgressClick(request)} title="Tandai Diproses">
-                        <PlayCircle className="h-4 w-4" />
-                      </Button>
-                      <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(request)} title="Hapus Permintaan">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
+                    <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request)} title="Edit Permintaan">
+                      <Edit className="h-4 w-4" />
+                    </Button>
                   )}
-                  {(request.status === SchedulingRequestStatus.PENDING || request.status === SchedulingRequestStatus.IN_PROGRESS || request.status === SchedulingRequestStatus.RESCHEDULED) && (
-                    <>
-                      <Button variant="ghost" size="icon" onClick={() => handleRejectClick(request)} title="Tolak Permintaan">
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleRescheduleClick(request)} title="Jadwal Ulang Permintaan">
-                        <RefreshCcw className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleCancelClick(request)} title="Batalkan Permintaan">
-                        <Clock className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
-                  {(request.status === SchedulingRequestStatus.IN_PROGRESS || request.status === SchedulingRequestStatus.APPROVED) && (
-                    <Button variant="ghost" size="icon" onClick={() => handleCompleteClick(request)} title="Selesaikan Permintaan">
+
+                  {/* 3. Disetujui (Approve) (only if PENDING) */}
+                  {request.status === SchedulingRequestStatus.PENDING && (
+                    <Button variant="ghost" size="icon" onClick={() => handleApproveClick(request)} title="Setujui Permintaan">
                       <CheckCircle className="h-4 w-4" />
+                    </Button>
+                  )}
+
+                  {/* 4. Dibatalkan (Cancel) (if PENDING, IN_PROGRESS, or RESCHEDULED) */}
+                  {(request.status === SchedulingRequestStatus.PENDING ||
+                    request.status === SchedulingRequestStatus.IN_PROGRESS ||
+                    request.status === SchedulingRequestStatus.RESCHEDULED) && (
+                    <Button variant="ghost" size="icon" onClick={() => handleCancelClick(request)} title="Batalkan Permintaan">
+                      <Clock className="h-4 w-4" />
+                    </Button>
+                  )}
+
+                  {/* 5. Dihapus (Delete) (only if PENDING) */}
+                  {request.status === SchedulingRequestStatus.PENDING && (
+                    <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(request)} title="Hapus Permintaan">
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </TableCell>
@@ -373,28 +341,6 @@ const SchedulingRequestPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Reject Request Dialog */}
-      {selectedRequest && (
-        <RejectRequestDialog
-          isOpen={isRejectModalOpen}
-          onOpenChange={setIsRejectModalOpen}
-          onRequestSuccess={refetch}
-          requestId={selectedRequest.id}
-          currentNotes={selectedRequest.notes}
-        />
-      )}
-
-      {/* Reschedule Request Dialog */}
-      {selectedRequest && (
-        <RescheduleRequestDialog
-          isOpen={isRescheduleModalOpen}
-          onOpenChange={setIsRescheduleModalOpen}
-          onRequestSuccess={refetch}
-          requestId={selectedRequest.id}
-          currentNotes={selectedRequest.notes}
-        />
-      )}
-
       {/* Cancel Request Dialog */}
       {selectedRequest && (
         <CancelRequestDialog
@@ -403,16 +349,6 @@ const SchedulingRequestPage = () => {
           onRequestSuccess={refetch}
           requestId={selectedRequest.id}
           currentNotes={selectedRequest.notes}
-        />
-      )}
-
-      {/* Complete Request Dialog */}
-      {selectedRequest && (
-        <CompleteRequestDialog
-          isOpen={isCompleteModalOpen}
-          onOpenChange={setIsCompleteModalOpen}
-          onRequestSuccess={refetch}
-          requestId={selectedRequest.id}
         />
       )}
 
