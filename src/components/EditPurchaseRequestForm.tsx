@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory, WarehouseInventory } from "@/types/data";
+import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategory, WarehouseInventory } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 
 const formSchema = z.object({
@@ -46,7 +46,8 @@ const formSchema = z.object({
   notes: z.string().optional(),
 });
 
-interface AddPurchaseRequestFormProps {
+interface EditPurchaseRequestFormProps {
+  purchaseRequest: PurchaseRequestWithDetails;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -62,21 +63,21 @@ const getCategoryDisplay = (category: WarehouseCategory) => {
   }
 };
 
-const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purchaseRequest, isOpen, onOpenChange, onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      product_id: "",
-      item_name: "",
-      item_code: "",
-      satuan: "",
-      quantity: 1,
-      unit_price: 0,
-      suggested_selling_price: 0,
-      total_price: 0,
-      supplier_id: "",
-      target_warehouse_category: WarehouseCategory.SIAP_JUAL,
-      notes: "",
+      product_id: purchaseRequest.product_id || "",
+      item_name: purchaseRequest.item_name,
+      item_code: purchaseRequest.item_code,
+      satuan: purchaseRequest.satuan || "",
+      quantity: purchaseRequest.quantity,
+      unit_price: purchaseRequest.unit_price,
+      suggested_selling_price: purchaseRequest.suggested_selling_price,
+      total_price: purchaseRequest.total_price,
+      supplier_id: purchaseRequest.supplier_id || "",
+      target_warehouse_category: purchaseRequest.target_warehouse_category || WarehouseCategory.SIAP_JUAL,
+      notes: purchaseRequest.notes || "",
     },
   });
 
@@ -85,7 +86,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(true);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchInitialData = async () => {
       setLoadingProducts(true);
       setLoadingSuppliers(true);
@@ -146,15 +147,27 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
 
     if (isOpen) {
       fetchInitialData();
-      form.reset();
+      form.reset({
+        product_id: purchaseRequest.product_id || "",
+        item_name: purchaseRequest.item_name,
+        item_code: purchaseRequest.item_code,
+        satuan: purchaseRequest.satuan || "",
+        quantity: purchaseRequest.quantity,
+        unit_price: purchaseRequest.unit_price,
+        suggested_selling_price: purchaseRequest.suggested_selling_price,
+        total_price: purchaseRequest.total_price,
+        supplier_id: purchaseRequest.supplier_id || "",
+        target_warehouse_category: purchaseRequest.target_warehouse_category || WarehouseCategory.SIAP_JUAL,
+        notes: purchaseRequest.notes || "",
+      });
     }
-  }, [isOpen, form]);
+  }, [isOpen, purchaseRequest, form]);
 
   const selectedProductId = form.watch("product_id");
   const quantity = form.watch("quantity");
   const unitPrice = form.watch("unit_price");
 
-  React.useEffect(() => {
+  useEffect(() => {
     const product = products.find(p => p.id === selectedProductId);
     if (product) {
       form.setValue("item_name", product.nama_barang);
@@ -164,29 +177,32 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
       form.setValue("suggested_selling_price", product.harga_jual);
       form.setValue("supplier_id", product.supplier_id || "");
     } else {
-      form.setValue("item_name", "");
-      form.setValue("item_code", "");
-      form.setValue("satuan", "");
-      form.setValue("unit_price", 0);
-      form.setValue("suggested_selling_price", 0);
-      form.setValue("supplier_id", "");
+      // Only clear if the selectedProductId is explicitly empty, not just if product is not found
+      // This prevents clearing if product is still loading or not in the current list
+      if (selectedProductId === "") {
+        form.setValue("item_name", "");
+        form.setValue("item_code", "");
+        form.setValue("satuan", "");
+        form.setValue("unit_price", 0);
+        form.setValue("suggested_selling_price", 0);
+        form.setValue("supplier_id", "");
+      }
     }
   }, [selectedProductId, products, form]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     form.setValue("total_price", quantity * unitPrice);
   }, [quantity, unitPrice, form]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
     if (!user.data.user) {
-      showError("Anda harus login untuk membuat permintaan pembelian.");
+      showError("Anda harus login untuk memperbarui permintaan pembelian.");
       return;
     }
 
     try {
-      const { error } = await supabase.from("purchase_requests").insert({
-        user_id: user.data.user.id,
+      const { error } = await supabase.from("purchase_requests").update({
         product_id: values.product_id,
         item_name: values.item_name,
         item_code: values.item_code,
@@ -198,18 +214,18 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
         supplier_id: values.supplier_id,
         target_warehouse_category: values.target_warehouse_category,
         notes: values.notes,
-        status: PurchaseRequestStatus.PENDING,
-      });
+        // Status is handled by specific actions (approve/reject/close)
+      })
+      .eq("id", purchaseRequest.id);
 
       if (error) throw error;
 
-      showSuccess("Permintaan pembelian berhasil ditambahkan!");
+      showSuccess("Permintaan pembelian berhasil diperbarui!");
       onSuccess();
       onOpenChange(false);
-      form.reset();
     } catch (err: any) {
-      showError(`Gagal menambahkan permintaan pembelian: ${err.message}`);
-      console.error("Error adding purchase request:", err);
+      showError(`Gagal memperbarui permintaan pembelian: ${err.message}`);
+      console.error("Error updating purchase request:", err);
     }
   };
 
@@ -217,9 +233,9 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Tambah Permintaan Pembelian Baru</DialogTitle>
+          <DialogTitle>Edit Permintaan Pembelian</DialogTitle>
           <DialogDescription>
-            Isi detail permintaan pembelian baru di sini. Klik simpan saat Anda selesai.
+            Ubah detail permintaan pembelian di sini. Klik simpan saat Anda selesai.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -391,7 +407,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Kategori Gudang Tujuan</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih kategori gudang tujuan" />
@@ -427,7 +443,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                 {form.formState.isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Kirim Permintaan"
+                  "Simpan Perubahan"
                 )}
               </Button>
             </DialogFooter>
@@ -438,4 +454,4 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
   );
 };
 
-export default AddPurchaseRequestForm;
+export default EditPurchaseRequestForm;

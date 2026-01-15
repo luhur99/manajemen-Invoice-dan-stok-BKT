@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Supplier } from "@/types/data";
+import { SupplierWithDetails } from "@/types/data"; // Changed import to SupplierWithDetails
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import AddSupplierForm from "@/components/AddSupplierForm";
@@ -16,13 +16,13 @@ import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
 
 const SupplierManagementPage = () => {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [filteredSuppliers, setFilteredSuppliers] = useState<Supplier[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierWithDetails[]>([]); // Changed type
+  const [filteredSuppliers, setFilteredSuppliers] = useState<SupplierWithDetails[]>([]); // Changed type
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<SupplierWithDetails | null>(null); // Changed type
 
   const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
   const [notesToView, setNotesToView] = useState<string>("");
@@ -43,7 +43,7 @@ const SupplierManagementPage = () => {
         throw error;
       }
 
-      const suppliersWithNo: Supplier[] = data.map((sup, index) => ({
+      const suppliersWithNo: SupplierWithDetails[] = data.map((sup, index) => ({ // Changed type
         ...sup,
         no: index + 1, // Assign sequential number for display
       }));
@@ -103,7 +103,7 @@ const SupplierManagementPage = () => {
     }
   };
 
-  const handleEditClick = (supplier: Supplier) => {
+  const handleEditClick = (supplier: SupplierWithDetails) => { // Changed type
     setSelectedSupplier(supplier);
     setIsEditFormOpen(true);
   };
@@ -152,7 +152,7 @@ const SupplierManagementPage = () => {
           placeholder="Cari berdasarkan nama, kontak, telepon, email, atau alamat..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="mb-4"
+          className="flex-grow"
         />
         {filteredSuppliers.length > 0 ? (
           <>

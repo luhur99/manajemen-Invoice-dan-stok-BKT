@@ -1,425 +1,436 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { PurchaseRequest } from "@/types/data";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { showError, showSuccess } from "@/utils/toast";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, PlusCircle, Edit, Trash2, CheckCircle, XCircle, Receipt, Package, FileText } from "lucide-react";
+import { showSuccess, showError } from "@/utils/toast";
 import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm";
-import PaginationControls from "@/components/PaginationControls";
+import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm"; // Fixed import
+import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog"; // Fixed import
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { Loader2, CheckCircle, XCircle, Eye, Trash2, PlusCircle } from "lucide-react";
-import { useSession } from "@/components/SessionContextProvider";
-import ViewNotesDialog from "@/components/ViewNotesDialog";
+import { PurchaseRequestWithDetails, PurchaseRequestStatus, TransactionType, WarehouseCategory } from "@/types/data";
+import PurchaseRequestReceiptUpload from "@/components/PurchaseRequestReceiptUpload"; // Fixed import
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const getStatusColor = (status: PurchaseRequestStatus) => {
+  switch (status) {
+    case PurchaseRequestStatus.PENDING:
+      return "bg-yellow-100 text-yellow-800";
+    case PurchaseRequestStatus.APPROVED:
+      return "bg-blue-100 text-blue-800";
+    case PurchaseRequestStatus.REJECTED:
+      return "bg-red-100 text-red-800";
+    case PurchaseRequestStatus.WAITING_FOR_RECEIPT:
+      return "bg-purple-100 text-purple-800";
+    case PurchaseRequestStatus.CLOSED:
+      return "bg-green-100 text-green-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
+const getCategoryDisplay = (category?: WarehouseCategory) => {
+  switch (category) {
+    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
+    case WarehouseCategory.RISET: return "Riset";
+    case WarehouseCategory.RETUR: return "Retur";
+    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
+    default: return "-";
+  }
+};
 
 const PurchaseRequestPage = () => {
-  const { session } = useSession();
-  const [purchaseRequests, setPurchaseRequests] = useState<PurchaseRequest[]>([]);
-  const [filteredPurchaseRequests, setFilteredPurchaseRequests] = useState<PurchaseRequest[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
+  const [selectedRequest, setSelectedRequest] = React.useState<PurchaseRequestWithDetails | null>(null);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
+  const [requestToView, setRequestToView] = React.useState<PurchaseRequestWithDetails | null>(null);
+  const [isReceiptUploadOpen, setIsReceiptUploadOpen] = React.useState(false);
+  const [filterStatus, setFilterStatus] = React.useState<PurchaseRequestStatus | "all">("all");
 
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
-  const [notesToView, setNotesToView] = useState<string>("");
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi' | string) => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return String(category || "-");
-    }
-  };
-
-  const fetchPurchaseRequests = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let query = supabase
+  const { data: requests, isLoading, error, refetch: fetchRequests } = useQuery<PurchaseRequestWithDetails[], Error>({
+    queryKey: ["purchaseRequests"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("purchase_requests")
         .select(`
           *,
           suppliers (name)
-        `) // Join with suppliers table
+        `)
         .order("created_at", { ascending: false });
 
-      if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus);
-      }
+      if (error) throw error;
 
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      const requestsWithNo: PurchaseRequest[] = data.map((req, index) => ({
-        ...req,
-        no: index + 1,
-        supplier_name: req.suppliers?.name || undefined, // Extract supplier name
+      return data.map((request, index) => ({
+        ...request,
+        no: index + 1, // Add sequential number
+        supplier_name: request.suppliers?.name || "-",
       }));
+    },
+  });
 
-      setPurchaseRequests(requestsWithNo);
-      setFilteredPurchaseRequests(requestsWithNo);
-      setCurrentPage(1);
-    } catch (err: any) {
-      setError(`Gagal memuat pengajuan pembelian: ${err.message}`);
-      console.error("Error fetching purchase requests:", err);
-      showError("Gagal memuat pengajuan pembelian.");
-      setPurchaseRequests([]);
-      setFilteredPurchaseRequests([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [filterStatus]);
+  const handleEditClick = (request: PurchaseRequestWithDetails) => {
+    setSelectedRequest(request);
+    setIsEditModalOpen(true);
+  };
 
-  useEffect(() => {
-    fetchPurchaseRequests();
-  }, [fetchPurchaseRequests]);
+  const handleDeleteClick = (request: PurchaseRequestWithDetails) => {
+    setSelectedRequest(request);
+    setIsDeleteModalOpen(true);
+  };
 
-  useEffect(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const filtered = purchaseRequests.filter(item =>
-      item.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.supplier_name?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by supplier_name
-      item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.status.toLowerCase().includes(lowerCaseSearchTerm)
-    );
-    setFilteredPurchaseRequests(filtered);
-    setCurrentPage(1);
-  }, [searchTerm, purchaseRequests]);
+  const handleViewDetails = (request: PurchaseRequestWithDetails) => {
+    setRequestToView(request);
+    setIsViewDetailsOpen(true);
+  };
 
-  const handleApproveRequest = async (request: PurchaseRequest) => {
-    if (!window.confirm(`Apakah Anda yakin ingin MENYETUJUI pengajuan pembelian untuk "${request.item_name}"?`)) {
-      return;
-    }
+  const handleReceiptUploadClick = (request: PurchaseRequestWithDetails) => {
+    setSelectedRequest(request);
+    setIsReceiptUploadOpen(true);
+  };
 
+  const handleApproveRequest = async (request: PurchaseRequestWithDetails) => {
     try {
-      // 1. Update purchase_requests status to 'approved'
-      const { error: updateReqError } = await supabase
+      const { error } = await supabase
         .from("purchase_requests")
-        .update({ status: "approved" })
+        .update({ status: PurchaseRequestStatus.APPROVED })
         .eq("id", request.id);
 
-      if (updateReqError) {
-        throw updateReqError;
-      }
+      if (error) throw error;
 
-      // 2. Check if product exists or create new
-      const { data: existingProduct, error: fetchProductError } = await supabase
-        .from("products")
-        .select("id, harga_beli, harga_jual, satuan, supplier_id")
-        .eq("kode_barang", request.item_code)
-        .single();
-
-      let productId: string;
-
-      if (fetchProductError && fetchProductError.code === 'PGRST116') { // No rows found
-        // Create new product
-        const { data: newProductData, error: createProductError } = await supabase
-          .from("products")
-          .insert({
-            user_id: session?.user?.id,
-            kode_barang: request.item_code,
-            nama_barang: request.item_name,
-            satuan: request.satuan || "PCS", // Use satuan from request or default
-            harga_beli: request.unit_price,
-            harga_jual: request.suggested_selling_price,
-            safe_stock_limit: 10, // Default safe stock limit
-            supplier_id: request.supplier_id || null, // Set supplier_id from request
-          })
-          .select("id")
-          .single();
-
-        if (createProductError) throw createProductError;
-        productId = newProductData.id;
-
-      } else if (existingProduct) {
-        // Update existing product metadata (prices, satuan, supplier_id)
-        const { error: updateProductMetadataError } = await supabase
-          .from("products")
-          .update({
-            harga_beli: request.unit_price,
-            harga_jual: request.suggested_selling_price,
-            satuan: request.satuan || existingProduct.satuan,
-            supplier_id: request.supplier_id || existingProduct.supplier_id || null, // Update supplier_id
-          })
-          .eq("id", existingProduct.id);
-
-        if (updateProductMetadataError) throw updateProductMetadataError;
-        productId = existingProduct.id;
-
-      } else {
-        throw new Error("Gagal memproses item produk.");
-      }
-
-      // 3. Update or insert into warehouse_inventories for 'siap_jual' category
-      const { data: currentInventory, error: fetchInventoryError } = await supabase
-        .from("warehouse_inventories")
-        .select("quantity")
-        .eq("product_id", productId)
-        .eq("warehouse_category", "siap_jual")
-        .single();
-
-      const currentQuantity = currentInventory ? currentInventory.quantity : 0;
-      const newQuantityInInventory = currentQuantity + request.quantity;
-
-      const { error: upsertInventoryError } = await supabase
-        .from("warehouse_inventories")
-        .upsert(
-          {
-            product_id: productId,
-            warehouse_category: "siap_jual",
-            quantity: newQuantityInInventory,
-            user_id: session?.user?.id,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "product_id, warehouse_category" }
-        );
-
-      if (upsertInventoryError) {
-        throw upsertInventoryError;
-      }
-
-      // 4. Record transaction in stock_transactions
-      const { error: transactionError } = await supabase
-        .from("stock_transactions")
-        .insert({
-          user_id: session?.user?.id,
-          product_id: productId,
-          transaction_type: "in",
-          quantity: request.quantity,
-          notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,
-          transaction_date: format(new Date(), "yyyy-MM-dd"),
-          warehouse_category: "siap_jual", // Transaction happened in 'siap_jual'
-        });
-
-      if (transactionError) {
-        throw transactionError;
-      }
-
-      showSuccess(`Pengajuan pembelian untuk "${request.item_name}" berhasil disetujui dan stok diperbarui!`);
-      fetchPurchaseRequests(); // Refresh the list
+      showSuccess("Permintaan pembelian disetujui!");
+      fetchRequests();
     } catch (err: any) {
-      showError(`Gagal menyetujui pengajuan: ${err.message}`);
+      showError(`Gagal menyetujui permintaan: ${err.message}`);
       console.error("Error approving purchase request:", err);
     }
   };
 
-  const handleRejectRequest = async (request: PurchaseRequest) => {
-    if (!window.confirm(`Apakah Anda yakin ingin MENOLAK pengajuan pembelian untuk "${request.item_name}"?`)) {
-      return;
-    }
-
+  const handleRejectRequest = async (request: PurchaseRequestWithDetails) => {
     try {
       const { error } = await supabase
         .from("purchase_requests")
-        .update({ status: "rejected" })
+        .update({ status: PurchaseRequestStatus.REJECTED })
         .eq("id", request.id);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      showSuccess(`Pengajuan pembelian untuk "${request.item_name}" berhasil ditolak.`);
-      fetchPurchaseRequests(); // Refresh the list
+      showSuccess("Permintaan pembelian ditolak!");
+      fetchRequests();
     } catch (err: any) {
-      showError(`Gagal menolak pengajuan: ${err.message}`);
+      showError(`Gagal menolak permintaan: ${err.message}`);
       console.error("Error rejecting purchase request:", err);
     }
   };
 
-  const handleDeleteRequest = async (requestId: string) => {
-    if (!window.confirm("Apakah Anda yakin ingin menghapus pengajuan pembelian ini?")) {
-      return;
+  const handleMarkAsReceived = async (request: PurchaseRequestWithDetails) => {
+    try {
+      // First, update the purchase request status to WAITING_FOR_RECEIPT
+      const { error: updateError } = await supabase
+        .from("purchase_requests")
+        .update({ status: PurchaseRequestStatus.WAITING_FOR_RECEIPT })
+        .eq("id", request.id);
+
+      if (updateError) throw updateError;
+
+      showSuccess("Permintaan pembelian ditandai sebagai menunggu resi!");
+      fetchRequests();
+    } catch (err: any) {
+      showError(`Gagal menandai sebagai menunggu resi: ${err.message}`);
+      console.error("Error marking as waiting for receipt:", err);
     }
+  };
+
+  const handleCloseRequest = async (request: PurchaseRequestWithDetails) => {
+    try {
+      // Insert into stock_transactions
+      const { error: transactionError } = await supabase
+        .from("stock_transactions")
+        .insert({
+          user_id: request.user_id,
+          product_id: request.product_id,
+          transaction_type: TransactionType.IN,
+          quantity: request.quantity,
+          notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,
+          transaction_date: format(new Date(), "yyyy-MM-dd"),
+          warehouse_category: request.target_warehouse_category,
+        });
+
+      if (transactionError) throw transactionError;
+
+      // Update warehouse_inventories
+      const { data: existingInventory, error: inventoryFetchError } = await supabase
+        .from("warehouse_inventories")
+        .select("id, quantity")
+        .eq("product_id", request.product_id)
+        .eq("warehouse_category", request.target_warehouse_category)
+        .single();
+
+      if (inventoryFetchError && inventoryFetchError.code !== 'PGRST116') { // PGRST116 means no rows found
+        throw inventoryFetchError;
+      }
+
+      if (existingInventory) {
+        const { error: updateInventoryError } = await supabase
+          .from("warehouse_inventories")
+          .update({ quantity: existingInventory.quantity + request.quantity })
+          .eq("id", existingInventory.id);
+        if (updateInventoryError) throw updateInventoryError;
+      } else {
+        const { error: insertInventoryError } = await supabase
+          .from("warehouse_inventories")
+          .insert({
+            product_id: request.product_id,
+            warehouse_category: request.target_warehouse_category,
+            quantity: request.quantity,
+            user_id: request.user_id,
+          });
+        if (insertInventoryError) throw insertInventoryError;
+      }
+
+      // Update purchase request status to CLOSED
+      const { error: updateRequestError } = await supabase
+        .from("purchase_requests")
+        .update({ status: PurchaseRequestStatus.CLOSED, received_quantity: request.quantity, received_at: new Date().toISOString() })
+        .eq("id", request.id);
+
+      if (updateRequestError) throw updateRequestError;
+
+      showSuccess("Permintaan pembelian ditutup dan stok diperbarui!");
+      fetchRequests();
+    } catch (err: any) {
+      showError(`Gagal menutup permintaan dan memperbarui stok: ${err.message}`);
+      console.error("Error closing purchase request and updating stock:", err);
+    }
+  };
+
+  const handleDeleteRequest = async () => {
+    if (!selectedRequest) return;
 
     try {
       const { error } = await supabase
         .from("purchase_requests")
         .delete()
-        .eq("id", requestId);
+        .eq("id", selectedRequest.id);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      showSuccess("Pengajuan pembelian berhasil dihapus!");
-      fetchPurchaseRequests(); // Refresh the list
+      showSuccess("Permintaan pembelian berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      fetchRequests();
     } catch (err: any) {
-      showError(`Gagal menghapus pengajuan pembelian: ${err.message}`);
+      showError(`Gagal menghapus permintaan: ${err.message}`);
       console.error("Error deleting purchase request:", err);
     }
   };
 
-  const handleViewNotes = (notes: string) => {
-    setNotesToView(notes);
-    setIsViewNotesOpen(true);
-  };
+  const filteredRequests = requests?.filter((item) => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const matchesSearch =
+      item.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.supplier_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      format(new Date(item.created_at), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
 
-  const totalPages = Math.ceil(filteredPurchaseRequests.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredPurchaseRequests.slice(startIndex, endIndex);
+    const matchesStatus = filterStatus === "all" || item.status === filterStatus;
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+    return matchesSearch && matchesStatus;
+  });
 
-  const getStatusColor = (status: 'pending' | 'approved' | 'rejected') => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'approved': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Manajemen Pengajuan Pembelian</CardTitle>
-          <CardDescription>Memuat daftar pengajuan pembelian...</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-gray-700 dark:text-gray-300">Memuat data pengajuan pembelian...</p>
-        </CardContent>
-      </Card>
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
     );
   }
 
+  if (error) {
+    return <div className="text-red-500">Error loading purchase requests: {error.message}</div>;
+  }
+
   return (
-    <Card className="border shadow-sm">
-      <CardHeader>
-        <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Manajemen Pengajuan Pembelian</CardTitle>
-          <AddPurchaseRequestForm onSuccess={fetchPurchaseRequests} />
-        </div>
-        <CardDescription>Kelola semua pengajuan pembelian item stok Anda.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
-        <div className="flex flex-col md:flex-row gap-4 mb-4 flex-wrap">
-          <Input
-            type="text"
-            placeholder="Cari berdasarkan nama/kode item, pemasok, atau catatan..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-grow"
-          />
-          <select
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Permintaan Pembelian</h1>
+
+      <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
+        <Input
+          placeholder="Cari permintaan..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm flex-grow"
+        />
+        <div className="flex gap-4">
+          <Select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="p-2 border rounded-md bg-background dark:bg-gray-700 dark:text-gray-100"
+            onValueChange={(value: PurchaseRequestStatus | "all") => setFilterStatus(value)}
           >
-            <option value="all">Semua Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Disetujui</option>
-            <option value="rejected">Ditolak</option>
-          </select>
-          <Button onClick={() => { setSearchTerm(""); setFilterStatus("all"); }} variant="outline">
-            Reset Filter
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Status</SelectItem>
+              {Object.values(PurchaseRequestStatus).map((status) => (
+                <SelectItem key={status} value={status}>
+                  {status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => setIsAddModalOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Tambah Permintaan
           </Button>
         </div>
+      </div>
 
-        {filteredPurchaseRequests.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No</TableHead>
-                    <TableHead>Nama Item</TableHead>
-                    <TableHead>Kode Item</TableHead>
-                    <TableHead className="text-right">Kuantitas</TableHead>
-                    <TableHead className="text-right">Harga Beli/Unit</TableHead>
-                    <TableHead className="text-right">Harga Jual Disarankan/Unit</TableHead>
-                    <TableHead className="text-right">Total Harga</TableHead>
-                    <TableHead>Pemasok</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Catatan</TableHead>
-                    <TableHead>Tanggal Pengajuan</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentItems.map((request) => (
-                    <TableRow key={request.id}>
-                      <TableCell>{request.no}</TableCell>
-                      <TableCell>{request.item_name}</TableCell>
-                      <TableCell>{request.item_code}</TableCell>
-                      <TableCell className="text-right">{request.quantity}</TableCell>
-                      <TableCell className="text-right">{request.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                      <TableCell className="text-right">{request.suggested_selling_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                      <TableCell className="text-right">{request.total_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                      <TableCell>{request.supplier_name || "-"}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
-                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        {request.notes ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(request.notes!)} className="h-7 px-2">
-                            <Eye className="h-3 w-3 mr-1" /> Lihat
-                          </Button>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>{format(new Date(request.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell className="text-center flex items-center justify-center space-x-1">
-                        {request.status === "pending" && (
-                          <>
-                            <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui">
-                              <CheckCircle className="h-4 w-4 text-green-600" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak">
-                              <XCircle className="h-4 w-4 text-red-600" />
-                            </Button>
-                          </>
-                        )}
-                        {(request.status === "pending" || session?.user?.user_metadata.role === 'admin') && ( // Allow deletion of pending by user, or any by admin
-                          <Button variant="destructive" size="icon" onClick={() => handleDeleteRequest(request.id)} title="Hapus">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            )}
-          </>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada pengajuan pembelian yang tersedia atau cocok dengan pencarian Anda.</p>
-        )}
-      </CardContent>
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[50px]">No</TableHead>
+              <TableHead>Nama Item</TableHead>
+              <TableHead>Kode Item</TableHead>
+              <TableHead className="text-right">Kuantitas</TableHead>
+              <TableHead className="text-right">Harga Beli/Unit</TableHead>
+              <TableHead className="text-right">Harga Jual Disarankan/Unit</TableHead>
+              <TableHead className="text-right">Total Harga</TableHead>
+              <TableHead>Pemasok</TableHead>
+              <TableHead>Kategori Gudang Tujuan</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Catatan</TableHead>
+              <TableHead>Tanggal Pengajuan</TableHead>
+              <TableHead className="text-center">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredRequests?.map((request) => (
+              <TableRow key={request.id}>
+                <TableCell>{request.no}</TableCell>
+                <TableCell>{request.item_name}</TableCell>
+                <TableCell>{request.item_code}</TableCell>
+                <TableCell className="text-right">{request.quantity}</TableCell>
+                <TableCell className="text-right">{request.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
+                <TableCell className="text-right">{request.suggested_selling_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
+                <TableCell className="text-right">{request.total_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
+                <TableCell>{request.supplier_name}</TableCell>
+                <TableCell>{request.target_warehouse_category ? getCategoryDisplay(request.target_warehouse_category) : "-"}</TableCell>
+                <TableCell>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
+                    {request.status.charAt(0).toUpperCase() + request.status.slice(1).replace(/_/g, ' ')}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {request.notes ? (
+                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(request)} className="h-7 px-2">
+                      <FileText className="h-3 w-3 mr-1" /> Lihat
+                    </Button>
+                  ) : (
+                    "-"
+                  )}
+                </TableCell>
+                <TableCell>{format(new Date(request.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
+                <TableCell className="text-center flex items-center justify-center space-x-1">
+                  {request.status === PurchaseRequestStatus.PENDING && (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak">
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </>
+                  )}
+                  {request.status === PurchaseRequestStatus.APPROVED && (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => handleMarkAsReceived(request)} title="Tandai Menunggu Resi">
+                        <Package className="h-4 w-4 text-purple-600" />
+                      </Button>
+                    </>
+                  )}
+                  {request.status === PurchaseRequestStatus.WAITING_FOR_RECEIPT && (
+                    <>
+                      <Button variant="ghost" size="icon" onClick={() => handleReceiptUploadClick(request)} title="Unggah Resi">
+                        <Receipt className="h-4 w-4 text-blue-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleCloseRequest(request)} title="Tutup Permintaan & Perbarui Stok">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      </Button>
+                    </>
+                  )}
+                  {(request.status === PurchaseRequestStatus.PENDING || request.status === PurchaseRequestStatus.REJECTED) && (
+                    <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(request)} title="Hapus Permintaan">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {(request.status === PurchaseRequestStatus.APPROVED || request.status === PurchaseRequestStatus.WAITING_FOR_RECEIPT || request.status === PurchaseRequestStatus.CLOSED) && (
+                    <Button variant="ghost" size="icon" onClick={() => handleEditClick(request)} title="Edit Permintaan">
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-      <ViewNotesDialog
-        notes={notesToView}
-        isOpen={isViewNotesOpen}
-        onOpenChange={setIsViewNotesOpen}
+      <AddPurchaseRequestForm
+        isOpen={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        onSuccess={fetchRequests}
       />
-    </Card>
+
+      {selectedRequest && (
+        <EditPurchaseRequestForm
+          purchaseRequest={selectedRequest}
+          isOpen={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          onSuccess={fetchRequests}
+        />
+      )}
+
+      {requestToView && (
+        <ViewPurchaseRequestDetailsDialog
+          purchaseRequest={requestToView}
+          isOpen={isViewDetailsOpen}
+          onOpenChange={setIsViewDetailsOpen}
+        />
+      )}
+
+      {selectedRequest && (
+        <PurchaseRequestReceiptUpload
+          purchaseRequestId={selectedRequest.id}
+          currentDocumentUrl={selectedRequest.document_url}
+          isOpen={isReceiptUploadOpen}
+          onOpenChange={setIsReceiptUploadOpen}
+          onSuccess={fetchRequests}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}> {/* Fixed typo here */}
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Hapus Permintaan Pembelian</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus permintaan pembelian untuk "{selectedRequest?.item_name}"? Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
+            <Button variant="destructive" onClick={handleDeleteRequest}>Hapus</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };
 
