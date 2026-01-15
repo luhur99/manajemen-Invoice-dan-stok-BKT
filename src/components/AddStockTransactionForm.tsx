@@ -25,7 +25,7 @@ import { format } from "date-fns";
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk wajib dipilih"),
-  transaction_type: z.enum(["outbound", "initial"], {
+  transaction_type: z.enum(["out", "initial"], { // Changed from "outbound" to "out"
     required_error: "Tipe Transaksi wajib dipilih",
   }),
   quantity: z.coerce.number().min(1, "Kuantitas harus lebih dari 0"),
@@ -42,7 +42,7 @@ interface AddStockTransactionFormProps {
   isOpen: boolean; // Added to control dialog from parent
   onOpenChange: (open: boolean) => void; // Added to control dialog from parent
   initialProductId?: string; // New prop for pre-selecting a product
-  initialTransactionType?: "outbound" | "initial"; // New prop for pre-selecting transaction type
+  initialTransactionType?: "out" | "initial"; // Changed from "outbound" to "out"
 }
 
 const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
@@ -67,7 +67,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       product_id: initialProductId || "",
-      transaction_type: initialTransactionType || "outbound",
+      transaction_type: initialTransactionType || "out", // Changed from "outbound" to "out"
       quantity: 1,
       warehouse_category: "siap_jual",
       notes: "",
@@ -80,7 +80,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     if (isOpen) {
       form.reset({
         product_id: initialProductId || "",
-        transaction_type: initialTransactionType || "outbound",
+        transaction_type: initialTransactionType || "out", // Changed from "outbound" to "out"
         quantity: 1,
         warehouse_category: "siap_jual",
         notes: "",
@@ -114,7 +114,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
 
       let newQuantity = existingInventory ? existingInventory.quantity : 0;
 
-      if (values.transaction_type === "outbound") {
+      if (values.transaction_type === "out") { // Changed from "outbound" to "out"
         if (newQuantity < values.quantity) {
           showError("Kuantitas stok tidak mencukupi untuk transaksi keluar.");
           return;
@@ -229,7 +229,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="outbound">Stok Keluar</SelectItem>
+                      <SelectItem value="out">Stok Keluar</SelectItem> {/* Changed from "outbound" to "out" */}
                       <SelectItem value="initial">Stok Awal</SelectItem>
                     </SelectContent>
                   </Select>

@@ -40,7 +40,7 @@ const StockPage = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [selectedProduct, setSelectedProduct] = React.useState<ProductWithDetails | null>(null);
   const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
-  const [initialTransactionType, setInitialTransactionType] = React.useState<"outbound" | "initial">("outbound");
+  const [initialTransactionType, setInitialTransactionType] = React.useState<"out" | "initial">("out"); // Changed from "outbound" to "out"
 
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false); // State for View Details dialog
   const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null); // State for product to view
@@ -90,7 +90,7 @@ const StockPage = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleOpenTransactionForm = (product: ProductWithDetails, type: "outbound" | "initial") => {
+  const handleOpenTransactionForm = (product: ProductWithDetails, type: "out" | "initial") => { // Changed from "outbound" to "out"
     setSelectedProduct(product);
     setInitialTransactionType(type);
     setIsTransactionFormOpen(true);
@@ -216,7 +216,7 @@ const StockPage = () => {
                   <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(product)} title="Hapus Produk">
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "outbound")} title="Stok Keluar">
+                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "out")} title="Stok Keluar">
                     <ArrowDown className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "initial")} title="Stok Awal">
