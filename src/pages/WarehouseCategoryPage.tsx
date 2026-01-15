@@ -14,16 +14,29 @@ import { Loader2, PlusCircle, Edit, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
-import { WarehouseCategory } from "@/types/data"; // Import the interface, not the enum
+import { WarehouseCategory } from "@/types/data";
 
 // Define the schema for the new warehouse_categories table
 interface WarehouseCategoryWithNo extends WarehouseCategory {
   no: number;
 }
 
+// Helper function to generate a slug from a string
+const slugify = (text: string) => {
+  return text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^\w-]+/g, '')
+    .replace(/--+/g, '_');
+};
+
 const formSchema = z.object({
   name: z.string().min(1, "Nama kategori wajib diisi."),
-  code: z.string().min(1, "Kode kategori wajib diisi.").regex(/^[a-z0-9_]+$/, "Kode hanya boleh berisi huruf kecil, angka, dan underscore."),
+  // 'code' is no longer directly input by the user, but will be generated
 });
 
 const WarehouseCategoryPage: React.FC = () => {
@@ -42,7 +55,6 @@ const WarehouseCategoryPage: React.FC = () => {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      code: "",
     },
   });
 
@@ -80,8 +92,7 @@ const WarehouseCategoryPage: React.FC = () => {
   }, [fetchCategories]);
 
   const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    category.code.toLowerCase().includes(searchTerm.toLowerCase())
+    category.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleAddCategory = async (values: z.infer<typeof formSchema>) => {
@@ -91,13 +102,15 @@ const WarehouseCategoryPage: React.FC = () => {
       return;
     }
 
+    const generatedCode = slugify(values.name);
+
     try {
       const { error } = await supabase
         .from("warehouse_categories")
         .insert({
           user_id: userId,
           name: values.name,
-          code: values.code,
+          code: generatedCode, // Use generated code
         });
 
       if (error) {
@@ -118,7 +131,7 @@ const WarehouseCategoryPage: React.FC = () => {
     setSelectedCategory(category);
     form.reset({
       name: category.name,
-      code: category.code,
+      // code is not reset as it's not editable
     });
     setIsEditModalOpen(true);
   };
@@ -126,12 +139,14 @@ const WarehouseCategoryPage: React.FC = () => {
   const handleUpdateCategory = async (values: z.infer<typeof formSchema>) => {
     if (!selectedCategory) return;
 
+    const generatedCode = slugify(values.name); // Re-generate code based on new name
+
     try {
       const { error } = await supabase
         .from("warehouse_categories")
         .update({
           name: values.name,
-          code: values.code,
+          code: generatedCode, // Update code based on new name
           updated_at: new Date().toISOString(),
         })
         .eq("id", selectedCategory.id);
@@ -207,7 +222,7 @@ const WarehouseCategoryPage: React.FC = () => {
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <Input
           type="text"
-          placeholder="Cari berdasarkan nama atau kode..."
+          placeholder="Cari berdasarkan nama..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-grow"
@@ -219,7 +234,6 @@ const WarehouseCategoryPage: React.FC = () => {
                 <TableRow>
                   <TableHead className="w-[50px]">No</TableHead>
                   <TableHead>Nama Kategori</TableHead>
-                  <TableHead>Kode Kategori</TableHead>
                   <TableHead className="text-center">Aksi</TableHead>
                 </TableRow>
               </TableHeader>
@@ -228,7 +242,6 @@ const WarehouseCategoryPage: React.FC = () => {
                   <TableRow key={category.id}>
                     <TableCell>{category.no}</TableCell>
                     <TableCell>{category.name}</TableCell>
-                    <TableCell>{category.code}</TableCell>
                     <TableCell className="text-center flex items-center justify-center space-x-1">
                       <Button variant="ghost" size="icon" onClick={() => handleEditClick(category)} title="Edit Kategori">
                         <Edit className="h-4 w-4" />
@@ -269,19 +282,6 @@ const WarehouseCategoryPage: React.FC = () => {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kode Kategori</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <DialogFooter>
                 <Button type="submit" disabled={form.formState.isSubmitting}>
                   {form.formState.isSubmitting ? (
@@ -311,19 +311,6 @@ const WarehouseCategoryPage: React.FC = () => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Nama Kategori</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="code"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kode Kategori</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
