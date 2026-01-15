@@ -1,0 +1,1 @@
+ALTER TABLE public.purchase_requests DROP CONSTRAINT IF EXISTS purchase_requests_product_id_fkey;

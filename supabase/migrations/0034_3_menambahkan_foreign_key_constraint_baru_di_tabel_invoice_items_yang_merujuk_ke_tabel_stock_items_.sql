@@ -1,0 +1,1 @@
+ALTER TABLE public.invoice_items ADD CONSTRAINT invoice_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.stock_items(id) ON DELETE SET NULL;
