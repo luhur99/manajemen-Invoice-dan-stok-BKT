@@ -82,32 +82,31 @@ interface AddEditSchedulingRequestFormProps {
 }
 
 const generateSrNumber = async (): Promise<string> => {
-  const today = format(new Date(), "yyyyMMdd");
-  const prefix = `SR-${today}`;
+  const today = format(new Date(), "yyMMdd"); // Changed to yyMMdd
+  const prefix = `SR${today}`; // Removed hyphen
 
   const { data, error } = await supabase
     .from("scheduling_requests")
     .select("sr_number")
-    .like("sr_number", `${prefix}%`)
+    .like("sr_number", `${prefix}%`) // Updated like clause
     .order("sr_number", { ascending: false })
     .limit(1);
 
   if (error) {
-    console.error("Error fetching latest PR number:", error);
-    return `${prefix}-${Date.now().toString().slice(-4)}`;
+    console.error("Error fetching latest SR number:", error);
+    return `${prefix}${Date.now().toString().slice(-4)}`; // Fallback with new format
   }
 
   let sequence = 1;
   if (data && data.length > 0 && data[0].sr_number) {
     const latestSrNumber = data[0].sr_number;
-    const parts = latestSrNumber.split('-');
-    const lastPart = parts[parts.length - 1];
-    const currentSequence = parseInt(lastPart, 10);
+    // Extract sequence from the end of the new format SRYYMMDDXXXX
+    const currentSequence = parseInt(latestSrNumber.substring(8), 10); // Get last 4 digits
     if (!isNaN(currentSequence)) {
       sequence = currentSequence + 1;
     }
   }
-  return `${prefix}-${String(sequence).padStart(4, '0')}`;
+  return `${prefix}${String(sequence).padStart(4, '0')}`; // Removed hyphen
 };
 
 const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> = ({
@@ -628,13 +627,13 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                           <SelectValue placeholder="Pilih status" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
-                        {Object.values(SchedulingRequestStatus).map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+                    <SelectContent>
+                      {Object.values(SchedulingRequestStatus).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>

@@ -59,35 +59,34 @@ const purchaseRequestSchema = z.object({
 });
 
 const generatePrNumber = async (): Promise<string> => {
-  const today = format(new Date(), "yyyy-MM-dd");
-  const prefix = `PR-${format(new Date(), "yyyyMMdd")}`;
+  const today = format(new Date(), "yyMMdd"); // Changed to yyMMdd
+  const prefix = `PR${today}`; // Removed hyphen
 
   // Fetch the count of PRs created today
   const { data, error } = await supabase
     .from("purchase_requests")
     .select("pr_number")
-    .like("pr_number", `${prefix}%`)
+    .like("pr_number", `${prefix}%`) // Updated like clause
     .order("pr_number", { ascending: false })
     .limit(1);
 
   if (error) {
     console.error("Error fetching latest PR number:", error);
     // Fallback to a less ideal but unique number
-    return `${prefix}-${Date.now().toString().slice(-4)}`;
+    return `${prefix}${Date.now().toString().slice(-4)}`; // Fallback with new format
   }
 
   let sequence = 1;
   if (data && data.length > 0 && data[0].pr_number) {
     const latestPrNumber = data[0].pr_number;
-    const parts = latestPrNumber.split('-');
-    const lastPart = parts[parts.length - 1];
-    const currentSequence = parseInt(lastPart, 10);
+    // Extract sequence from the end of the new format PRYYMMDDXXXX
+    const currentSequence = parseInt(latestPrNumber.substring(8), 10); // Get last 4 digits
     if (!isNaN(currentSequence)) {
       sequence = currentSequence + 1;
     }
   }
 
-  return `${prefix}-${String(sequence).padStart(4, '0')}`;
+  return `${prefix}${String(sequence).padStart(4, '0')}`; // Removed hyphen
 };
 
 const PurchaseRequestPage = () => {
