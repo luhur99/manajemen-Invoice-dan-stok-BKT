@@ -153,7 +153,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
       return data as Invoice[];
     },
-    enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID,
+    enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL, // Only enable for SERVICE_UNBILL
   });
 
   const { data: customers, isLoading: loadingCustomers, error: customersError } = useQuery<Customer[], Error>({
@@ -262,7 +262,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         payment_method: values.payment_method?.trim() || null,
         status: values.status,
         notes: values.notes?.trim() || null,
-        invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
+        invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL) ? values.invoice_id : null, // Only include invoice_id for SERVICE_UNBILL
       };
 
       if (initialData) {
@@ -393,7 +393,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               )}
             />
 
-            {(watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) && (
+            {watchedRequestType === SchedulingRequestType.SERVICE_UNBILL && (
               <FormField
                 control={form.control}
                 name="invoice_id"
