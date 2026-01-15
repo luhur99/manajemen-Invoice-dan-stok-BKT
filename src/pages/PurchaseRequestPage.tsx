@@ -473,7 +473,7 @@ const PurchaseRequestPage = () => {
       .from("purchase_requests")
       .update({ 
         document_url: publicUrl, 
-        status: PurchaseRequestStatus.WAITING_FOR_RECEIPT // Set status to WAITING_FOR_RECEIPT after upload
+        status: PurchaseRequestStatus.WAITING_FOR_RECEIVED // Set status to WAITING_FOR_RECEIVED after upload
       }) 
       .eq("id", selectedRequest.id);
 
@@ -530,6 +530,40 @@ const PurchaseRequestPage = () => {
     );
   }
 
+  const getStatusDisplay = (status: PurchaseRequestStatus) => {
+    switch (status) {
+      case PurchaseRequestStatus.PENDING:
+        return "Pending";
+      case PurchaseRequestStatus.APPROVED:
+        return "Approved";
+      case PurchaseRequestStatus.REJECTED:
+        return "Rejected";
+      case PurchaseRequestStatus.WAITING_FOR_RECEIVED:
+        return "Waiting for Received"; // Updated display text
+      case PurchaseRequestStatus.CLOSED:
+        return "Closed";
+      default:
+        return status;
+    }
+  };
+
+  const getStatusClasses = (status: PurchaseRequestStatus) => {
+    switch (status) {
+      case PurchaseRequestStatus.PENDING:
+        return "bg-yellow-100 text-yellow-800";
+      case PurchaseRequestStatus.APPROVED:
+        return "bg-blue-100 text-blue-800";
+      case PurchaseRequestStatus.REJECTED:
+        return "bg-red-100 text-red-800";
+      case PurchaseRequestStatus.WAITING_FOR_RECEIVED:
+        return "bg-purple-100 text-purple-800"; // Keep purple for this status
+      case PurchaseRequestStatus.CLOSED:
+        return "bg-green-100 text-green-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   return (
     <div className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-6">
@@ -564,15 +598,8 @@ const PurchaseRequestPage = () => {
                 <TableCell>{request.unit_price?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                 <TableCell>{request.total_price?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
                 <TableCell>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    request.status === PurchaseRequestStatus.PENDING ? "bg-yellow-100 text-yellow-800" :
-                    request.status === PurchaseRequestStatus.APPROVED ? "bg-blue-100 text-blue-800" :
-                    request.status === PurchaseRequestStatus.REJECTED ? "bg-red-100 text-red-800" :
-                    request.status === PurchaseRequestStatus.WAITING_FOR_RECEIPT ? "bg-purple-100 text-purple-800" :
-                    request.status === PurchaseRequestStatus.CLOSED ? "bg-green-100 text-green-800" :
-                    "bg-gray-100 text-gray-800"
-                  }`}>
-                    {request.status}
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusClasses(request.status)}`}>
+                    {getStatusDisplay(request.status)}
                   </span>
                 </TableCell>
                 <TableCell>{format(new Date(request.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
@@ -600,7 +627,7 @@ const PurchaseRequestPage = () => {
                           <Eye className="h-4 w-4 text-green-600" />
                         </Button>
                       )}
-                      {request.status === PurchaseRequestStatus.WAITING_FOR_RECEIPT && (
+                      {request.status === PurchaseRequestStatus.WAITING_FOR_RECEIVED && (
                         <Button variant="ghost" size="icon" onClick={() => handleCloseRequest(request)} title="Tutup Permintaan & Perbarui Stok">
                           <FileText className="h-4 w-4 text-purple-600" />
                         </Button>
@@ -752,7 +779,7 @@ const PurchaseRequestPage = () => {
                     <SelectContent>
                       {Object.values(PurchaseRequestStatus).map((status) => (
                         <SelectItem key={status} value={status}>
-                          {status}
+                          {getStatusDisplay(status)}
                         </SelectItem>
                       ))}
                     </SelectContent>

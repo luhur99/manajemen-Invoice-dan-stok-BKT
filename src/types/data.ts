@@ -44,7 +44,7 @@ export enum PurchaseRequestStatus {
   PENDING = "pending",
   APPROVED = "approved",
   REJECTED = "rejected",
-  WAITING_FOR_RECEIPT = "waiting_for_receipt",
+  WAITING_FOR_RECEIVED = "waiting for received", // Changed from WAITING_FOR_RECEIPT
   CLOSED = "closed",
 }
 
