@@ -150,8 +150,15 @@ const StockPage = () => {
   );
 
   const formatInventories = (inventories?: WarehouseInventory[]) => {
-    if (!inventories || inventories.length === 0) return "Tidak ada stok";
-    return inventories.map(inv => `${getCategoryDisplay(inv.warehouse_category)}: ${inv.quantity}`).join(', ');
+    const allCategories: ('siap_jual' | 'riset' | 'retur' | 'backup_teknisi')[] = ["siap_jual", "riset", "retur", "backup_teknisi"];
+    const inventoryMap = new Map(inventories?.map(inv => [inv.warehouse_category, inv.quantity]) || []);
+
+    const formatted = allCategories.map(category => {
+      const quantity = inventoryMap.get(category) || 0;
+      return `${getCategoryDisplay(category)}: ${quantity}`;
+    });
+
+    return formatted.join(', ');
   };
 
   if (isLoading) {
@@ -190,7 +197,7 @@ const StockPage = () => {
               <TableHead>Harga Beli</TableHead>
               <TableHead>Harga Jual</TableHead>
               <TableHead className="min-w-[200px]">Stok per Kategori</TableHead> {/* Removed truncate and adjusted min-width */}
-              <TableHead>Total Stok</TableHead>
+              <TableHead>Total Stok</TableHead> {/* Renamed from Stok Saat Ini */}
               <TableHead>Batas Stok Aman</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
