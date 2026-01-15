@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SchedulingRequest, SchedulingRequestStatus, SchedulingRequestType } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestStatus, SchedulingRequestType, CustomerTypeEnum } from "@/types/data";
 import { format } from "date-fns";
 
 interface ViewSchedulingRequestDetailsDialogProps {
@@ -41,6 +41,13 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
 }) => {
   if (!request) return null;
 
+  // Use data from joined customers table if available, otherwise fallback to direct columns
+  const customerName = (request as any).customer_name_from_customers || request.customer_name;
+  const companyName = (request as any).company_name_from_customers || request.company_name;
+  const phoneNumber = (request as any).phone_number_from_customers || request.phone_number;
+  const customerType = (request as any).customer_type_from_customers || request.customer_type;
+
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -57,11 +64,11 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Nama Pelanggan:</p>
-            <p>{request.customer_name}</p>
+            <p>{customerName}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Nama Perusahaan:</p>
-            <p>{request.company_name || "-"}</p>
+            <p>{companyName || "-"}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Tipe Permintaan:</p>
@@ -70,7 +77,7 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           {request.invoice_id && (
             <div className="grid grid-cols-2 gap-2">
               <p className="font-medium">Nomor Invoice Terkait:</p>
-              <p>{request.invoice_id}</p> {/* This will display the ID, not the number. We'll update this in a later step if needed. */}
+              <p>{(request as any).invoice_number || request.invoice_id}</p> {/* Display invoice number if joined */}
             </div>
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -119,11 +126,11 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Nomor Telepon:</p>
-            <p>{request.phone_number}</p>
+            <p>{phoneNumber}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Tipe Pelanggan:</p>
-            <p>{request.customer_type || "-"}</p>
+            <p>{customerType || "-"}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Metode Pembayaran:</p>

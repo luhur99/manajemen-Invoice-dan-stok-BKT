@@ -64,7 +64,7 @@ const SchedulingRequestPage = () => {
         .select(`
           *,
           invoices (invoice_number),
-          customers (customer_name, company_name)
+          customers (customer_name, company_name, phone_number, customer_type)
         `)
         .order("created_at", { ascending: false });
 
@@ -74,8 +74,10 @@ const SchedulingRequestPage = () => {
         ...req,
         no: index + 1,
         invoice_number: req.invoices?.invoice_number || undefined,
-        customer_name: req.customers?.customer_name || req.customer_name, // Use customer_name from customers table if available
-        company_name: req.customers?.company_name || req.company_name, // Use company_name from customers table if available
+        customer_name_from_customers: req.customers?.customer_name || undefined,
+        company_name_from_customers: req.customers?.company_name || undefined,
+        phone_number_from_customers: req.customers?.phone_number || undefined,
+        customer_type_from_customers: req.customers?.customer_type || undefined,
       }));
     },
   });
@@ -148,14 +150,18 @@ const SchedulingRequestPage = () => {
 
   const filteredRequests = requests?.filter((request) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const customerName = request.customer_name_from_customers || request.customer_name;
+    const companyName = request.company_name_from_customers || request.company_name;
+    const phoneNumber = request.phone_number_from_customers || request.phone_number;
+
     return (
       request.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      customerName.toLowerCase().includes(lowerCaseSearchTerm) ||
+      companyName?.toLowerCase().includes(lowerCaseSearchTerm) ||
       getTypeDisplay(request.type).toLowerCase().includes(lowerCaseSearchTerm) ||
       getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
       request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.phone_number.toLowerCase().includes(lowerCaseSearchTerm) ||
+      phoneNumber.toLowerCase().includes(lowerCaseSearchTerm) ||
       request.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
@@ -220,7 +226,7 @@ const SchedulingRequestPage = () => {
               <TableRow key={request.id}>
                 <TableCell>{request.no}</TableCell>
                 <TableCell>{request.sr_number || "-"}</TableCell>
-                <TableCell>{request.customer_name}</TableCell>
+                <TableCell>{request.customer_name_from_customers || request.customer_name}</TableCell>
                 <TableCell>{getTypeDisplay(request.type)}</TableCell>
                 <TableCell>{format(new Date(request.requested_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{request.invoice_number || "-"}</TableCell>

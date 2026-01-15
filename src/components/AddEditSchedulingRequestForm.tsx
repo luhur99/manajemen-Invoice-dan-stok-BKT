@@ -43,8 +43,8 @@ const formSchema = z.object({
   company_name: z.string().optional(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
   vehicle_units: z.coerce.number().int().min(0, "Jumlah unit kendaraan tidak boleh negatif.").default(0),
-  vehicle_type: z.array(z.string()).optional(), // Changed to array
-  vehicle_year: z.array(z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.")).optional(), // Changed to array
+  vehicle_type: z.array(z.string()).default([]), // Changed to non-optional array with default
+  vehicle_year: z.array(z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.")).default([]), // Changed to non-optional array with default
   full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
   landmark: z.string().optional(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
@@ -84,7 +84,7 @@ const generateSrNumber = async (): Promise<string> => {
   let sequence = 1;
   if (data && data.length > 0 && data[0].sr_number) {
     const latestSrNumber = data[0].sr_number;
-    const parts = latestPrNumber.split('-');
+    const parts = latestSrNumber.split('-');
     const lastPart = parts[parts.length - 1];
     const currentSequence = parseInt(lastPart, 10);
     if (!isNaN(currentSequence)) {
@@ -126,14 +126,22 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     },
   });
 
-  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray({
+  // Explicitly type useFieldArray for vehicle_type
+  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray<
+    z.infer<typeof formSchema>,
+    "vehicle_type"
+  >({
     control: form.control,
-    name: "vehicle_type", // Corrected type inference
+    name: "vehicle_type",
   });
 
-  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray({
+  // Explicitly type useFieldArray for vehicle_year
+  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray<
+    z.infer<typeof formSchema>,
+    "vehicle_year"
+  >({
     control: form.control,
-    name: "vehicle_year", // Corrected type inference
+    name: "vehicle_year",
   });
 
   const watchedVehicleUnits = form.watch("vehicle_units");
@@ -296,7 +304,10 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         vehicle_units: values.vehicle_units || 0,
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
         customer_id: values.customer_id || null, // Ensure customer_id is passed
-        customer_type: values.customer_type || null, // Ensure customer_type is passed
+        customer_name: values.customer_name, // Keep for now, will be removed after full migration
+        company_name: values.company_name, // Keep for now
+        phone_number: values.phone_number, // Keep for now
+        customer_type: values.customer_type || null, // Keep for now
       };
 
       if (initialData) {

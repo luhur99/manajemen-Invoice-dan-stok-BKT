@@ -189,8 +189,9 @@ export interface SchedulingRequest {
   id: string;
   user_id?: string;
   sr_number?: string; // Added sr_number
-  customer_name: string;
-  company_name?: string;
+  customer_id?: string | null; // New: Foreign key to customers table
+  customer_name: string; // Kept for display/fallback, but ideally from customer_id join
+  company_name?: string; // Kept for display/fallback
   type: SchedulingRequestType;
   vehicle_units?: number;
   vehicle_type?: string[]; // Changed to array of strings
@@ -200,8 +201,8 @@ export interface SchedulingRequest {
   requested_date: string;
   requested_time?: string;
   contact_person: string;
-  phone_number: string;
-  customer_type?: string;
+  phone_number: string; // Kept for display/fallback
+  customer_type?: CustomerTypeEnum; // Kept for display/fallback
   payment_method?: string;
   status: SchedulingRequestStatus;
   notes?: string;
@@ -214,6 +215,10 @@ export interface SchedulingRequest {
 export interface SchedulingRequestWithDetails extends SchedulingRequest {
   no?: number;
   invoice_number?: string; // For displaying invoice number in table/details
+  customer_name_from_customers?: string; // For joined customer name
+  company_name_from_customers?: string; // For joined company name
+  phone_number_from_customers?: string; // For joined phone number
+  customer_type_from_customers?: CustomerTypeEnum; // For joined customer type
 }
 
 export interface Schedule {
