@@ -37,7 +37,7 @@ import {
   InvoiceType,
   CustomerTypeEnum,
   WarehouseInventory,
-  ScheduleWithDetails, // Import ScheduleWithDetails
+  ScheduleWithDetails,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 
@@ -51,7 +51,7 @@ const formSchema = z.object({
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
   customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
-  payment_method: z.string().optional(),
+  payment_method: z.string().optional(), // Keep as string, but use select for input
   notes: z.string().optional(),
   courier_service: z.string().optional(),
   items: z.array(
@@ -71,7 +71,7 @@ interface AddInvoiceFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  initialSchedule?: ScheduleWithDetails | null; // New prop for initial schedule data
+  initialSchedule?: ScheduleWithDetails | null;
 }
 
 // Function to generate INV-YYMMDDXXXX
@@ -123,6 +123,9 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
   const [products, setProducts] = React.useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = React.useState(true);
 
+  // Watch the 'type' field to conditionally render 'courier_service'
+  const watchedInvoiceType = form.watch("type");
+
   React.useEffect(() => {
     const fetchProducts = async () => {
       setLoadingProducts(true);
@@ -151,8 +154,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       } else {
         setProducts(data.map(item => ({
           id: item.id,
-          user_id: item.user_id, // Ensure user_id is included
-          created_at: item.created_at, // Ensure created_at is included
+          user_id: item.user_id,
+          created_at: item.created_at,
           kode_barang: item.kode_barang,
           nama_barang: item.nama_barang,
           harga_jual: item.harga_jual,
@@ -184,10 +187,10 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           invoice_date: new Date(),
           due_date: undefined,
           customer_name: initialSchedule?.customer_name || "",
-          company_name: undefined, // Can be fetched from customer if customer_id is available
+          company_name: undefined,
           total_amount: 0,
           payment_status: InvoicePaymentStatus.PENDING,
-          type: undefined,
+          type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI, // Set invoice type based on schedule type
           customer_type: undefined,
           payment_method: initialSchedule?.payment_method || undefined,
           notes: defaultNotes,
@@ -265,8 +268,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         .insert({
           user_id: user.data.user.id,
           invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"), // Explicitly cast to Date
-          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null, // Explicitly cast to Date
+          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"),
+          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -275,14 +278,14 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           customer_type: values.customer_type,
           payment_method: values.payment_method,
           notes: values.notes,
-          courier_service: values.courier_service,
+          courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null, // Only save if type is KIRIM_BARANG
         })
         .select()
         .single();
 
       if (invoiceError) throw invoiceError;
 
-      const invoiceItems = (values.items as typeof formSchema._type['items']).map(item => ({ // Explicitly cast to correct type
+      const invoiceItems = (values.items as typeof formSchema._type['items']).map(item => ({
         invoice_id: invoiceData.id,
         user_id: user.data.user?.id,
         product_id: item.selected_product_id,
@@ -498,7 +501,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => ( // Explicitly cast type
+                        {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => (
                           <SelectItem key={type} value={type}>
                             {type.charAt(0).toUpperCase() + type.slice(1)}
                           </SelectItem>
@@ -515,26 +518,38 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih metode pembayaran" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Cash">Cash</SelectItem>
+                        <SelectItem value="Transfer">Transfer</SelectItem>
+                        <SelectItem value="DP">DP</SelectItem>
+                        <SelectItem value="Lainnya">Lainnya</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="courier_service"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Layanan Kurir (Opsional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {watchedInvoiceType === InvoiceType.KIRIM_BARANG && (
+                <FormField
+                  control={form.control}
+                  name="courier_service"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Layanan Kurir (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <FormField
