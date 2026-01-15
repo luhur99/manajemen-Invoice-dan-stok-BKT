@@ -1,10 +1,18 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -15,371 +23,308 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { showSuccess, showError } from "@/utils/toast";
-import { Invoice } from "@/types/data"; // Import Invoice type
-import { DialogDescription } from "./ui/dialog"; // Import DialogDescription
+import { showError, showSuccess } from "@/utils/toast";
+import { ScheduleType, ScheduleStatus } from "@/types/data";
 
-// Schema validasi menggunakan Zod
 const formSchema = z.object({
-  schedule_date: z.date({ required_error: "Tanggal Jadwal wajib diisi" }),
+  schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
   schedule_time: z.string().optional(),
-  type: z.enum(["instalasi", "kirim"], {
-    required_error: "Tipe jadwal wajib dipilih",
-  }),
-  customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
-  phone_number: z.string().optional(),
+  type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
+  customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
   address: z.string().optional(),
-  technician_name: z.enum(["Jubed", "Daffa", "Teknisi Lain"]).optional(), // Updated to enum
-  invoice_id: z.string().uuid("ID Invoice harus format UUID yang valid").optional().or(z.literal("")),
-  status: z.enum(["scheduled", "in progress", "completed", "cancelled"], {
-    required_error: "Status jadwal wajib dipilih",
-  }).default("scheduled"),
+  technician_name: z.string().optional(),
+  invoice_id: z.string().optional(),
+  status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
   notes: z.string().optional(),
+  phone_number: z.string().optional(),
   courier_service: z.string().optional(),
-  document_url: z.string().optional(),
 });
 
 interface AddScheduleFormProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  onOpenChange: (open: boolean) => void; // New prop to control parent dialog
-  initialData?: Partial<z.infer<typeof formSchema>>; // New prop for initial data
 }
 
-const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ onSuccess, onOpenChange, initialData }) => {
-  const [invoicesList, setInvoicesList] = useState<Invoice[]>([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(true);
-
+const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
-      schedule_time: initialData?.schedule_time || "",
-      type: initialData?.type || undefined,
-      customer_name: initialData?.customer_name || "",
-      phone_number: initialData?.phone_number || "",
-      address: initialData?.address || "",
-      technician_name: (initialData?.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined, // Cast to enum type
-      invoice_id: initialData?.invoice_id || "",
-      status: initialData?.status || "scheduled",
-      notes: initialData?.notes || "",
-      courier_service: initialData?.courier_service || "",
-      document_url: initialData?.document_url || "",
+      schedule_date: new Date(),
+      schedule_time: "",
+      type: ScheduleType.INSTALASI,
+      customer_name: "",
+      address: "",
+      technician_name: "",
+      invoice_id: "",
+      status: ScheduleStatus.SCHEDULED,
+      notes: "",
+      phone_number: "",
+      courier_service: "",
     },
   });
 
-  useEffect(() => {
-    const fetchInvoices = async () => {
-      setLoadingInvoices(true);
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("id, invoice_number")
-        .order("invoice_number", { ascending: true });
-
-      if (error) {
-        showError("Gagal memuat daftar invoice.");
-        console.error("Error fetching invoices:", error);
-      } else {
-        setInvoicesList(data as Invoice[]);
-      }
-      setLoadingInvoices(false);
-    };
-
-    fetchInvoices();
-  }, []);
-
-  useEffect(() => {
-    form.reset({
-      schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
-      schedule_time: initialData?.schedule_time || "",
-      type: initialData?.type || undefined,
-      customer_name: initialData?.customer_name || "",
-      phone_number: initialData?.phone_number || "",
-      address: initialData?.address || "",
-      technician_name: (initialData?.technician_name as "Jubed" | "Daffa" | "Teknisi Lain") || undefined,
-      invoice_id: initialData?.invoice_id || "",
-      status: initialData?.status || "scheduled",
-      notes: initialData?.notes || "",
-      courier_service: initialData?.courier_service || "",
-      document_url: initialData?.document_url || "",
-    });
-  }, [form, initialData]);
-
-  const scheduleType = form.watch("type");
+  React.useEffect(() => {
+    if (!isOpen) {
+      form.reset();
+    }
+  }, [isOpen, form]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
+    if (!user.data.user) {
+      showError("Anda harus login untuk membuat jadwal.");
       return;
     }
 
     try {
-      const { data, error } = await supabase
-        .from("schedules")
-        .insert({
-          user_id: userId,
-          schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
-          schedule_time: values.schedule_time || null,
-          type: values.type,
-          customer_name: values.customer_name,
-          phone_number: values.phone_number || null,
-          address: values.address || null,
-          technician_name: values.technician_name || null,
-          invoice_id: values.invoice_id || null,
-          status: values.status,
-          notes: values.notes || null,
-          courier_service: values.courier_service || null,
-          document_url: values.document_url || null,
-        })
-        .select();
+      const { error } = await supabase.from("schedules").insert({
+        user_id: user.data.user.id,
+        schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
+        schedule_time: values.schedule_time,
+        type: values.type,
+        customer_name: values.customer_name,
+        address: values.address,
+        technician_name: values.technician_name,
+        invoice_id: values.invoice_id,
+        status: values.status,
+        notes: values.notes,
+        phone_number: values.phone_number,
+        courier_service: values.courier_service,
+      });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       showSuccess("Jadwal berhasil ditambahkan!");
-      form.reset();
-      onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
-      showError(`Gagal menambahkan jadwal: ${error.message}`);
-      console.error("Error adding schedule:", error);
+      onOpenChange(false);
+    } catch (err: any) {
+      showError(`Gagal menambahkan jadwal: ${err.message}`);
+      console.error("Error adding schedule:", err);
     }
   };
 
   return (
-    <Form {...form}>
-      <DialogDescription>Isi detail untuk membuat jadwal instalasi atau pengiriman baru.</DialogDescription>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="schedule_date"
-            render={({ field }) => (
-              <FormItem className="flex flex-col">
-                <FormLabel>Tanggal Jadwal</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full pl-3 text-left font-normal",
-                          !field.value && "text-muted-foreground"
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, "PPP")
-                        ) : (
-                          <span>Pilih tanggal</span>
-                        )}
-                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="schedule_time"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Waktu Jadwal (Opsional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., 09:00, 14:30" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tipe Jadwal</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih tipe jadwal" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="instalasi">Instalasi</SelectItem>
-                    <SelectItem value="kirim">Kirim Barang</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="customer_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nama Konsumen</FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="phone_number"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>No WA Konsumen (Opsional)</FormLabel>
-                <FormControl>
-                  <Input placeholder="e.g., 081234567890" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {scheduleType === "kirim" && (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Tambah Jadwal Baru</DialogTitle>
+          <DialogDescription>
+            Isi detail jadwal baru di sini. Klik simpan saat Anda selesai.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <FormField
               control={form.control}
-              name="courier_service"
+              name="schedule_date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Tanggal Jadwal</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pilih tanggal</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="schedule_time"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Jasa Kurir (Opsional)</FormLabel>
+                  <FormLabel>Waktu Jadwal (Opsional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., JNE, SiCepat, GoSend" {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          )}
-          <FormField
-            control={form.control}
-            name="address"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Alamat (Opsional)</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Alamat lengkap untuk instalasi/pengiriman" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="technician_name"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nama Teknisi (Opsional)</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipe Jadwal</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih tipe jadwal" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(ScheduleType).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="customer_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama Pelanggan</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih teknisi" />
-                    </SelectTrigger>
+                    <Input {...field} />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="Jubed">Jubed</SelectItem>
-                    <SelectItem value="Daffa">Daffa</SelectItem>
-                    <SelectItem value="Teknisi Lain">Teknisi Lain</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="invoice_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Nomor Invoice Terkait (Opsional)</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ""}>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alamat (Opsional)</FormLabel>
                   <FormControl>
-                    <SelectTrigger disabled={loadingInvoices}>
-                      <SelectValue placeholder={loadingInvoices ? "Memuat invoices..." : "Pilih nomor invoice"} />
-                    </SelectTrigger>
+                    <Textarea {...field} />
                   </FormControl>
-                  <SelectContent>
-                    {invoicesList.map((invoice) => (
-                      <SelectItem key={invoice.id} value={invoice.id}>
-                        {invoice.invoice_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Status Jadwal</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nomor Telepon (Opsional)</FormLabel>
                   <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih status jadwal" />
-                    </SelectTrigger>
+                    <Input {...field} />
                   </FormControl>
-                  <SelectContent>
-                    <SelectItem value="scheduled">Terjadwal</SelectItem>
-                    <SelectItem value="in progress">Dalam Proses</SelectItem>
-                    <SelectItem value="completed">Selesai</SelectItem>
-                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="notes"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Catatan (Opsional)</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Tambahkan catatan di sini..." {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-
-        <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            "Simpan Jadwal"
-          )}
-        </Button>
-      </form>
-    </Form>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="technician_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama Teknisi (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="courier_service"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Layanan Kurir (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="invoice_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>ID Invoice Terkait (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(ScheduleStatus).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Catatan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <DialogFooter>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Simpan Jadwal"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   );
 };
 

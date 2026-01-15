@@ -1,10 +1,18 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -14,231 +22,225 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { showSuccess, showError } from "@/utils/toast";
-import { Product, Supplier } from "@/types/data"; // Changed from StockItem
-import StockItemCombobox from "@/components/StockItemCombobox";
-import SupplierCombobox from "@/components/SupplierCombobox"; // Import new SupplierCombobox
+import { showError, showSuccess } from "@/utils/toast";
+import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory, WarehouseInventory } from "@/types/data";
+import StockItemCombobox from "./StockItemCombobox";
 
-// Schema validasi menggunakan Zod
 const formSchema = z.object({
-  item_name: z.string().min(1, "Nama Item wajib diisi"),
-  item_code: z.string().min(1, "Kode Item wajib diisi"),
-  quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
-  unit_price: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
-  suggested_selling_price: z.coerce.number().min(0, "Harga Jual yang disarankan tidak boleh negatif"),
-  supplier_id: z.string().uuid("ID Pemasok tidak valid").optional().or(z.literal("")),
-  supplier_name_input: z.string().optional(), // For the combobox input text
-  notes: z.string().optional(),
+  product_id: z.string().min(1, "Produk harus dipilih."),
+  item_name: z.string().min(1, "Nama item harus diisi."),
+  item_code: z.string().min(1, "Kode item harus diisi."),
   satuan: z.string().optional(),
-  selected_product_id: z.string().uuid().optional().or(z.literal("")), // Changed from selected_stock_item_id
+  quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
+  unit_price: z.number().min(0, "Harga satuan tidak boleh negatif."),
+  suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
+  total_price: z.number().min(0, "Total harga tidak boleh negatif."),
+  supplier_id: z.string().min(1, "Supplier harus dipilih."),
+  target_warehouse_category: z.nativeEnum(WarehouseCategory, {
+    required_error: "Kategori gudang tujuan harus dipilih.",
+  }),
+  notes: z.string().optional(),
 });
 
 interface AddPurchaseRequestFormProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
-const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSuccess }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]); // Changed from stockItems
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]); // New state for suppliers
-  const [loadingProducts, setLoadingProducts] = useState(true); // Changed from loadingStockItems
-  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
-
+const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      product_id: "",
       item_name: "",
       item_code: "",
+      satuan: "",
       quantity: 1,
       unit_price: 0,
       suggested_selling_price: 0,
+      total_price: 0,
       supplier_id: "",
-      supplier_name_input: "",
+      target_warehouse_category: WarehouseCategory.SIAP_JUAL,
       notes: "",
-      satuan: "",
-      selected_product_id: "", // Initialize new field
     },
   });
 
-  useEffect(() => {
-    const fetchProducts = async () => { // Changed from fetchStockItems
-      setLoadingProducts(true); // Changed from setLoadingStockItems
-      const { data, error } = await supabase
-        .from("products") // Changed from stock_items
+  const [products, setProducts] = React.useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = React.useState(true);
+  const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchInitialData = async () => {
+      setLoadingProducts(true);
+      setLoadingSuppliers(true);
+
+      // Fetch products
+      const { data: productsData, error: productsError } = await supabase
+        .from("products")
         .select(`
           id,
+          user_id,
           kode_barang,
           nama_barang,
+          satuan,
           harga_beli,
           harga_jual,
-          satuan,
+          safe_stock_limit,
+          created_at,
           supplier_id,
-          warehouse_inventories(warehouse_category, quantity)
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
         `);
 
-      if (error) {
-        showError("Gagal memuat daftar produk."); // Changed message
-        console.error("Error fetching products:", error); // Changed message
+      if (productsError) {
+        showError("Gagal memuat daftar produk.");
+        console.error("Error fetching products:", productsError);
       } else {
-        setProducts(data.map(item => ({ // Changed from setStockItems
+        setProducts(productsData.map(item => ({
           id: item.id,
+          user_id: item.user_id,
+          created_at: item.created_at,
           kode_barang: item.kode_barang,
           nama_barang: item.nama_barang,
-          harga_beli: item.harga_beli,
           harga_jual: item.harga_jual,
-          satuan: item.satuan || "",
-          supplier_id: item.supplier_id || undefined, // Include supplier_id
-          inventories: item.warehouse_inventories || [],
-          safe_stock_limit: 0,
-        })) as Product[]); // Changed from StockItem[]
+          harga_beli: item.harga_beli,
+          satuan: item.satuan,
+          safe_stock_limit: item.safe_stock_limit,
+          supplier_id: item.supplier_id,
+          inventories: item.warehouse_inventories as WarehouseInventory[],
+        })));
       }
-      setLoadingProducts(false); // Changed from setLoadingStockItems
-    };
+      setLoadingProducts(false);
 
-    const fetchSuppliers = async () => {
-      setLoadingSuppliers(true);
-      const { data, error } = await supabase
+      // Fetch suppliers
+      const { data: suppliersData, error: suppliersError } = await supabase
         .from("suppliers")
-        .select("*")
-        .order("name", { ascending: true });
+        .select("*");
 
-      if (error) {
-        showError("Gagal memuat daftar pemasok.");
-        console.error("Error fetching suppliers:", error);
+      if (suppliersError) {
+        showError("Gagal memuat daftar supplier.");
+        console.error("Error fetching suppliers:", suppliersError);
       } else {
-        setSuppliers(data as Supplier[]);
+        setSuppliers(suppliersData);
       }
       setLoadingSuppliers(false);
     };
 
-    fetchProducts(); // Changed from fetchStockItems
-    fetchSuppliers();
-  }, []);
+    if (isOpen) {
+      fetchInitialData();
+      form.reset();
+    }
+  }, [isOpen, form]);
 
-  // Handler for when a product is selected from the combobox
-  const handleProductSelect = (selectedItemId: string | undefined) => { // Changed from handleStockItemSelect
-    form.setValue("selected_product_id", selectedItemId || ""); // Changed from selected_stock_item_id
-    if (selectedItemId) {
-      const selectedProduct = products.find(item => item.id === selectedItemId); // Changed from selectedStock
-      if (selectedProduct) {
-        form.setValue("item_name", selectedProduct.nama_barang);
-        form.setValue("item_code", selectedProduct.kode_barang);
-        form.setValue("unit_price", selectedProduct.harga_beli);
-        form.setValue("suggested_selling_price", selectedProduct.harga_jual);
-        form.setValue("satuan", selectedProduct.satuan || "");
-        form.setValue("supplier_id", selectedProduct.supplier_id || "");
-        const selectedSupplier = suppliers.find(s => s.id === selectedProduct.supplier_id);
-        form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
-      }
+  const selectedProductId = form.watch("product_id");
+  const quantity = form.watch("quantity");
+  const unitPrice = form.watch("unit_price");
+
+  React.useEffect(() => {
+    const product = products.find(p => p.id === selectedProductId);
+    if (product) {
+      form.setValue("item_name", product.nama_barang);
+      form.setValue("item_code", product.kode_barang);
+      form.setValue("satuan", product.satuan || "");
+      form.setValue("unit_price", product.harga_beli);
+      form.setValue("suggested_selling_price", product.harga_jual);
+      form.setValue("supplier_id", product.supplier_id || "");
     } else {
-      // If selection is cleared
+      form.setValue("item_name", "");
       form.setValue("item_code", "");
+      form.setValue("satuan", "");
       form.setValue("unit_price", 0);
       form.setValue("suggested_selling_price", 0);
-      form.setValue("satuan", "");
       form.setValue("supplier_id", "");
-      form.setValue("supplier_name_input", "");
     }
-  };
+  }, [selectedProductId, products, form]);
 
-  // Handler for when the product combobox input text changes
-  const handleProductInputChange = (value: string) => { // Changed from handleStockItemInputChange
-    form.setValue("item_name", value);
-    // If the user types, clear the selected item ID and other prepopulated fields
-    // unless the typed value exactly matches an existing item.
-    const matchedItem = products.find(item => item.nama_barang === value); // Changed from stockItems
-    if (!matchedItem) {
-      form.setValue("selected_product_id", ""); // Changed from selected_stock_item_id
-      form.setValue("item_code", "");
-      form.setValue("unit_price", 0);
-      form.setValue("suggested_selling_price", 0);
-      form.setValue("satuan", "");
-      form.setValue("supplier_id", "");
-      form.setValue("supplier_name_input", "");
-    } else if (matchedItem.id !== form.getValues().selected_product_id) { // Changed from selected_stock_item_id
-      // If it matches a different item, update all fields
-      handleProductSelect(matchedItem.id); // Changed from handleStockItemSelect
-    }
-  };
+  React.useEffect(() => {
+    form.setValue("total_price", quantity * unitPrice);
+  }, [quantity, unitPrice, form]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
+    if (!user.data.user) {
+      showError("Anda harus login untuk membuat permintaan pembelian.");
       return;
     }
 
     try {
-      const total_price = values.quantity * values.unit_price;
+      const { error } = await supabase.from("purchase_requests").insert({
+        user_id: user.data.user.id,
+        product_id: values.product_id,
+        item_name: values.item_name,
+        item_code: values.item_code,
+        satuan: values.satuan,
+        quantity: values.quantity,
+        unit_price: values.unit_price,
+        suggested_selling_price: values.suggested_selling_price,
+        total_price: values.total_price,
+        supplier_id: values.supplier_id,
+        target_warehouse_category: values.target_warehouse_category,
+        notes: values.notes,
+        status: PurchaseRequestStatus.PENDING,
+      });
 
-      const { error } = await supabase
-        .from("purchase_requests")
-        .insert({
-          user_id: userId,
-          item_name: values.item_name,
-          item_code: values.item_code,
-          quantity: values.quantity,
-          unit_price: values.unit_price,
-          suggested_selling_price: values.suggested_selling_price,
-          total_price: total_price,
-          supplier_id: values.supplier_id || null, // Save supplier_id
-          notes: values.notes || null,
-          status: "pending",
-          satuan: values.satuan || null,
-          product_id: values.selected_product_id || null, // Save product_id
-        });
+      if (error) throw error;
 
-      if (error) {
-        throw error;
-      }
-
-      showSuccess("Pengajuan pembelian berhasil dibuat!");
-      form.reset();
-      setIsOpen(false);
+      showSuccess("Permintaan pembelian berhasil ditambahkan!");
       onSuccess();
-    } catch (error: any) {
-      showError(`Gagal membuat pengajuan pembelian: ${error.message}`);
-      console.error("Error creating purchase request:", error);
+      onOpenChange(false);
+      form.reset();
+    } catch (err: any) {
+      showError(`Gagal menambahkan permintaan pembelian: ${err.message}`);
+      console.error("Error adding purchase request:", err);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Buat Pengajuan Pembelian
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Buat Pengajuan Pembelian Baru</DialogTitle>
-          <DialogDescription>Isi detail untuk mengajukan pembelian item stok baru.</DialogDescription>
+          <DialogTitle>Tambah Permintaan Pembelian Baru</DialogTitle>
+          <DialogDescription>
+            Isi detail permintaan pembelian baru di sini. Klik simpan saat Anda selesai.
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <FormField
               control={form.control}
-              name="item_name" // This field will now primarily control the input text
+              name="product_id"
               render={({ field }) => (
-                <FormItem className="md:col-span-2">
+                <FormItem>
+                  <FormLabel>Produk</FormLabel>
+                  <FormControl>
+                    <StockItemCombobox
+                      products={products}
+                      selectedProductId={field.value}
+                      onSelectProduct={field.onChange}
+                      disabled={loadingProducts}
+                      placeholder="Pilih produk untuk permintaan pembelian"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="item_name"
+              render={({ field }) => (
+                <FormItem>
                   <FormLabel>Nama Item</FormLabel>
                   <FormControl>
-                    <StockItemCombobox // Still using StockItemCombobox, but it will now handle Product type
-                      name={field.name}
-                      items={products} // Changed from stockItems
-                      selectedItemId={form.watch("selected_product_id")} // Pass the selected ID
-                      onSelectItemId={handleProductSelect} // Handle ID selection
-                      inputValue={field.value} // Pass the current item_name as input text
-                      onInputValueChange={handleProductInputChange} // Handle input text changes
-                      disabled={loadingProducts} // Changed from loadingStockItems
-                      placeholder={loadingProducts ? "Memuat produk..." : "Pilih produk yang sudah ada atau ketik baru..."} // Changed message
-                    />
+                    <Input {...field} readOnly className="bg-gray-100" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -251,46 +253,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                 <FormItem>
                   <FormLabel>Kode Item</FormLabel>
                   <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kuantitas</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="unit_price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Harga Beli per Unit</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="suggested_selling_price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Harga Jual yang Disarankan per Unit</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input {...field} readOnly className="bg-gray-100" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -303,7 +266,76 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                 <FormItem>
                   <FormLabel>Satuan</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} readOnly className="bg-gray-100" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kuantitas</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                      min="1"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="unit_price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Harga Satuan (Beli)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      min="0"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="suggested_selling_price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Harga Jual Disarankan</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                      min="0"
+                      readOnly
+                      className="bg-gray-100"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="total_price"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total Harga</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} readOnly className="bg-gray-100" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -314,22 +346,55 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
               name="supplier_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Pemasok (Opsional)</FormLabel>
-                  <FormControl>
-                    <SupplierCombobox
-                      name={field.name}
-                      suppliers={suppliers}
-                      value={field.value}
-                      inputValue={form.watch("supplier_name_input") || ""}
-                      onInputValueChange={(val) => form.setValue("supplier_name_input", val)}
-                      onValueChange={(selectedSupplier) => {
-                        form.setValue("supplier_id", selectedSupplier ? selectedSupplier.id : "");
-                        form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
-                      }}
-                      disabled={loadingSuppliers}
-                      placeholder={loadingSuppliers ? "Memuat pemasok..." : "Cari pemasok..."}
-                    />
-                  </FormControl>
+                  <FormLabel>Supplier</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingSuppliers}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih supplier" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {loadingSuppliers ? (
+                        <SelectItem value="loading" disabled>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
+                        </SelectItem>
+                      ) : suppliers.length === 0 ? (
+                        <SelectItem value="no-suppliers" disabled>
+                          Tidak ada supplier tersedia
+                        </SelectItem>
+                      ) : (
+                        suppliers.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="target_warehouse_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Gudang Tujuan</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori gudang tujuan" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(WarehouseCategory).map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {getCategoryDisplay(category)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -338,24 +403,24 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
               control={form.control}
               name="notes"
               render={({ field }) => (
-                <FormItem className="md:col-span-2">
+                <FormItem>
                   <FormLabel>Catatan (Opsional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Tambahkan catatan tambahan untuk pengajuan ini..." {...field} />
+                    <Textarea {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
+            <DialogFooter>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Ajukan Pembelian"
+                  "Kirim Permintaan"
                 )}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

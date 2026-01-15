@@ -1,271 +1,198 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Product, StockTransactionWithItemName, WarehouseInventory } from "@/types/data";
+import { Product, StockTransactionWithItemName, WarehouseInventory, WarehouseCategory, TransactionType } from "@/types/data";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 import { showError } from "@/utils/toast";
-import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import { Loader2, Eye } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import ViewNotesDialog from "@/components/ViewNotesDialog";
 
-interface ViewProductDetailsDialogProps {
+interface ViewStockItemDetailsDialogProps {
   product: Product;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({
+const getCategoryDisplay = (category: WarehouseCategory) => {
+  switch (category) {
+    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
+    case WarehouseCategory.RISET: return "Riset";
+    case WarehouseCategory.RETUR: return "Retur";
+    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
+    default: return category;
+  }
+};
+
+const getTransactionTypeDisplay = (type: TransactionType) => {
+  switch (type) {
+    case TransactionType.INITIAL: return "Stok Awal";
+    case TransactionType.IN: return "Masuk";
+    case TransactionType.OUT: return "Keluar";
+    default: return type;
+  }
+};
+
+const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
   product,
   isOpen,
   onOpenChange,
 }) => {
-  const [transactions, setTransactions] = useState<StockTransactionWithItemName[]>([]);
-  const [loadingTransactions, setLoadingTransactions] = useState(true);
-  const [transactionsError, setTransactionsError] = useState<string | null>(null);
-  const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
-  const [loadingInventories, setLoadingInventories] = useState(true);
+  const { data: inventories, isLoading: loadingInventories, error: inventoriesError } = useQuery<WarehouseInventory[], Error>({
+    queryKey: ["productInventories", product.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_inventories")
+        .select("*")
+        .eq("product_id", product.id);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isOpen,
+  });
 
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
-  const [notesToView, setNotesToView] = useState<string>("");
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5; // Fewer items per page for a dialog
-
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi' | string) => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return String(category || "-");
-    }
-  };
-
-  const fetchInventories = useCallback(async () => {
-    if (!product?.id) return;
-    setLoadingInventories(true);
-    const { data, error } = await supabase
-      .from("warehouse_inventories")
-      .select("*")
-      .eq("product_id", product.id);
-
-    if (error) {
-      showError("Gagal memuat inventaris item.");
-      console.error("Error fetching warehouse inventories:", error);
-      setCurrentInventories([]);
-    } else {
-      setCurrentInventories(data as WarehouseInventory[]);
-    }
-    setLoadingInventories(false);
-  }, [product?.id]);
-
-  const fetchStockTransactions = useCallback(async () => {
-    if (!product?.id) return;
-
-    setLoadingTransactions(true);
-    setTransactionsError(null);
-    try {
+  const { data: transactions, isLoading: loadingTransactions, error: transactionsError } = useQuery<StockTransactionWithItemName[], Error>({
+    queryKey: ["productTransactions", product.id],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("stock_transactions")
         .select(`
-          id,
-          transaction_type,
-          quantity,
-          notes,
-          transaction_date,
-          created_at,
-          warehouse_category,
-          products (
-            nama_barang,
-            kode_barang
-          )
+          *,
+          products (nama_barang, kode_barang)
         `)
         .eq("product_id", product.id)
         .order("created_at", { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
-        ...item,
-        products: item.products ? [item.products] : null,
+      if (error) throw error;
+      return data.map(t => ({
+        ...t,
+        product_name: t.products?.nama_barang || "N/A",
+        product_code: t.products?.kode_barang || "N/A",
       }));
+    },
+    enabled: isOpen,
+  });
 
-      setTransactions(processedData);
-      setCurrentPage(1); // Reset to first page on new data fetch
-    } catch (err: any) {
-      setTransactionsError(`Gagal memuat riwayat transaksi: ${err.message}`);
-      console.error("Error fetching product transactions:", err);
-      setTransactions([]);
-    } finally {
-      setLoadingTransactions(false);
-    }
-  }, [product?.id]);
+  if (loadingInventories || loadingTransactions) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Detail Produk Stok</DialogTitle>
+            <DialogDescription>Memuat detail produk...</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchInventories();
-      fetchStockTransactions();
-    } else {
-      setTransactions([]); // Clear transactions when dialog closes
-      setTransactionsError(null);
-      setCurrentInventories([]);
-    }
-  }, [isOpen, fetchInventories, fetchStockTransactions]);
+  if (inventoriesError || transactionsError) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Detail Produk Stok</DialogTitle>
+            <DialogDescription>Terjadi kesalahan saat memuat detail produk.</DialogDescription>
+          </DialogHeader>
+          <div className="text-red-500">Error: {inventoriesError?.message || transactionsError?.message}</div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-  const getTransactionTypeDisplay = (type: string) => {
-    switch (type) {
-      case "initial": return "Stok Awal";
-      case "in": return "Stok Masuk";
-      case "out": return "Stok Keluar";
-      case "return": return "Retur Barang";
-      case "damage_loss": return "Rusak/Hilang";
-      case "adjustment": return "Penyesuaian Stok";
-      default: return type;
-    }
-  };
-
-  const getTransactionTypeColor = (type: string) => {
-    switch (type) {
-      case "in":
-      case "initial":
-      case "return":
-        return "bg-green-100 text-green-800";
-      case "out":
-      case "damage_loss":
-        return "bg-red-100 text-red-800";
-      case "adjustment":
-        return "bg-purple-100 text-purple-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const handleViewNotes = (notes: string) => {
-    setNotesToView(notes);
-    setIsViewNotesOpen(true);
-  };
-
-  const totalPages = Math.ceil(transactions.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = transactions.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  if (!product) return null;
-
-  const totalStockAkhir = currentInventories.reduce((sum, inv) => sum + inv.quantity, 0);
-  const isLowStock = totalStockAkhir < (product.safe_stock_limit || 10);
+  const totalStock = inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Produk: {product.nama_barang}</DialogTitle>
-          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription>
+          <DialogTitle>Detail Produk Stok: {product.nama_barang}</DialogTitle>
+          <DialogDescription>Informasi lengkap mengenai produk stok ini.</DialogDescription>
         </DialogHeader>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
             <p><strong>Kode Barang:</strong> {product.kode_barang}</p>
             <p><strong>Nama Barang:</strong> {product.nama_barang}</p>
             <p><strong>Satuan:</strong> {product.satuan || "-"}</p>
-            <p><strong>Batas Stok Aman:</strong> {product.safe_stock_limit || 0}</p>
+            <p><strong>Harga Beli:</strong> Rp {product.harga_beli.toLocaleString('id-ID')}</p>
+            <p><strong>Harga Jual:</strong> Rp {product.harga_jual.toLocaleString('id-ID')}</p>
+            <p><strong>Batas Stok Aman:</strong> {product.safe_stock_limit}</p>
+            <p><strong>Total Stok:</strong> {totalStock}</p>
           </div>
-          <div>
-            <p><strong>Harga Beli:</strong> {product.harga_beli.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Harga Jual:</strong> {product.harga_jual.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Total Stok Akhir:</strong> <span className={isLowStock ? "font-bold text-red-600 dark:text-red-400" : ""}>{totalStockAkhir}</span></p>
-            <p className="mt-2"><strong>Stok per Kategori:</strong></p>
-            {loadingInventories ? (
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
-            ) : currentInventories.length > 0 ? (
-              <ul className="list-disc list-inside ml-4">
-                {currentInventories.map(inv => (
-                  <li key={inv.warehouse_category}>
-                    {getCategoryDisplay(inv.warehouse_category)}: {inv.quantity}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="ml-4 text-gray-600 dark:text-gray-400">Tidak ada inventaris di kategori manapun.</p>
-            )}
+
+          <h3 className="text-lg font-semibold mt-4 mb-2">Inventaris Gudang</h3>
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Kategori Gudang</TableHead>
+                  <TableHead className="text-right">Kuantitas</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {inventories?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center text-muted-foreground">
+                      Tidak ada inventaris gudang.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  inventories?.map((inv) => (
+                    <TableRow key={inv.id}>
+                      <TableCell>{getCategoryDisplay(inv.warehouse_category)}</TableCell>
+                      <TableCell className="text-right">{inv.quantity}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <h3 className="text-lg font-semibold mt-4 mb-2">Riwayat Transaksi Stok</h3>
+          <div className="overflow-x-auto rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead>Tipe Transaksi</TableHead>
+                  <TableHead>Kategori Gudang</TableHead>
+                  <TableHead className="text-right">Kuantitas</TableHead>
+                  <TableHead>Catatan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      Tidak ada riwayat transaksi stok.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  transactions?.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell>{format(new Date(t.transaction_date), "dd-MM-yyyy")}</TableCell>
+                      <TableCell>{getTransactionTypeDisplay(t.transaction_type)}</TableCell>
+                      <TableCell>{t.warehouse_category ? getCategoryDisplay(t.warehouse_category) : "-"}</TableCell>
+                      <TableCell className="text-right">{t.quantity}</TableCell>
+                      <TableCell className="max-w-[200px] truncate">{t.notes || "-"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
         </div>
-
-        <h3 className="text-lg font-semibold mt-6 mb-2">Riwayat Transaksi Stok</h3>
-        {loadingTransactions ? (
-          <div className="flex justify-center items-center h-24">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : transactionsError ? (
-          <p className="text-red-500 dark:text-red-400">{transactionsError}</p>
-        ) : transactions.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tanggal Transaksi</TableHead>
-                    <TableHead>Waktu Dibuat</TableHead>
-                    <TableHead>Tipe Transaksi</TableHead>
-                    <TableHead>Kategori Gudang</TableHead>
-                    <TableHead className="text-right">Kuantitas</TableHead>
-                    <TableHead>Catatan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentItems.map((transaction) => (
-                    <TableRow key={transaction.id}>
-                      <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
-                      <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
-                          {getTransactionTypeDisplay(transaction.transaction_type)}
-                        </span>
-                      </TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell>
-                      <TableCell className="text-right">{transaction.quantity}</TableCell>
-                      <TableCell>
-                        {transaction.notes ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(transaction.notes!)} className="h-7 px-2">
-                            <Eye className="h-3 w-3 mr-1" /> Lihat
-                          </Button>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            )}
-          </>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat transaksi untuk item ini.</p>
-        )}
       </DialogContent>
-
-      <ViewNotesDialog
-        notes={notesToView}
-        isOpen={isViewNotesOpen}
-        onOpenChange={setIsViewNotesOpen}
-      />
     </Dialog>
   );
 };

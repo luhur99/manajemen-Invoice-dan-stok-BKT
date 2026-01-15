@@ -1,16 +1,144 @@
+// src/types/data.ts
+
+export enum WarehouseCategory {
+  SIAP_JUAL = "siap_jual",
+  RISET = "riset",
+  RETUR = "retur",
+  BACKUP_TEKNISI = "backup_teknisi",
+}
+
+export enum TransactionType {
+  INITIAL = "initial",
+  IN = "in",
+  OUT = "out",
+}
+
+export enum StockMovementType {
+  TRANSFER = "transfer",
+  ADJUSTMENT = "adjustment",
+}
+
+export enum SchedulingRequestType {
+  INSTALLATION = "installation",
+  MAINTENANCE = "maintenance",
+  SURVEY = "survey",
+}
+
+export enum SchedulingRequestStatus {
+  PENDING = "pending",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+}
+
+export enum DeliveryOrderStatus {
+  PENDING = "pending",
+  IN_TRANSIT = "in_transit",
+  DELIVERED = "delivered",
+  CANCELLED = "cancelled",
+}
+
+export enum PurchaseRequestStatus {
+  PENDING = "pending",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  WAITING_FOR_RECEIPT = "waiting_for_receipt",
+  CLOSED = "closed",
+}
+
+// New enums for Invoice and Schedule
+export enum InvoicePaymentStatus {
+  PENDING = "pending",
+  PAID = "paid",
+  OVERDUE = "overdue",
+}
+
+export enum InvoiceType {
+  INSTALASI = "instalasi",
+  KIRIM_BARANG = "kirim barang",
+}
+
+export enum CustomerType {
+  LAMA = "lama",
+  BARU = "baru",
+}
+
+export enum ScheduleType {
+  INSTALASI = "instalasi",
+  KIRIM = "kirim",
+}
+
+export enum ScheduleStatus {
+  SCHEDULED = "scheduled",
+  IN_PROGRESS = "in progress",
+  COMPLETED = "completed",
+  CANCELLED = "cancelled",
+}
+
+export interface Product {
+  id: string;
+  user_id: string;
+  kode_barang: string;
+  nama_barang: string;
+  satuan?: string;
+  harga_beli: number;
+  harga_jual: number;
+  safe_stock_limit?: number;
+  created_at: string;
+  supplier_id?: string;
+  inventories?: WarehouseInventory[]; // Added for StockItemCombobox and StockPage
+}
+
 export interface WarehouseInventory {
-  id?: string;
-  product_id: string; // Foreign key to Product
-  warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
+  id: string;
+  product_id: string;
+  warehouse_category: WarehouseCategory;
   quantity: number;
   user_id: string;
-  created_at?: string;
-  updated_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StockTransaction {
+  id: string;
+  user_id: string;
+  product_id: string;
+  transaction_type: TransactionType;
+  quantity: number;
+  notes?: string;
+  transaction_date: string;
+  created_at: string;
+  warehouse_category?: WarehouseCategory;
+}
+
+// New interface for StockTransaction with product name
+export interface StockTransactionWithItemName extends StockTransaction {
+  product_name: string;
+  product_code: string;
+}
+
+export interface StockMovement {
+  id: string;
+  user_id: string;
+  product_id: string;
+  from_category: WarehouseCategory;
+  to_category: WarehouseCategory;
+  quantity: number;
+  reason?: string;
+  movement_date: string;
+  created_at: string;
+}
+
+// New interface for StockMovement with product name
+export interface StockMovementWithItemName extends StockMovement {
+  product_name: string;
+  product_code: string;
 }
 
 export interface Supplier {
   id: string;
-  user_id: string;
+  user_id?: string;
   name: string;
   contact_person?: string;
   phone_number?: string;
@@ -18,153 +146,12 @@ export interface Supplier {
   address?: string;
   notes?: string;
   created_at: string;
-  updated_at?: string;
-  no?: number; // New: Sequential number for display
+  updated_at: string;
 }
 
-export interface Product {
-  id: string; // Changed from id?: string; to make it required
-  user_id?: string;
-  kode_barang: string;
-  nama_barang: string;
-  satuan: string;
-  harga_beli: number;
-  harga_jual: number;
-  safe_stock_limit?: number;
-  created_at?: string;
-  supplier_id?: string;
-  supplier_name?: string;
-  inventories?: WarehouseInventory[];
-}
-
-export interface StockTransaction {
-  id: string;
-  user_id: string;
-  product_id: string; // Renamed from stock_item_id to product_id
-  transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment';
-  quantity: number;
-  notes?: string;
-  transaction_date: string; // ISO date string
-  created_at: string;
-  warehouse_category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi'; // New: Category affected by transaction
-}
-
-// New interface for Stock Transaction with Item Name for display
-export interface StockTransactionWithItemName extends StockTransaction {
-  products: { // Changed from stock_items
-    nama_barang: string;
-    kode_barang: string;
-  }[] | null;
-}
-
-// New interface for Stock Movement
-export interface StockMovement {
-  id: string;
-  user_id: string;
-  product_id: string; // Renamed from stock_item_id to product_id
-  from_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
-  to_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
-  quantity: number;
-  reason?: string;
-  movement_date: string; // YYYY-MM-DD
-  created_at: string;
-}
-
-// New interface for Stock Movement with Item Name for display
-export interface StockMovementWithItemName extends StockMovement {
-  products: { // Changed from stock_items
-    nama_barang: string;
-    kode_barang: string;
-  }[] | null;
-}
-
-export interface SalesDetailItem {
-  id?: string; // New: UUID from Supabase
-  user_id?: string; // New: User ID for RLS
-  no: number;
-  kirim_install: string; // Changed from "Kirim/Install"
-  no_transaksi: string; // Changed from "No Transaksi"
-  invoice_number: string; // Changed from "Invoice"
-  new_old?: string; // Changed from "New/Old"
-  perusahaan?: string; // Changed from "Perusahaan"
-  tanggal: string; // Assuming date as string "yyyy-mm-dd"
-  hari?: string; // Changed from "Hari"
-  jam?: string; // Changed from "Jam"
-  customer: string; // Changed from "Customer"
-  alamat_install?: string; // Changed from "Alamat install"
-  no_hp?: string; // Changed from "No HP"
-  type?: string; // Changed from "Type"
-  qty_unit?: number; // Changed from "Qty unit"
-  stock?: number; // Changed from "Stock"
-  harga?: number; // Changed from "Harga"
-  web?: string; // Changed from "WEB"
-  qty_web?: number; // Changed from "Qty Web"
-  kartu?: string; // Changed from "Kartu"
-  qty_kartu?: number; // Changed from "Qty kartu"
-  paket?: string; // Changed from "Paket"
-  pulsa?: number; // Changed from "Pulsa"
-  teknisi?: string; // Changed from "Teknisi"
-  payment?: string; // Changed from "Payment"
-  catatan?: string; // Changed from "Catatan"
-  invoice_file_url?: string; // This will still be fetched from sales_invoices table
-  created_at?: string;
-}
-
-// New interfaces for Invoice Management
-export interface InvoiceItem {
-  id?: string; // Optional for new items
-  invoice_id?: string; // Optional for new items
-  user_id?: string; // Optional for new items, will be set by backend
-  item_name: string;
-  item_code?: string; // New field for item code
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  unit_type?: string; // New field for unit type
-  created_at?: string;
-  product_id?: string; // New: Foreign key to products table
-}
-
-export interface Invoice {
-  id: string;
-  user_id: string;
-  invoice_number: string;
-  invoice_date: string; // YYYY-MM-DD
-  due_date?: string; // YYYY-MM-DD
-  customer_name: string;
-  company_name?: string;
-  total_amount: number;
-  payment_status: 'pending' | 'paid' | 'overdue';
-  type?: 'instalasi' | 'kirim barang'; // New field
-  customer_type?: 'lama' | 'baru'; // New field
-  payment_method?: string; // New field
-  notes?: string; // New field
-  created_at: string;
-  items?: InvoiceItem[]; // For displaying joined items
-  item_names_summary?: string; // New: Summary of item names for table display
-  document_url?: string; // New: URL for the uploaded invoice document
-  no?: number; // New: Sequential number for display
-  courier_service?: string; // New: Jasa Kurir field
-}
-
-export interface Schedule {
-  id: string;
-  user_id: string;
-  schedule_date: string; // YYYY-MM-DD
-  schedule_time?: string;
-  type: 'instalasi' | 'kirim';
-  customer_name: string;
-  address?: string;
-  technician_name?: string;
-  invoice_id?: string; // UUID of related invoice
-  invoice_number?: string; // New: Invoice number from related invoice
-  status: 'scheduled' | 'in progress' | 'completed' | 'cancelled';
-  notes?: string;
-  created_at: string;
-  phone_number?: string; // New field for phone number
-  courier_service?: string; // New field for courier service
-  document_url?: string; // New field for delivery/installation document
-  no?: number; // New: Sequential number for display
+// New interface for Supplier with 'no' property
+export interface SupplierWithDetails extends Supplier {
+  no?: number;
 }
 
 export interface Profile {
@@ -174,25 +161,173 @@ export interface Profile {
   avatar_url?: string;
   phone_number?: string;
   updated_at?: string;
-  role?: string;
+  role: string;
 }
 
-// New interface for PurchaseRequest
 export interface PurchaseRequest {
   id: string;
-  user_id: string;
+  user_id?: string;
   item_name: string;
   item_code: string;
   quantity: number;
-  unit_price: number; // This will be the purchase price (harga_beli)
-  suggested_selling_price: number; // This will be the suggested selling price (harga_jual)
+  unit_price: number;
+  suggested_selling_price: number;
   total_price: number;
-  supplier_id?: string; // Changed from supplier (TEXT) to supplier_id (UUID)
-  supplier_name?: string; // For displaying supplier name
   notes?: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: PurchaseRequestStatus;
   created_at: string;
-  no?: number; // For display purposes
-  satuan?: string; // Added satuan field
-  product_id?: string; // New: Foreign key to products table
+  document_url?: string;
+  received_quantity?: number;
+  returned_quantity?: number;
+  damaged_quantity?: number;
+  target_warehouse_category?: WarehouseCategory;
+  received_notes?: string;
+  received_at?: string;
+  product_id?: string;
+  supplier_id?: string;
+  satuan?: string;
+}
+
+// New interface for PurchaseRequest with supplier name and 'no'
+export interface PurchaseRequestWithDetails extends PurchaseRequest {
+  supplier_name?: string;
+  no?: number;
+}
+
+export interface SchedulingRequest {
+  id: string;
+  user_id?: string;
+  customer_name: string;
+  company_name?: string;
+  type: SchedulingRequestType;
+  vehicle_units?: number;
+  vehicle_type?: string;
+  vehicle_year?: number;
+  full_address: string;
+  landmark?: string;
+  requested_date: string;
+  requested_time?: string;
+  contact_person: string;
+  phone_number: string;
+  customer_type?: string;
+  payment_method?: string;
+  status: SchedulingRequestStatus;
+  notes?: string;
+  created_at: string;
+}
+
+export interface Schedule {
+  id: string;
+  user_id?: string;
+  schedule_date: string;
+  schedule_time?: string;
+  type: ScheduleType; // Using new enum
+  customer_name: string;
+  address?: string;
+  technician_name?: string;
+  invoice_id?: string;
+  status: ScheduleStatus; // Using new enum
+  notes?: string;
+  created_at: string;
+  phone_number?: string;
+  courier_service?: string;
+  document_url?: string;
+  scheduling_request_id?: string;
+}
+
+// New interface for Schedule with invoice number and 'no'
+export interface ScheduleWithDetails extends Schedule {
+  invoice_number?: string;
+  no?: number;
+}
+
+export interface Invoice {
+  id: string;
+  user_id?: string;
+  invoice_number: string;
+  invoice_date: string;
+  due_date?: string;
+  customer_name: string;
+  company_name?: string;
+  total_amount: number;
+  payment_status: InvoicePaymentStatus; // Using new enum
+  created_at: string;
+  type?: InvoiceType; // Using new enum
+  customer_type?: CustomerType; // Using new enum
+  payment_method?: string;
+  notes?: string;
+  document_url?: string;
+  courier_service?: string;
+}
+
+// New interface for Invoice with item names summary and 'no'
+export interface InvoiceWithDetails extends Invoice {
+  item_names_summary?: string;
+  no?: number;
+  schedule_status_display?: string;
+}
+
+export interface InvoiceItem {
+  id: string;
+  invoice_id?: string;
+  user_id?: string;
+  item_name: string;
+  item_code?: string; // Added for ViewInvoiceDetailsDialog
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at: string; // Added for EditInvoiceForm
+  unit_type?: string;
+  product_id?: string;
+}
+
+export interface DeliveryOrder {
+  id: string;
+  request_id?: string;
+  user_id?: string;
+  do_number: string;
+  items_json?: any; // Consider defining a more specific type for items
+  delivery_date: string;
+  delivery_time?: string;
+  status: DeliveryOrderStatus;
+  notes?: string;
+  created_at: string;
+}
+
+export interface SalesInvoice {
+  id: string;
+  no_transaksi: string;
+  invoice_file_url?: string;
+  created_at: string;
+}
+
+export interface SalesDetail {
+  id: string;
+  user_id?: string;
+  no: number;
+  kirim_install: string;
+  no_transaksi: string;
+  invoice_number: string;
+  new_old?: string;
+  perusahaan?: string;
+  tanggal: string;
+  hari?: string;
+  jam?: string;
+  customer: string;
+  alamat_install?: string;
+  no_hp?: string;
+  type?: string;
+  qty_unit?: number;
+  stock?: number;
+  harga?: number;
+  web?: string;
+  qty_web?: number;
+  kartu?: string;
+  qty_kartu?: number;
+  paket?: string;
+  pulsa?: number;
+  teknisi?: string;
+  payment?: string;
+  catatan?: string;
+  created_at: string;
 }

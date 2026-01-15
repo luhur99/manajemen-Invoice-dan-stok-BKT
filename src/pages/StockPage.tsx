@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, ArrowUp, ArrowDown, Eye, ArrowRightLeft } from "lucide-react"; // Added ArrowRightLeft icon
+import { Loader2, PlusCircle, Edit, Trash2, ArrowUp, ArrowDown, Eye, ArrowRightLeft } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
@@ -16,20 +16,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
-import StockMovementForm from "@/components/StockMovementForm"; // Import StockMovementForm
-import { Product as ProductType, WarehouseInventory } from "@/types/data";
+import StockMovementForm from "@/components/StockMovementForm";
+import { Product as ProductType, WarehouseInventory, WarehouseCategory } from "@/types/data";
 
 interface ProductWithDetails extends ProductType {
   current_stock?: number;
   inventories?: WarehouseInventory[];
 }
 
-const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
+const getCategoryDisplay = (category?: WarehouseCategory) => {
   switch (category) {
-    case "siap_jual": return "Siap Jual";
-    case "riset": return "Riset";
-    case "retur": return "Retur";
-    case "backup_teknisi": return "Backup Teknisi";
+    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
+    case WarehouseCategory.RISET: return "Riset";
+    case WarehouseCategory.RETUR: return "Retur";
+    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
     default: return "-";
   }
 };
@@ -45,8 +45,8 @@ const StockPage = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null);
 
-  const [isMovementFormOpen, setIsMovementFormOpen] = React.useState(false); // New state for movement form
-  const [productForMovement, setProductForMovement] = React.useState<ProductWithDetails | null>(null); // New state for product in movement form
+  const [isMovementFormOpen, setIsMovementFormOpen] = React.useState(false);
+  const [productForMovement, setProductForMovement] = React.useState<ProductWithDetails | null>(null);
 
   const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
     queryKey: ["products"],
@@ -104,7 +104,7 @@ const StockPage = () => {
     setIsViewDetailsOpen(true);
   };
 
-  const handleOpenMovementForm = (product: ProductWithDetails) => { // New handler
+  const handleOpenMovementForm = (product: ProductWithDetails) => {
     setProductForMovement(product);
     setIsMovementFormOpen(true);
   };
@@ -158,7 +158,7 @@ const StockPage = () => {
   );
 
   const formatInventories = (inventories?: WarehouseInventory[]) => {
-    const allCategories: ('siap_jual' | 'riset' | 'retur' | 'backup_teknisi')[] = ["siap_jual", "riset", "retur", "backup_teknisi"];
+    const allCategories: WarehouseCategory[] = Object.values(WarehouseCategory); // Use Object.values for enum
     const inventoryMap = new Map(inventories?.map(inv => [inv.warehouse_category, inv.quantity]) || []);
 
     const formatted = allCategories.map(category => {
@@ -231,7 +231,7 @@ const StockPage = () => {
                   <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(product)} title="Hapus Produk">
                     <Trash2 className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok"> {/* New button */}
+                  <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok">
                     <ArrowRightLeft className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, "out")} title="Stok Keluar">

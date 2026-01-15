@@ -1,10 +1,18 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -14,85 +22,66 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
+import { CalendarIcon, PlusCircle, Trash2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { showSuccess, showError } from "@/utils/toast";
-import { Product } from "@/types/data"; // Changed from StockItem
-import StockItemCombobox from "@/components/StockItemCombobox"; // Still using StockItemCombobox, but it will now handle Product type
-
-// Schema validasi menggunakan Zod
-const invoiceItemSchema = z.object({
-  item_name: z.string().min(1, "Nama Item wajib diisi"),
-  item_code: z.string().optional(), // New field for item code
-  quantity: z.coerce.number().min(1, "Kuantitas minimal 1"),
-  unit_price: z.coerce.number().min(0, "Harga Satuan tidak boleh negatif"),
-  unit_type: z.string().optional(), // New field for unit type
-  selected_product_id: z.string().uuid().optional().or(z.literal("")), // Changed from selected_stock_item_id
-});
+import { showError, showSuccess } from "@/utils/toast";
+import {
+  Product,
+  InvoicePaymentStatus,
+  InvoiceType,
+  CustomerType,
+  WarehouseInventory,
+} from "@/types/data";
+import StockItemCombobox from "./StockItemCombobox";
 
 const formSchema = z.object({
-  invoice_number: z.string().min(1, "Nomor Invoice wajib diisi"),
-  invoice_date: z.date({ required_error: "Tanggal Invoice wajib diisi" }),
+  invoice_number: z.string().min(1, "Nomor Invoice harus diisi."),
+  invoice_date: z.date({ required_error: "Tanggal Invoice harus diisi." }),
   due_date: z.date().optional(),
-  customer_name: z.string().min(1, "Nama Konsumen wajib diisi"),
+  customer_name: z.string().min(1, "Nama Pelanggan harus diisi."),
   company_name: z.string().optional(),
-  payment_status: z.enum(["pending", "paid", "overdue"], {
-    required_error: "Status Pembayaran wajib dipilih",
-  }),
-  type: z.enum(["instalasi", "kirim barang"], {
-    required_error: "Tipe wajib dipilih",
-  }),
-  customer_type: z.enum(["lama", "baru"], {
-    required_error: "Tipe Konsumen wajib dipilih",
-  }),
-  payment_method: z.string().min(1, "Metode Pembayaran wajib diisi"),
+  total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
+  payment_status: z.nativeEnum(InvoicePaymentStatus),
+  type: z.nativeEnum(InvoiceType).optional(),
+  customer_type: z.nativeEnum(CustomerType).optional(),
+  payment_method: z.string().optional(),
   notes: z.string().optional(),
-  courier_service: z.string().optional(), // New field for courier service
-  items: z.array(invoiceItemSchema).min(1, "Minimal satu item invoice diperlukan"),
+  courier_service: z.string().optional(),
+  items: z.array(
+    z.object({
+      selected_product_id: z.string().min(1, "Produk harus dipilih."),
+      item_name: z.string().min(1, "Nama Item harus diisi."),
+      item_code: z.string().optional(),
+      quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
+      unit_price: z.number().min(0, "Harga Satuan tidak boleh negatif."),
+      subtotal: z.number().min(0, "Subtotal tidak boleh negatif."),
+      unit_type: z.string().optional(),
+    })
+  ).min(1, "Setidaknya satu item harus ditambahkan."),
 });
 
 interface AddInvoiceFormProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
-// Function to generate invoice number
-const generateInvoiceNumber = () => {
-  const now = new Date();
-  const year = format(now, "yy"); // Two-digit year
-  const month = format(now, "MM");
-  const day = format(now, "dd");
-  const hours = format(now, "HH");
-  const minutes = format(now, "mm");
-
-  // Format: INV-[YYMMDD][HHMM]
-  return `INV-${year}${month}${day}${hours}${minutes}`;
-};
-
-const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]); // Changed from stockItems
-  const [loadingProducts, setLoadingProducts] = useState(true); // Changed from loadingStockItems
-
+const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      invoice_number: generateInvoiceNumber(),
+      invoice_number: "",
+      invoice_date: new Date(),
       customer_name: "",
-      company_name: "",
-      payment_status: "pending",
-      type: undefined,
-      customer_type: undefined,
-      payment_method: "",
-      notes: "",
-      courier_service: "", // Initialize new field
-      items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_product_id: "" }], // Changed from selected_stock_item_id
+      total_amount: 0,
+      payment_status: InvoicePaymentStatus.PENDING,
+      items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
     },
   });
 
@@ -101,136 +90,177 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
     name: "items",
   });
 
-  useEffect(() => {
-    const fetchProducts = async () => { // Changed from fetchStockItems
-      setLoadingProducts(true); // Changed from setLoadingStockItems
+  const [products, setProducts] = React.useState<Product[]>([]);
+  const [loadingProducts, setLoadingProducts] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchProducts = async () => {
+      setLoadingProducts(true);
       const { data, error } = await supabase
-        .from("products") // Changed from stock_items
-        .select("id, kode_barang, nama_barang, harga_jual, satuan, warehouse_inventories(warehouse_category, quantity)"); // Fetch inventories
+        .from("products")
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          supplier_id,
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
+        `);
 
       if (error) {
-        showError("Gagal memuat daftar produk."); // Changed message
-        console.error("Error fetching products:", error); // Changed message
+        showError("Gagal memuat daftar produk.");
+        console.error("Error fetching products:", error);
       } else {
-        setProducts(data.map(item => ({ // Changed from setStockItems
+        setProducts(data.map(item => ({
           id: item.id,
+          user_id: item.user_id, // Ensure user_id is included
+          created_at: item.created_at, // Ensure created_at is included
           kode_barang: item.kode_barang,
           nama_barang: item.nama_barang,
           harga_jual: item.harga_jual,
-          satuan: item.satuan || "",
-          inventories: item.warehouse_inventories || [], // Assign inventories
-          // Default values for other Product fields not used here
-          harga_beli: 0, safe_stock_limit: 0,
-        })) as Product[]); // Changed from StockItem[]
+          harga_beli: item.harga_beli,
+          satuan: item.satuan,
+          safe_stock_limit: item.safe_stock_limit,
+          supplier_id: item.supplier_id,
+          inventories: item.warehouse_inventories as WarehouseInventory[],
+        })));
       }
-      setLoadingProducts(false); // Changed from setLoadingStockItems
+      setLoadingProducts(false);
     };
 
-    fetchProducts(); // Changed from fetchStockItems
+    fetchProducts();
   }, []);
 
-  const totalAmount = useMemo(() => {
-    return fields.reduce((sum, item, index) => {
-      const quantity = form.watch(`items.${index}.quantity`);
-      const unit_price = form.watch(`items.${index}.unit_price`);
-      return sum + (quantity || 0) * (unit_price || 0);
-    }, 0);
-  }, [fields, form.watch]);
+  const calculateTotalAmount = React.useCallback(() => {
+    const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
+    form.setValue("total_amount", total);
+  }, [fields, form]);
 
-  const invoiceType = form.watch("type"); // Watch the type field for conditional rendering
+  React.useEffect(() => {
+    calculateTotalAmount();
+  }, [fields, calculateTotalAmount]);
+
+  const handleProductSelect = (index: number, productId: string | undefined) => {
+    const selectedProduct = products.find(p => p.id === productId);
+    if (selectedProduct) {
+      update(index, {
+        ...fields[index],
+        selected_product_id: selectedProduct.id,
+        item_name: selectedProduct.nama_barang,
+        item_code: selectedProduct.kode_barang,
+        unit_price: selectedProduct.harga_jual,
+        unit_type: selectedProduct.satuan,
+        subtotal: selectedProduct.harga_jual * fields[index].quantity,
+      });
+    } else {
+      update(index, {
+        ...fields[index],
+        selected_product_id: undefined,
+        item_name: "",
+        item_code: "",
+        unit_price: 0,
+        unit_type: "",
+        subtotal: 0,
+      });
+    }
+  };
+
+  const handleQuantityChange = (index: number, value: number) => {
+    const unitPrice = fields[index].unit_price;
+    update(index, {
+      ...fields[index],
+      quantity: value,
+      subtotal: value * unitPrice,
+    });
+  };
+
+  const handleUnitPriceChange = (index: number, value: number) => {
+    const quantity = fields[index].quantity;
+    update(index, {
+      ...fields[index],
+      unit_price: value,
+      subtotal: value * quantity,
+    });
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
+    if (!user.data.user) {
+      showError("Anda harus login untuk membuat invoice.");
       return;
     }
 
     try {
-      // Insert invoice
       const { data: invoiceData, error: invoiceError } = await supabase
         .from("invoices")
         .insert({
-          user_id: userId,
+          user_id: user.data.user.id,
           invoice_number: values.invoice_number,
           invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
           due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
           company_name: values.company_name,
-          total_amount: totalAmount,
+          total_amount: values.total_amount,
           payment_status: values.payment_status,
           type: values.type,
           customer_type: values.customer_type,
           payment_method: values.payment_method,
           notes: values.notes,
-          courier_service: values.courier_service || null, // Save new field
+          courier_service: values.courier_service,
         })
-        .select("id")
+        .select()
         .single();
 
-      if (invoiceError) {
-        throw invoiceError;
-      }
+      if (invoiceError) throw invoiceError;
 
-      // Insert invoice items
-      const itemsToInsert = values.items.map((item) => ({
+      const invoiceItems = values.items.map(item => ({
         invoice_id: invoiceData.id,
-        user_id: userId,
+        user_id: user.data.user?.id,
+        product_id: item.selected_product_id,
         item_name: item.item_name,
-        item_code: item.item_code || null, // Save item_code
+        item_code: item.item_code,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        subtotal: item.quantity * item.unit_price,
-        unit_type: item.unit_type || null, // Save unit_type
-        product_id: item.selected_product_id || null, // Save product_id
+        subtotal: item.subtotal,
+        unit_type: item.unit_type,
       }));
 
       const { error: itemsError } = await supabase
         .from("invoice_items")
-        .insert(itemsToInsert);
+        .insert(invoiceItems);
 
-      if (itemsError) {
-        throw itemsError;
-      }
+      if (itemsError) throw itemsError;
 
       showSuccess("Invoice berhasil ditambahkan!");
-      form.reset({
-        invoice_number: generateInvoiceNumber(),
-        customer_name: "",
-        company_name: "",
-        payment_status: "pending",
-        type: undefined,
-        customer_type: undefined,
-        payment_method: "",
-        notes: "",
-        courier_service: "", // Reset new field
-        items: [{ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_product_id: "" }], // Changed from selected_stock_item_id
-      });
-      setIsOpen(false);
       onSuccess();
-    } catch (error: any) {
-      showError(`Gagal menambahkan invoice: ${error.message}`);
-      console.error("Error adding invoice:", error);
+      onOpenChange(false);
+      form.reset();
+    } catch (err: any) {
+      showError(`Gagal menambahkan invoice: ${err.message}`);
+      console.error("Error adding invoice:", err);
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Buat Invoice Baru
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Buat Invoice Baru</DialogTitle>
-          <DialogDescription>Isi detail untuk membuat invoice penjualan baru.</DialogDescription>
+          <DialogTitle>Tambah Invoice Baru</DialogTitle>
+          <DialogDescription>
+            Isi detail invoice baru di sini. Klik simpan saat Anda selesai.
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="invoice_number"
@@ -240,136 +270,6 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="customer_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nama Konsumen</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="company_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="payment_status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status Pembayaran</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih status pembayaran" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="paid">Lunas</SelectItem>
-                        <SelectItem value="overdue">Jatuh Tempo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipe</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih tipe (Instalasi/Kirim Barang)" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="instalasi">Instalasi</SelectItem>
-                        <SelectItem value="kirim barang">Kirim Barang</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              {invoiceType === "kirim barang" && (
-                <FormField
-                  control={form.control}
-                  name="courier_service"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Jasa Kurir (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., JNE, SiCepat, GoSend" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-              <FormField
-                control={form.control}
-                name="customer_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipe Konsumen</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih tipe konsumen (Lama/Baru)" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="lama">Lama</SelectItem>
-                        <SelectItem value="baru">Baru</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="payment_method"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Metode Pembayaran</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih metode pembayaran" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="Cash">Cash</SelectItem>
-                        <SelectItem value="Transfer">Transfer</SelectItem>
-                        <SelectItem value="Debit Card">Debit Card</SelectItem>
-                        <SelectItem value="Credit Card">Credit Card</SelectItem>
-                        <SelectItem value="QRIS">QRIS</SelectItem>
-                        <SelectItem value="Lainnya">Lainnya</SelectItem>
-                      </SelectContent>
-                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -450,6 +350,130 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="customer_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nama Pelanggan</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="company_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="payment_status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Status Pembayaran</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih status pembayaran" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(InvoicePaymentStatus).map((status) => (
+                          <SelectItem key={status} value={status}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipe Invoice (Opsional)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih tipe invoice" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(InvoiceType).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type.charAt(0).toUpperCase() + type.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="customer_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih tipe pelanggan" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(CustomerType).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type.charAt(0).toUpperCase() + type.slice(1)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="payment_method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="courier_service"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Layanan Kurir (Opsional)</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <FormField
@@ -459,148 +483,102 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ onSuccess }) => {
                 <FormItem>
                   <FormLabel>Catatan (Opsional)</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Tambahkan catatan di sini..." {...field} />
+                    <Textarea {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <h3 className="text-lg font-semibold mt-6 mb-2">Detail Item Invoice</h3>
-            <div className="space-y-3">
-              {fields.map((item, index) => (
-                <div key={item.id} className="grid grid-cols-1 md:grid-cols-6 gap-4 items-end border p-3 rounded-md">
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.item_name`}
-                    render={({ field }) => (
-                      <FormItem className="md:col-span-2">
-                        <FormLabel>Nama Item</FormLabel>
-                        <FormControl>
-                          <StockItemCombobox
-                            name={field.name}
-                            items={products} // Changed from stockItems
-                            selectedItemId={form.watch(`items.${index}.selected_product_id`)} // Changed from selected_stock_item_id
-                            onSelectItemId={(selectedProductId) => { // Changed from selectedStockItemId
-                              const selectedProduct = products.find(product => product.id === selectedProductId); // Changed from selectedStock
-                              if (selectedProduct) {
-                                update(index, {
-                                  ...form.getValues().items[index],
-                                  item_name: selectedProduct.nama_barang,
-                                  item_code: selectedProduct.kode_barang,
-                                  unit_price: selectedProduct.harga_jual,
-                                  unit_type: selectedProduct.satuan || "",
-                                  selected_product_id: selectedProduct.id, // Changed from selected_stock_item_id
-                                });
-                                field.onChange(selectedProduct.nama_barang); // Update item_name field
-                              } else {
-                                update(index, {
-                                  ...form.getValues().items[index],
-                                  item_name: field.value, // Keep current input value
-                                  item_code: "",
-                                  unit_price: 0,
-                                  unit_type: "",
-                                  selected_product_id: "", // Changed from selected_stock_item_id
-                                });
-                              }
-                            }}
-                            inputValue={field.value}
-                            onInputValueChange={field.onChange}
-                            disabled={loadingProducts} // Changed from loadingStockItems
-                            placeholder={loadingProducts ? "Memuat produk..." : "Pilih item..."} // Changed message
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.item_code`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kode Barang</FormLabel>
-                        <FormControl>
-                          <Input {...field} disabled />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.quantity`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kuantitas</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.unit_price`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Harga Satuan</FormLabel>
-                        <FormControl>
-                          <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.unit_type`}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipe Unit</FormLabel>
-                        <FormControl>
-                          <Input placeholder="e.g., PCS, BOX, Bulan" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <div className="flex items-center gap-2 md:col-span-full lg:col-span-1">
-                    <p className="text-sm font-medium">Subtotal: {(form.watch(`items.${index}.quantity`) || 0) * (form.watch(`items.${index}.unit_price`) || 0)}</p>
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      onClick={() => remove(index)}
-                      className="h-8 w-8"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+            <h3 className="text-lg font-semibold mt-4 mb-2">Item Invoice</h3>
+            {fields.map((item, index) => (
+              <div key={item.id} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
+                <div className="md:col-span-2">
+                  <FormItem>
+                    <FormLabel>Produk</FormLabel>
+                    <StockItemCombobox
+                      products={products}
+                      selectedProductId={item.selected_product_id}
+                      onSelectProduct={(productId) => handleProductSelect(index, productId)}
+                      disabled={loadingProducts}
+                    />
+                    <FormMessage />
+                  </FormItem>
                 </div>
-              ))}
-            </div>
+                <div className="md:col-span-1">
+                  <FormItem>
+                    <FormLabel>Kuantitas</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => handleQuantityChange(index, parseInt(e.target.value, 10))}
+                        min="1"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </div>
+                <div className="md:col-span-1">
+                  <FormItem>
+                    <FormLabel>Harga Satuan</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        value={item.unit_price}
+                        onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value))}
+                        min="0"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                </div>
+                <div className="md:col-span-1">
+                  <FormItem>
+                    <FormLabel>Subtotal</FormLabel>
+                    <FormControl>
+                      <Input type="number" value={item.subtotal} readOnly className="bg-gray-100" />
+                    </FormControl>
+                  </FormItem>
+                </div>
+                <div className="md:col-span-1 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    onClick={() => remove(index)}
+                    className="mt-2 md:mt-0"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
             <Button
               type="button"
               variant="outline"
-              onClick={() => append({ item_name: "", item_code: "", quantity: 1, unit_price: 0, unit_type: "", selected_product_id: "" })} // Changed from selected_stock_item_id
-              className="w-full flex items-center gap-2"
+              onClick={() => append({ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })}
+              className="w-full"
             >
-              <PlusCircle className="h-4 w-4" /> Tambah Item
+              <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item
             </Button>
 
-            <div className="text-right text-xl font-bold mt-4">
-              Total Tagihan: {totalAmount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}
+            <div className="flex justify-end items-center mt-4">
+              <span className="text-lg font-semibold mr-2">Total Jumlah:</span>
+              <span className="text-xl font-bold">
+                Rp {form.watch("total_amount").toLocaleString('id-ID')}
+              </span>
             </div>
 
-            <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Simpan Invoice"
-              )}
-            </Button>
+            <DialogFooter>
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Simpan Invoice"
+                )}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

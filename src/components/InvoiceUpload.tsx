@@ -1,33 +1,52 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Loader2, Upload, FileText, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface InvoiceUploadProps {
-  salesId: string; // Unique ID for the sales record to associate the invoice with
-  currentFileUrl?: string;
-  onUploadSuccess: (fileUrl: string) => void;
-  onRemoveSuccess: () => void;
+  invoiceId: string;
+  currentDocumentUrl?: string | null;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
 const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
-  salesId,
-  currentFileUrl,
-  onUploadSuccess,
-  onRemoveSuccess,
+  invoiceId,
+  currentDocumentUrl,
+  isOpen,
+  onOpenChange,
+  onSuccess,
 }) => {
-  const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = React.useState<File | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(currentDocumentUrl || null);
+
+  React.useEffect(() => {
+    setPreviewUrl(currentDocumentUrl || null);
+  }, [currentDocumentUrl]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      setFile(event.target.files[0]);
+    if (event.target.files && event.target.files[0]) {
+      const selectedFile = event.target.files[0];
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile));
     } else {
       setFile(null);
+      setPreviewUrl(currentDocumentUrl || null);
     }
   };
 
@@ -37,105 +56,126 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
       return;
     }
 
-    setUploading(true);
-    const filePath = `invoices/${salesId}/${file.name}`;
-
+    setLoading(true);
     try {
-      const { data, error } = await supabase.storage
-        .from("invoices")
-        .upload(filePath, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${invoiceId}-${Math.random()}.${fileExt}`;
+      const filePath = `invoice_documents/${fileName}`;
 
-      if (error) {
-        throw error;
-      }
+      const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
 
       const { data: publicUrlData } = supabase.storage
-        .from("invoices")
+        .from("documents")
         .getPublicUrl(filePath);
 
-      if (publicUrlData?.publicUrl) {
-        onUploadSuccess(publicUrlData.publicUrl);
-        showSuccess("Invoice berhasil diunggah!");
-        setFile(null); // Clear selected file after successful upload
-      } else {
-        throw new Error("Gagal mendapatkan URL publik file.");
-      }
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("invoices")
+        .update({ document_url: publicUrl })
+        .eq("id", invoiceId);
+
+      if (updateError) throw updateError;
+
+      showSuccess("Dokumen invoice berhasil diunggah!");
+      onSuccess();
+      onOpenChange(false);
+      setFile(null);
     } catch (error: any) {
-      showError(`Gagal mengunggah invoice: ${error.message}`);
-      console.error("Error uploading invoice:", error);
+      showError(`Gagal mengunggah dokumen: ${error.message}`);
+      console.error("Error uploading invoice document:", error);
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
-  const handleRemove = async () => {
-    if (!currentFileUrl) return;
+  const handleDeleteDocument = async () => {
+    if (!currentDocumentUrl) return;
 
-    setUploading(true); // Use uploading state for removal as well
+    setLoading(true);
     try {
-      // Extract file path from the public URL
-      const urlParts = currentFileUrl.split('/');
-      const bucketIndex = urlParts.indexOf('invoices');
-      const filePath = urlParts.slice(bucketIndex + 1).join('/');
+      // Extract file path from public URL
+      const urlParts = currentDocumentUrl.split('/');
+      const bucketNameIndex = urlParts.indexOf('documents'); // Assuming 'documents' is the bucket name
+      const filePath = urlParts.slice(bucketNameIndex + 1).join('/');
 
-      const { error } = await supabase.storage
-        .from("invoices")
+      const { error: deleteError } = await supabase.storage
+        .from("documents")
         .remove([filePath]);
 
-      if (error) {
-        throw error;
-      }
+      if (deleteError) throw deleteError;
 
-      onRemoveSuccess();
-      showSuccess("Invoice berhasil dihapus!");
+      const { error: updateError } = await supabase
+        .from("invoices")
+        .update({ document_url: null })
+        .eq("id", invoiceId);
+
+      if (updateError) throw updateError;
+
+      showSuccess("Dokumen invoice berhasil dihapus!");
+      onSuccess();
+      onOpenChange(false);
+      setFile(null);
+      setPreviewUrl(null);
     } catch (error: any) {
-      showError(`Gagal menghapus invoice: ${error.message}`);
-      console.error("Error removing invoice:", error);
+      showError(`Gagal menghapus dokumen: ${error.message}`);
+      console.error("Error deleting invoice document:", error);
     } finally {
-      setUploading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-start space-y-2">
-      {currentFileUrl ? (
-        <div className="flex items-center space-x-2">
-          <FileText className="h-4 w-4 text-blue-500" />
-          <a
-            href={currentFileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:underline text-sm"
-          >
-            Lihat Invoice
-          </a>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRemove}
-            disabled={uploading}
-            className="h-6 w-6 text-red-500 hover:text-red-700"
-          >
-            {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />}
-          </Button>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Unggah Dokumen Invoice</DialogTitle>
+          <DialogDescription>
+            Unggah atau perbarui dokumen terkait invoice ini.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid w-full max-w-sm items-center gap-1.5">
+            <Label htmlFor="document">Dokumen Invoice</Label>
+            <Input id="document" type="file" onChange={handleFileChange} />
+          </div>
+          {previewUrl && (
+            <div className="mt-2">
+              <p className="text-sm text-muted-foreground">Dokumen saat ini:</p>
+              {previewUrl.match(/\.(jpeg|jpg|gif|png)$/) != null ? (
+                <img src={previewUrl} alt="Document Preview" className="max-w-full h-auto mt-2 rounded-md" />
+              ) : (
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-2 block">
+                  Lihat Dokumen
+                </a>
+              )}
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="flex w-full max-w-sm items-center space-x-2">
-          <Input type="file" onChange={handleFileChange} disabled={uploading} className="flex-grow" />
-          <Button onClick={handleUpload} disabled={!file || uploading}>
-            {uploading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
-            Unggah
+        <DialogFooter>
+          {currentDocumentUrl && (
+            <Button
+              variant="destructive"
+              onClick={handleDeleteDocument}
+              disabled={loading}
+              className="mr-auto"
+            >
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus Dokumen"}
+            </Button>
+          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Batal
           </Button>
-        </div>
-      )}
-    </div>
+          <Button onClick={handleUpload} disabled={loading || !file}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Unggah"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
 

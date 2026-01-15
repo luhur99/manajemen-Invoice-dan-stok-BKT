@@ -13,54 +13,50 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Product, WarehouseCategory, WarehouseInventory } from "@/types/data";
 
-interface ProductComboboxProps { // Changed from StockItemComboboxProps
-  items: Product[]; // Changed from StockItem[]
-  selectedItemId?: string; // The ID of the currently selected item
-  onSelectItemId: (id: string | undefined) => void; // Callback when an item is selected by ID
-  inputValue: string; // The text currently in the search input
-  onInputValueChange: (value: string) => void; // Callback for when the search input text changes
+interface StockItemComboboxProps {
+  products: Product[];
+  selectedProductId: string | undefined;
+  onSelectProduct: (productId: string | undefined) => void;
   placeholder?: string;
   disabled?: boolean;
-  id?: string;
-  name?: string;
 }
 
-const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed component name and prop
-  items,
-  selectedItemId,
-  onSelectItemId,
-  inputValue,
-  onInputValueChange,
-  placeholder = "Pilih item...",
+const getCategoryDisplay = (category: WarehouseCategory) => {
+  switch (category) {
+    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
+    case WarehouseCategory.RISET: return "Riset";
+    case WarehouseCategory.RETUR: return "Retur";
+    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
+    default: return category;
+  }
+};
+
+const formatStockInventories = (inventories?: WarehouseInventory[]) => {
+  if (!inventories || inventories.length === 0) {
+    return "Stok: 0";
+  }
+  const totalStock = inventories.reduce((sum, inv) => sum + inv.quantity, 0);
+  const details = inventories
+    .filter(inv => inv.quantity > 0)
+    .map(inv => `${getCategoryDisplay(inv.warehouse_category)}: ${inv.quantity}`)
+    .join(', ');
+  return `Total: ${totalStock} (${details || 'Tidak ada stok per kategori'})`;
+};
+
+const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
+  products,
+  selectedProductId,
+  onSelectProduct,
+  placeholder = "Pilih produk...",
   disabled = false,
-  id,
-  name,
 }) => {
   const [open, setOpen] = React.useState(false);
+  const [inputValue, setInputValue] = React.useState("");
 
-  const selectedItem = items.find((item) => item.id === selectedItemId);
-
-  const getCategoryDisplay = (category?: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi') => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return "";
-    }
-  };
-
-  const formatStockInventories = (inventories?: WarehouseInventory[]) => {
-    if (!inventories || inventories.length === 0) return "Stok: 0";
-    return inventories.map(inv => `${getCategoryDisplay(inv.warehouse_category)}: ${inv.quantity}`).join(', ');
-  };
+  const selectedItem = products.find((item) => item.id === selectedProductId);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -71,8 +67,6 @@ const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed componen
           aria-expanded={open}
           className="w-full justify-between"
           disabled={disabled}
-          id={id}
-          name={name}
         >
           {selectedItem
             ? `${selectedItem.nama_barang} (${selectedItem.kode_barang}) - ${formatStockInventories(selectedItem.inventories)}`
@@ -83,27 +77,27 @@ const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed componen
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
         <Command>
           <CommandInput
-            placeholder="Cari item..."
+            placeholder="Cari produk..."
             value={inputValue}
-            onValueChange={onInputValueChange}
+            onValueChange={setInputValue}
           />
           <CommandList>
-            <CommandEmpty>Tidak ada item ditemukan.</CommandEmpty>
+            <CommandEmpty>Produk tidak ditemukan.</CommandEmpty>
             <CommandGroup>
-              {items.map((item) => (
+              {products.map((item) => (
                 <CommandItem
                   key={item.id}
-                  value={item.nama_barang} // Use item name for search/display in list
+                  value={`${item.nama_barang} ${item.kode_barang}`}
                   onSelect={() => {
-                    onSelectItemId(item.id); // Pass the ID of the selected item
-                    onInputValueChange(item.nama_barang); // Update input text to selected item's name
+                    onSelectProduct(item.id === selectedProductId ? undefined : item.id);
                     setOpen(false);
+                    setInputValue(""); // Clear input after selection
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedItemId === item.id ? "opacity-100" : "opacity-0"
+                      selectedProductId === item.id ? "opacity-100" : "opacity-0"
                     )}
                   />
                   {item.nama_barang} ({item.kode_barang}) - {formatStockInventories(item.inventories)}

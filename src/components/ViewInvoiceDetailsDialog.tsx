@@ -1,13 +1,20 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import React from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Invoice, InvoiceItem } from "@/types/data";
-import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { showError } from "@/utils/toast";
 
 interface ViewInvoiceDetailsDialogProps {
   invoice: Invoice;
@@ -20,103 +27,106 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
   isOpen,
   onOpenChange,
 }) => {
-  const [items, setItems] = useState<InvoiceItem[]>([]);
-  const [loadingItems, setLoadingItems] = useState(true);
+  const { data: items, isLoading, error } = useQuery<InvoiceItem[], Error>({
+    queryKey: ["invoiceItems", invoice.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoice_items")
+        .select("*")
+        .eq("invoice_id", invoice.id);
+      if (error) {
+        showError("Gagal memuat item invoice.");
+        throw error;
+      }
+      return data;
+    },
+    enabled: isOpen,
+  });
 
-  useEffect(() => {
-    if (isOpen && invoice?.id) {
-      const fetchInvoiceItems = async () => {
-        setLoadingItems(true);
-        try {
-          const { data, error } = await supabase
-            .from("invoice_items")
-            .select("*")
-            .eq("invoice_id", invoice.id);
+  if (isLoading) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Detail Invoice</DialogTitle>
+            <DialogDescription>Memuat detail invoice...</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
-          if (error) {
-            throw error;
-          }
-          setItems(data as InvoiceItem[]);
-        } catch (err: any) {
-          showError(`Gagal memuat item invoice: ${err.message}`);
-          console.error("Error fetching invoice items:", err);
-          setItems([]);
-        } finally {
-          setLoadingItems(false);
-        }
-      };
-      fetchInvoiceItems();
-    } else if (!isOpen) {
-      setItems([]); // Clear items when dialog closes
-    }
-  }, [isOpen, invoice?.id]);
-
-  if (!invoice) return null;
+  if (error) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Detail Invoice</DialogTitle>
+            <DialogDescription>Terjadi kesalahan saat memuat detail invoice.</DialogDescription>
+          </DialogHeader>
+          <div className="text-red-500">Error: {error.message}</div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Invoice #{invoice.invoice_number}</DialogTitle>
+          <DialogTitle>Detail Invoice: {invoice.invoice_number}</DialogTitle>
           <DialogDescription>Informasi lengkap mengenai invoice ini.</DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
             <p><strong>Nomor Invoice:</strong> {invoice.invoice_number}</p>
             <p><strong>Tanggal Invoice:</strong> {format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</p>
             <p><strong>Jatuh Tempo:</strong> {invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</p>
-            <p><strong>Nama Konsumen:</strong> {invoice.customer_name}</p>
+            <p><strong>Pelanggan:</strong> {invoice.customer_name}</p>
             <p><strong>Perusahaan:</strong> {invoice.company_name || "-"}</p>
-          </div>
-          <div>
-            <p><strong>Total Tagihan:</strong> {invoice.total_amount.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Status Pembayaran:</strong> {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}</p>
-            <p><strong>Tipe:</strong> {invoice.type || "-"}</p>
-            <p><strong>Tipe Konsumen:</strong> {invoice.customer_type || "-"}</p>
+            <p><strong>Status Pembayaran:</strong> {invoice.payment_status}</p>
+            <p><strong>Tipe Invoice:</strong> {invoice.type || "-"}</p>
+            <p><strong>Tipe Pelanggan:</strong> {invoice.customer_type || "-"}</p>
             <p><strong>Metode Pembayaran:</strong> {invoice.payment_method || "-"}</p>
+            <p><strong>Layanan Kurir:</strong> {invoice.courier_service || "-"}</p>
           </div>
-        </div>
-        {invoice.notes && (
-          <div className="mt-4 text-sm">
-            <p><strong>Catatan:</strong> {invoice.notes}</p>
-          </div>
-        )}
+          <p><strong>Catatan:</strong> {invoice.notes || "-"}</p>
 
-        <h3 className="text-lg font-semibold mt-6 mb-2">Item Invoice</h3>
-        {loadingItems ? (
-          <div className="flex justify-center items-center h-24">
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          </div>
-        ) : items.length > 0 ? (
-          <div className="overflow-x-auto">
+          <h3 className="text-lg font-semibold mt-4 mb-2">Item Invoice</h3>
+          <div className="overflow-x-auto rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Nama Item</TableHead>
-                  <TableHead>Kode Barang</TableHead> {/* New column */}
+                  <TableHead>Kode Item</TableHead>
                   <TableHead className="text-right">Kuantitas</TableHead>
-                  <TableHead>Tipe Unit</TableHead> {/* New column */}
                   <TableHead className="text-right">Harga Satuan</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => (
+                {items?.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.item_name}</TableCell>
                     <TableCell>{item.item_code || "-"}</TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell>{item.unit_type || "-"}</TableCell>
-                    <TableCell className="text-right">{item.unit_price.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
-                    <TableCell className="text-right">{item.subtotal.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</TableCell>
+                    <TableCell className="text-right">Rp {item.unit_price.toLocaleString('id-ID')}</TableCell>
+                    <TableCell className="text-right">Rp {item.subtotal.toLocaleString('id-ID')}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        ) : (
-          <p className="text-sm text-gray-600 dark:text-gray-400">Tidak ada item untuk invoice ini.</p>
-        )}
+          <div className="flex justify-end items-center mt-4">
+            <span className="text-lg font-semibold mr-2">Total Jumlah:</span>
+            <span className="text-xl font-bold">
+              Rp {invoice.total_amount.toLocaleString('id-ID')}
+            </span>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

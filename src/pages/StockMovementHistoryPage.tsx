@@ -1,430 +1,165 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockMovementWithItemName } from "@/types/data";
-import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
-import PaginationControls from "@/components/PaginationControls";
-import { format, startOfMonth, endOfMonth, subMonths, addDays } from "date-fns";
-import { Loader2, CalendarIcon, Eye } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import React from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import ExportDataButton from "@/components/ExportDataButton";
-import ViewNotesDialog from "@/components/ViewNotesDialog";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { format } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { StockMovementWithItemName, WarehouseCategory } from "@/types/data";
 
-// Define a flattened type for export
-interface FlattenedStockMovementForExport {
-  movement_date: string;
-  created_at: string;
-  item_name: string;
-  item_code: string;
-  from_category: string;
-  to_category: string;
-  quantity: number;
-  reason: string;
-}
+const getCategoryDisplay = (category: WarehouseCategory) => {
+  switch (category) {
+    case WarehouseCategory.SIAP_JUAL: return "Siap Jual";
+    case WarehouseCategory.RISET: return "Riset";
+    case WarehouseCategory.RETUR: return "Retur";
+    case WarehouseCategory.BACKUP_TEKNISI: return "Backup Teknisi";
+    default: return category;
+  }
+};
 
 const StockMovementHistoryPage = () => {
-  const [movements, setMovements] = useState<StockMovementWithItemName[]>([]);
-  const [filteredMovements, setFilteredMovements] = useState<StockMovementWithItemName[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterFromCategory, setFilterFromCategory] = useState<string>("all");
-  const [filterToCategory, setFilterToCategory] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [selectedFromCategory, setSelectedFromCategory] = React.useState<WarehouseCategory | "all">("all");
+  const [selectedToCategory, setSelectedToCategory] = React.useState<WarehouseCategory | "all">("all");
 
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
-  const [selectedDatePreset, setSelectedDatePreset] = useState<string>("all");
-
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
-  const [notesToView, setNotesToView] = useState<string>("");
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const calculateDateRange = useCallback((preset: string) => {
-    const now = new Date();
-    let newStartDate: Date | undefined;
-    let newEndDate: Date | undefined;
-
-    if (preset === "current_month") {
-      newStartDate = startOfMonth(now);
-      newEndDate = endOfMonth(now);
-    } else if (preset === "last_3_months") {
-      newStartDate = startOfMonth(subMonths(now, 2));
-      newEndDate = endOfMonth(now);
-    } else if (preset === "all") {
-      newStartDate = undefined;
-      newEndDate = undefined;
-    }
-
-    setStartDate(newStartDate);
-    setEndDate(newEndDate);
-  }, []);
-
-  useEffect(() => {
-    calculateDateRange(selectedDatePreset);
-  }, [selectedDatePreset, calculateDateRange]);
-
-  const getCategoryDisplay = (category: string) => {
-    switch (category) {
-      case "siap_jual": return "Siap Jual";
-      case "riset": return "Riset";
-      case "retur": return "Retur";
-      case "backup_teknisi": return "Backup Teknisi";
-      default: return category;
-    }
-  };
-
-  const fetchStockMovements = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let query = supabase
+  const { data: movements, isLoading, error, refetch: fetchMovements } = useQuery<StockMovementWithItemName[], Error>({
+    queryKey: ["stockMovements"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("stock_movements")
         .select(`
-          id,
-          user_id,
-          product_id,
-          from_category,
-          to_category,
-          quantity,
-          reason,
-          movement_date,
-          created_at,
-          products (
-            nama_barang,
-            kode_barang
-          )
-        `); // Changed from stock_items to products
+          *,
+          products (nama_barang, kode_barang)
+        `)
+        .order("created_at", { ascending: false });
 
-      if (startDate) {
-        query = query.gte("movement_date", format(startDate, "yyyy-MM-dd"));
-      }
-      if (endDate) {
-        const adjustedEndDate = addDays(endDate, 1);
-        query = query.lte("movement_date", format(adjustedEndDate, "yyyy-MM-dd"));
-      }
+      if (error) throw error;
 
-      if (filterFromCategory !== "all") {
-        query = query.eq("from_category", filterFromCategory);
-      }
-      if (filterToCategory !== "all") {
-        query = query.eq("to_category", filterToCategory);
-      }
-
-      query = query.order("created_at", { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
-        ...item,
-        products: item.products ? [item.products] : null, // Changed from stock_items to products
+      return data.map(m => ({
+        ...m,
+        product_name: m.products?.nama_barang || "N/A",
+        product_code: m.products?.kode_barang || "N/A",
       }));
+    },
+  });
 
-      const lowerCaseSearchTerm = searchTerm.toLowerCase();
-      const filteredBySearch = processedData.filter(item => {
-        return (
-          item.products?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from stock_items
-          item.products?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from stock_items
-          item.from_category.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.to_category.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.reason?.toLowerCase().includes(lowerCaseSearchTerm)
-        );
-      });
+  const filteredMovements = movements?.filter((item) => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    const matchesSearch =
+      item.product_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
+      getCategoryDisplay(item.from_category).toLowerCase().includes(lowerCaseSearchTerm) ||
+      getCategoryDisplay(item.to_category).toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.reason?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      format(new Date(item.movement_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm);
 
-      setMovements(processedData);
-      setFilteredMovements(filteredBySearch);
-      setCurrentPage(1);
-    } catch (err: any) {
-      setError(`Gagal memuat riwayat perpindahan produk: ${err.message}`); // Changed message
-      console.error("Error fetching product movements:", err); // Changed message
-      showError("Gagal memuat riwayat perpindahan produk."); // Changed message
-      setMovements([]);
-      setFilteredMovements([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [startDate, endDate, filterFromCategory, filterToCategory, searchTerm]);
+    const matchesFromCategory = selectedFromCategory === "all" || item.from_category === selectedFromCategory;
+    const matchesToCategory = selectedToCategory === "all" || item.to_category === selectedToCategory;
 
-  const fetchAllStockMovementsForExport = useCallback(async () => {
-    try {
-      let query = supabase
-        .from("stock_movements")
-        .select(`
-          id,
-          from_category,
-          to_category,
-          quantity,
-          reason,
-          movement_date,
-          created_at,
-          products (
-            nama_barang,
-            kode_barang
-          )
-        `); // Changed from stock_items to products
+    return matchesSearch && matchesFromCategory && matchesToCategory;
+  });
 
-      if (startDate) {
-        query = query.gte("movement_date", format(startDate, "yyyy-MM-dd"));
-      }
-      if (endDate) {
-        const adjustedEndDate = addDays(endDate, 1);
-        query = query.lte("movement_date", format(adjustedEndDate, "yyyy-MM-dd"));
-      }
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
-      if (filterFromCategory !== "all") {
-        query = query.eq("from_category", filterFromCategory);
-      }
-      if (filterToCategory !== "all") {
-        query = query.eq("to_category", filterToCategory);
-      }
-
-      query = query.order("created_at", { ascending: false });
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      const flattenedData: FlattenedStockMovementForExport[] = data.map((item: any) => ({
-        movement_date: format(new Date(item.movement_date), "yyyy-MM-dd"),
-        created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-        item_name: item.products?.[0]?.nama_barang || "N/A", // Changed from stock_items
-        item_code: item.products?.[0]?.kode_barang || "N/A", // Changed from stock_items
-        from_category: getCategoryDisplay(item.from_category),
-        to_category: getCategoryDisplay(item.to_category),
-        quantity: item.quantity,
-        reason: item.reason || "",
-      }));
-      return flattenedData;
-    } catch (err: any) {
-      console.error("Error fetching all product movements for export:", err); // Changed message
-      showError("Gagal memuat semua data perpindahan produk untuk ekspor."); // Changed message
-      return null;
-    }
-  }, [startDate, endDate, filterFromCategory, filterToCategory]);
-
-  const stockMovementHeaders: { key: keyof FlattenedStockMovementForExport; label: string }[] = [
-    { key: "movement_date", label: "Tanggal Perpindahan" },
-    { key: "created_at", label: "Waktu Dibuat" },
-    { key: "item_name", label: "Nama Produk" }, // Changed label
-    { key: "item_code", label: "Kode Produk" }, // Changed label
-    { key: "from_category", label: "Dari Kategori" },
-    { key: "to_category", label: "Ke Kategori" },
-    { key: "quantity", label: "Kuantitas" },
-    { key: "reason", label: "Alasan" },
-  ];
-
-  useEffect(() => {
-    fetchStockMovements();
-  }, [fetchStockMovements]);
-
-  const handleResetFilters = () => {
-    setSearchTerm("");
-    setFilterFromCategory("all");
-    setFilterToCategory("all");
-    setSelectedDatePreset("all");
-    setStartDate(undefined);
-    setEndDate(undefined);
-  };
-
-  const handleViewNotes = (notes: string) => {
-    setNotesToView(notes);
-    setIsViewNotesOpen(true);
-  };
-
-  const totalPages = Math.ceil(filteredMovements.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredMovements.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
+  if (error) {
+    return <div className="text-red-500">Error loading stock movements: {error.message}</div>;
+  }
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader>
-        <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Riwayat Perpindahan Produk</CardTitle> {/* Changed title */}
-          <ExportDataButton
-            fetchDataFunction={fetchAllStockMovementsForExport}
-            fileName="product_movements_history.csv" // Changed filename
-            headers={stockMovementHeaders}
-          />
-        </div>
-        <CardDescription>Lihat semua perpindahan produk antar kategori gudang.</CardDescription> {/* Changed description */}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
-        <div className="flex flex-col md:flex-row gap-4 mb-4 flex-wrap">
-          <Input
-            type="text"
-            placeholder="Cari berdasarkan nama/kode produk, alasan..." // Changed message
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-grow"
-          />
-          <Select value={filterFromCategory} onValueChange={setFilterFromCategory}>
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Riwayat Perpindahan Stok</h1>
+
+      <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
+        <Input
+          placeholder="Cari perpindahan..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm flex-grow"
+        />
+        <div className="flex gap-4">
+          <Select
+            value={selectedFromCategory}
+            onValueChange={(value: WarehouseCategory | "all") => setSelectedFromCategory(value)}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Dari Kategori" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Asal</SelectItem>
-              <SelectItem value="siap_jual">Siap Jual</SelectItem>
-              <SelectItem value="riset">Riset</SelectItem>
-              <SelectItem value="retur">Retur</SelectItem>
-              <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
+              {Object.values(WarehouseCategory).map((category) => (
+                <SelectItem key={category} value={category}>
+                  {getCategoryDisplay(category)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select value={filterToCategory} onValueChange={setFilterToCategory}>
+
+          <Select
+            value={selectedToCategory}
+            onValueChange={(value: WarehouseCategory | "all") => setSelectedToCategory(value)}
+          >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Ke Kategori" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Tujuan</SelectItem>
-              <SelectItem value="siap_jual">Siap Jual</SelectItem>
-              <SelectItem value="riset">Riset</SelectItem>
-              <SelectItem value="retur">Retur</SelectItem>
-              <SelectItem value="backup_teknisi">Backup Teknisi</SelectItem>
+              {Object.values(WarehouseCategory).map((category) => (
+                <SelectItem key={category} value={category}>
+                  {getCategoryDisplay(category)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
-          <Select value={selectedDatePreset} onValueChange={setSelectedDatePreset}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter Tanggal" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Waktu</SelectItem>
-              <SelectItem value="current_month">Bulan Ini</SelectItem>
-              <SelectItem value="last_3_months">3 Bulan Terakhir</SelectItem>
-              <SelectItem value="custom">Rentang Kustom</SelectItem>
-            </SelectContent>
-          </Select>
-          {selectedDatePreset === "custom" && (
-            <>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-[180px] justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? format(startDate, "PPP") : <span>Tanggal Mulai</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-[180px] justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? format(endDate, "PPP") : <span>Tanggal Akhir</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </>
-          )}
-          <Button onClick={handleResetFilters} variant="outline">
-            Reset Filter
-          </Button>
         </div>
+      </div>
 
-        {filteredMovements.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tanggal Perpindahan</TableHead>
-                    <TableHead>Waktu Dibuat</TableHead>
-                    <TableHead>Nama Produk</TableHead> {/* Changed label */}
-                    <TableHead>Kode Produk</TableHead> {/* Changed label */}
-                    <TableHead>Dari Kategori</TableHead>
-                    <TableHead>Ke Kategori</TableHead>
-                    <TableHead className="text-right">Kuantitas</TableHead>
-                    <TableHead>Alasan</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentItems.map((movement) => (
-                    <TableRow key={movement.id}>
-                      <TableCell>{format(new Date(movement.movement_date), "dd-MM-yyyy")}</TableCell>
-                      <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{movement.products?.[0]?.nama_barang || "N/A"}</TableCell> {/* Changed from stock_items */}
-                      <TableCell>{movement.products?.[0]?.kode_barang || "N/A"}</TableCell> {/* Changed from stock_items */}
-                      <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
-                      <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
-                      <TableCell className="text-right">{movement.quantity}</TableCell>
-                      <TableCell>
-                        {movement.reason ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(movement.reason!)} className="h-7 px-2">
-                            <Eye className="h-3 w-3 mr-1" /> Lihat
-                          </Button>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
+      <div className="overflow-x-auto rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Tanggal & Waktu</TableHead>
+              <TableHead>Nama Produk</TableHead>
+              <TableHead>Kode Produk</TableHead>
+              <TableHead>Dari Kategori</TableHead>
+              <TableHead>Ke Kategori</TableHead>
+              <TableHead className="text-right">Kuantitas</TableHead>
+              <TableHead>Alasan</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredMovements?.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  Tidak ada riwayat perpindahan stok yang ditemukan.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredMovements?.map((movement) => (
+                <TableRow key={movement.id}>
+                  <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
+                  <TableCell>{movement.product_name || "N/A"}</TableCell>
+                  <TableCell>{movement.product_code || "N/A"}</TableCell>
+                  <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
+                  <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
+                  <TableCell className="text-right">{movement.quantity}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{movement.reason || "-"}</TableCell>
+                </TableRow>
+              ))
             )}
-          </>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat perpindahan produk yang tersedia atau cocok dengan pencarian Anda.</p> /* Changed message */
-        )}
-      </CardContent>
-
-      <ViewNotesDialog
-        notes={notesToView}
-        isOpen={isViewNotesOpen}
-        onOpenChange={setIsViewNotesOpen}
-      />
-    </Card>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
   );
 };
 
