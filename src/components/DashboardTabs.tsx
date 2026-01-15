@@ -6,12 +6,12 @@ import SalesDetailsPage from "@/pages/SalesDetailsPage";
 
 const DashboardTabs = () => {
   return (
-    <Tabs defaultValue="products" className="w-full max-w-6xl mx-auto p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md"> {/* Changed default value */}
+    <Tabs defaultValue="products" className="w-full max-w-6xl mx-auto p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md">
       <TabsList className="grid w-full grid-cols-2 mb-4">
-        <TabsTrigger value="products" className="text-lg">Produk</TabsTrigger> {/* Changed label */}
+        <TabsTrigger value="products" className="text-lg">Produk</TabsTrigger>
         <TabsTrigger value="sales" className="text-lg">Detil Penjualan</TabsTrigger>
       </TabsList>
-      <TabsContent value="products"> {/* Changed value */}
+      <TabsContent value="products">
         <StockPage />
       </TabsContent>
       <TabsContent value="sales">

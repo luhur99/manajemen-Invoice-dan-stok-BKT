@@ -3,29 +3,6 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell,<dyad-problem-report summary="1 problems">
-<problem file="src/pages/StockPage.tsx" line="272" column="11" code="2322">Type '&quot;initial&quot; | &quot;out&quot;' is not assignable to type 'TransactionType'.
-  Type '&quot;initial&quot;' is not assignable to type 'TransactionType'.</problem>
-</dyad-problem-report><think>**Addressing Type Mismatch**
-
-I'm currently focused on a TypeScript compile-time error within `src/pages/StockPage.tsx`. The core issue is a type mismatch: a union type, specifically "initial" or "out", is not assignable to the `TransactionType` type. "initial" in the union is what's causing the problem. I'm exploring the expected type and pinpointing the exact location of the discrepancy for a fix.
-
-
-**Rectifying the Type Error**
-
-I've determined the root cause: the `initialTransactionType` state variable in `StockPage.tsx` is incorrectly typed. It's a union but `AddStockTransactionForm` needs a `TransactionType` enum. The immediate fix is changing the type declaration to the enum. I also need to ensure all state updates use the correct enum members for full resolution.
-
-
-</think>Baik, saya akan memperbaiki kesalahan kompilasi TypeScript ini di `src/pages/StockPage.tsx`. Masalahnya adalah ketidaksesuaian tipe antara state `initialTransactionType` dan prop yang diharapkan oleh komponen `AddStockTransactionForm`.
-
-Saya akan mengubah tipe state `initialTransactionType` agar sesuai dengan `TransactionType` enum.
-
-<dyad-write path="src/pages/StockPage.tsx" description="Memperbaiki ketidaksesuaian tipe TransactionType pada state initialTransactionType.">
-"use client";
-
-import React, { useState, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -34,14 +11,11 @@ import { showSuccess, showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
 import StockMovementForm from "@/components/StockMovementForm";
-import { Product as ProductType, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data"; // Import TransactionType
-import EditStockItemForm from "@/components/EditStockItemForm"; // Import EditStockItemForm
+import { Product as ProductType, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, TransactionType } from "@/types/data";
+import EditStockItemForm from "@/components/EditStockItemForm";
 
 interface ProductWithDetails extends ProductType {
   current_stock?: number;
@@ -49,18 +23,18 @@ interface ProductWithDetails extends ProductType {
 }
 
 const StockPage = () => {
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
-  const [selectedProduct, setSelectedProduct] = React.useState<ProductWithDetails | null>(null);
-  const [isTransactionFormOpen, setIsTransactionFormOpen] = React.useState(false);
-  const [initialTransactionType, setInitialTransactionType] = React.useState<TransactionType>(TransactionType.OUT); // Changed type to TransactionType
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductWithDetails | null>(null);
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
+  const [initialTransactionType, setInitialTransactionType] = useState<TransactionType>(TransactionType.OUT);
 
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
-  const [productToView, setProductToView] = React.useState<ProductWithDetails | null>(null);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [productToView, setProductToView] = useState<ProductWithDetails | null>(null);
 
-  const [isMovementFormOpen, setIsMovementFormOpen] = React.useState(false);
-  const [productForMovement, setProductForMovement] = React.useState<ProductWithDetails | null>(null);
+  const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
+  const [productForMovement, setProductForMovement] = useState<ProductWithDetails | null>(null);
 
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
@@ -78,10 +52,10 @@ const StockPage = () => {
     },
   });
 
-  const getCategoryDisplayName = (code: string) => {
+  const getCategoryDisplayName = useCallback((code: string) => {
     const category = warehouseCategories?.find(cat => cat.code === code);
     return category ? category.name : code;
-  };
+  }, [warehouseCategories]);
 
   const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
     queryKey: ["products"],
@@ -128,7 +102,7 @@ const StockPage = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleOpenTransactionForm = (product: ProductWithDetails, type: TransactionType) => { // Changed type to TransactionType
+  const handleOpenTransactionForm = (product: ProductWithDetails, type: TransactionType) => {
     setSelectedProduct(product);
     setInitialTransactionType(type);
     setIsTransactionFormOpen(true);
@@ -169,7 +143,7 @@ const StockPage = () => {
     product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatInventories = (inventories?: WarehouseInventory[]) => {
+  const formatInventories = useCallback((inventories?: WarehouseInventory[]) => {
     if (loadingCategories) return "Memuat kategori...";
     if (categoriesError) return "Error memuat kategori";
 
@@ -181,7 +155,7 @@ const StockPage = () => {
     });
 
     return formatted?.join(', ') || '';
-  };
+  }, [loadingCategories, categoriesError, warehouseCategories]);
 
   if (isLoading || loadingCategories) {
     return (

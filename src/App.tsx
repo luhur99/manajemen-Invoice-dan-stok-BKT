@@ -14,7 +14,7 @@ import StockHistoryPage from "./pages/StockHistoryPage";
 import StockMovementHistoryPage from "./pages/StockMovementHistoryPage";
 import PurchaseRequestPage from "./pages/PurchaseRequestPage";
 import SupplierManagementPage from "./pages/SupplierManagementPage";
-import WarehouseCategoryPage from "./pages/WarehouseCategoryPage"; // Import new page
+import WarehouseCategoryPage from "./pages/WarehouseCategoryPage";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
@@ -40,7 +40,7 @@ const App = () => (
             <Route path="/stock-movement-history" element={<MainLayout><StockMovementHistoryPage /></MainLayout>} />
             <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} />
             <Route path="/suppliers" element={<MainLayout><SupplierManagementPage /></MainLayout>} />
-            <Route path="/warehouse-categories" element={<MainLayout><WarehouseCategoryPage /></MainLayout>} /> {/* New route */}
+            <Route path="/warehouse-categories" element={<MainLayout><WarehouseCategoryPage /></MainLayout>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>
