@@ -92,18 +92,18 @@ const StockMovementHistoryPage = () => {
         .select(`
           id,
           user_id,
-          stock_item_id,
+          product_id,
           from_category,
           to_category,
           quantity,
           reason,
           movement_date,
           created_at,
-          stock_items (
+          products (
             nama_barang,
             kode_barang
           )
-        `);
+        `); // Changed from stock_items to products
 
       if (startDate) {
         query = query.gte("movement_date", format(startDate, "yyyy-MM-dd"));
@@ -130,14 +130,14 @@ const StockMovementHistoryPage = () => {
 
       const processedData: StockMovementWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null, // Ensure it's an array of objects or null
+        products: item.products ? [item.products] : null, // Changed from stock_items to products
       }));
 
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         return (
-          item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from stock_items
+          item.products?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from stock_items
           item.from_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.to_category.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.reason?.toLowerCase().includes(lowerCaseSearchTerm)
@@ -148,9 +148,9 @@ const StockMovementHistoryPage = () => {
       setFilteredMovements(filteredBySearch);
       setCurrentPage(1);
     } catch (err: any) {
-      setError(`Gagal memuat riwayat perpindahan stok: ${err.message}`);
-      console.error("Error fetching stock movements:", err);
-      showError("Gagal memuat riwayat perpindahan stok.");
+      setError(`Gagal memuat riwayat perpindahan produk: ${err.message}`); // Changed message
+      console.error("Error fetching product movements:", err); // Changed message
+      showError("Gagal memuat riwayat perpindahan produk."); // Changed message
       setMovements([]);
       setFilteredMovements([]);
     } finally {
@@ -170,11 +170,11 @@ const StockMovementHistoryPage = () => {
           reason,
           movement_date,
           created_at,
-          stock_items (
+          products (
             nama_barang,
             kode_barang
           )
-        `);
+        `); // Changed from stock_items to products
 
       if (startDate) {
         query = query.gte("movement_date", format(startDate, "yyyy-MM-dd"));
@@ -202,8 +202,8 @@ const StockMovementHistoryPage = () => {
       const flattenedData: FlattenedStockMovementForExport[] = data.map((item: any) => ({
         movement_date: format(new Date(item.movement_date), "yyyy-MM-dd"),
         created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
-        item_name: item.stock_items?.[0]?.nama_barang || "N/A",
-        item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+        item_name: item.products?.[0]?.nama_barang || "N/A", // Changed from stock_items
+        item_code: item.products?.[0]?.kode_barang || "N/A", // Changed from stock_items
         from_category: getCategoryDisplay(item.from_category),
         to_category: getCategoryDisplay(item.to_category),
         quantity: item.quantity,
@@ -211,8 +211,8 @@ const StockMovementHistoryPage = () => {
       }));
       return flattenedData;
     } catch (err: any) {
-      console.error("Error fetching all stock movements for export:", err);
-      showError("Gagal memuat semua data perpindahan stok untuk ekspor.");
+      console.error("Error fetching all product movements for export:", err); // Changed message
+      showError("Gagal memuat semua data perpindahan produk untuk ekspor."); // Changed message
       return null;
     }
   }, [startDate, endDate, filterFromCategory, filterToCategory]);
@@ -220,8 +220,8 @@ const StockMovementHistoryPage = () => {
   const stockMovementHeaders: { key: keyof FlattenedStockMovementForExport; label: string }[] = [
     { key: "movement_date", label: "Tanggal Perpindahan" },
     { key: "created_at", label: "Waktu Dibuat" },
-    { key: "item_name", label: "Nama Barang" },
-    { key: "item_code", label: "Kode Barang" },
+    { key: "item_name", label: "Nama Produk" }, // Changed label
+    { key: "item_code", label: "Kode Produk" }, // Changed label
     { key: "from_category", label: "Dari Kategori" },
     { key: "to_category", label: "Ke Kategori" },
     { key: "quantity", label: "Kuantitas" },
@@ -259,21 +259,21 @@ const StockMovementHistoryPage = () => {
     <Card className="border shadow-sm">
       <CardHeader>
         <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Riwayat Perpindahan Stok</CardTitle>
+          <CardTitle className="text-2xl font-semibold">Riwayat Perpindahan Produk</CardTitle> {/* Changed title */}
           <ExportDataButton
             fetchDataFunction={fetchAllStockMovementsForExport}
-            fileName="stock_movements_history.csv"
+            fileName="product_movements_history.csv" // Changed filename
             headers={stockMovementHeaders}
           />
         </div>
-        <CardDescription>Lihat semua perpindahan stok antar kategori gudang.</CardDescription>
+        <CardDescription>Lihat semua perpindahan produk antar kategori gudang.</CardDescription> {/* Changed description */}
       </CardHeader>
       <CardContent className="space-y-4">
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <div className="flex flex-col md:flex-row gap-4 mb-4 flex-wrap">
           <Input
             type="text"
-            placeholder="Cari berdasarkan nama/kode barang, alasan..."
+            placeholder="Cari berdasarkan nama/kode produk, alasan..." // Changed message
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-grow"
@@ -374,8 +374,8 @@ const StockMovementHistoryPage = () => {
                   <TableRow>
                     <TableHead>Tanggal Perpindahan</TableHead>
                     <TableHead>Waktu Dibuat</TableHead>
-                    <TableHead>Nama Barang</TableHead>
-                    <TableHead>Kode Barang</TableHead>
+                    <TableHead>Nama Produk</TableHead> {/* Changed label */}
+                    <TableHead>Kode Produk</TableHead> {/* Changed label */}
                     <TableHead>Dari Kategori</TableHead>
                     <TableHead>Ke Kategori</TableHead>
                     <TableHead className="text-right">Kuantitas</TableHead>
@@ -387,8 +387,8 @@ const StockMovementHistoryPage = () => {
                     <TableRow key={movement.id}>
                       <TableCell>{format(new Date(movement.movement_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{movement.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{movement.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{movement.products?.[0]?.nama_barang || "N/A"}</TableCell> {/* Changed from stock_items */}
+                      <TableCell>{movement.products?.[0]?.kode_barang || "N/A"}</TableCell> {/* Changed from stock_items */}
                       <TableCell>{getCategoryDisplay(movement.from_category)}</TableCell>
                       <TableCell>{getCategoryDisplay(movement.to_category)}</TableCell>
                       <TableCell className="text-right">{movement.quantity}</TableCell>
@@ -415,7 +415,7 @@ const StockMovementHistoryPage = () => {
             )}
           </>
         ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat perpindahan stok yang tersedia atau cocok dengan pencarian Anda.</p>
+          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat perpindahan produk yang tersedia atau cocok dengan pencarian Anda.</p> /* Changed message */
         )}
       </CardContent>
 

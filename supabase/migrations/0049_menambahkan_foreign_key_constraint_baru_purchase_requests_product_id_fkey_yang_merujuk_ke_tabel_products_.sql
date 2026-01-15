@@ -1,0 +1,1 @@
+ALTER TABLE public.purchase_requests ADD CONSTRAINT purchase_requests_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE SET NULL;

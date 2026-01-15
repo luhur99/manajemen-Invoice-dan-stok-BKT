@@ -1,0 +1,1 @@
+ALTER TABLE public.stock_transactions RENAME COLUMN stock_item_id TO product_id;

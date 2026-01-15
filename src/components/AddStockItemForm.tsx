@@ -75,9 +75,9 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
     }
 
     try {
-      // 1. Insert into stock_items (product metadata)
-      const { data: stockItemData, error: stockItemError } = await supabase
-        .from("stock_items")
+      // 1. Insert into products (product metadata)
+      const { data: productData, error: productError } = await supabase
+        .from("products") // Changed from stock_items
         .insert({
           user_id: userId,
           kode_barang: values.kode_barang,
@@ -90,11 +90,11 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
         .select("id")
         .single();
 
-      if (stockItemError) {
-        throw stockItemError;
+      if (productError) {
+        throw productError;
       }
 
-      const newStockItemId = stockItemData.id;
+      const newProductId = productData.id; // Changed from newStockItemId
 
       // 2. If initial_stock_quantity > 0, insert into warehouse_inventories
       if (values.initial_stock_quantity > 0) {
@@ -102,17 +102,17 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           .from("warehouse_inventories")
           .insert({
             user_id: userId,
-            product_id: newStockItemId,
+            product_id: newProductId, // Changed from newStockItemId
             warehouse_category: values.initial_warehouse_category,
             quantity: values.initial_stock_quantity,
           });
 
         if (inventoryError) {
-          // If inventory insertion fails, consider rolling back stock_item or just log
+          // If inventory insertion fails, consider rolling back product or just log
           console.error("Error creating initial warehouse inventory:", inventoryError);
           showError(`Gagal membuat inventaris awal: ${inventoryError.message}`);
-          // Optionally, delete the created stock_item here if you want a full rollback
-          // await supabase.from("stock_items").delete().eq("id", newStockItemId);
+          // Optionally, delete the created product here if you want a full rollback
+          // await supabase.from("products").delete().eq("id", newProductId);
           return;
         }
 
@@ -121,7 +121,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
           .from("stock_transactions")
           .insert({
             user_id: userId,
-            stock_item_id: newStockItemId,
+            product_id: newProductId, // Changed from stock_item_id
             transaction_type: "initial",
             quantity: values.initial_stock_quantity,
             notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplay(values.initial_warehouse_category)}`,
@@ -135,13 +135,13 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
         }
       }
 
-      showSuccess("Item stok berhasil ditambahkan!");
+      showSuccess("Produk berhasil ditambahkan!"); // Changed message
       form.reset();
       setIsOpen(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
-      showError(`Gagal menambahkan item stok: ${error.message}`);
-      console.error("Error adding stock item:", error);
+      showError(`Gagal menambahkan produk: ${error.message}`); // Changed message
+      console.error("Error adding product:", error); // Changed message
     }
   };
 
@@ -149,13 +149,13 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Tambah Item Stok
+          <PlusCircle className="h-4 w-4" /> Tambah Produk
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Tambah Item Stok Baru</DialogTitle>
-          <DialogDescription>Isi detail untuk menambahkan item stok baru ke inventaris.</DialogDescription>
+          <DialogTitle>Tambah Produk Baru</DialogTitle>
+          <DialogDescription>Isi detail untuk menambahkan produk baru ke inventaris.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -278,7 +278,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess }) => {
                 {form.formState.isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Tambah Item"
+                  "Tambah Produk"
                 )}
               </Button>
             </div>

@@ -25,17 +25,17 @@ const navItems = [
     icon: CalendarDays,
   },
   {
-    title: "Manajemen Stok",
-    href: "/stock",
+    title: "Manajemen Produk", // Changed from Manajemen Stok
+    href: "/stock", // Kept the same href for now, but it will display products
     icon: Package,
   },
   {
-    title: "Riwayat Stok",
+    title: "Riwayat Transaksi Produk", // Changed from Riwayat Stok
     href: "/stock-history",
     icon: History,
   },
   {
-    title: "Riwayat Perpindahan Stok",
+    title: "Riwayat Perpindahan Produk", // Changed from Riwayat Perpindahan Stok
     href: "/stock-movement-history",
     icon: ArrowRightLeft,
   },

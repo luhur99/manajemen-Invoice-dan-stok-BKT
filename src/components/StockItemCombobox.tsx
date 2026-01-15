@@ -18,10 +18,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { StockItem, WarehouseInventory } from "@/types/data";
+import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
 
-interface StockItemComboboxProps {
-  items: StockItem[];
+interface ProductComboboxProps { // Changed from StockItemComboboxProps
+  items: Product[]; // Changed from StockItem[]
   selectedItemId?: string; // The ID of the currently selected item
   onSelectItemId: (id: string | undefined) => void; // Callback when an item is selected by ID
   inputValue: string; // The text currently in the search input
@@ -32,7 +32,7 @@ interface StockItemComboboxProps {
   name?: string;
 }
 
-const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
+const StockItemCombobox: React.FC<ProductComboboxProps> = ({ // Changed component name and prop
   items,
   selectedItemId,
   onSelectItemId,

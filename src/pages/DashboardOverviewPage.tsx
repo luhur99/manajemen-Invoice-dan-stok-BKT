@@ -13,7 +13,7 @@ import {
   ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
-import { StockItem } from "@/types/data";
+import { Product } from "@/types/data"; // Changed from StockItem
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 
@@ -25,26 +25,26 @@ interface LatestActivity {
   date: string; // ISO date string
 }
 
-// Define interface for stock transaction data with joined stock_items
-interface StockTransactionWithItem {
+// Define interface for stock transaction data with joined products
+interface StockTransactionWithProduct { // Changed from StockTransactionWithItem
   id: string;
   transaction_type: string;
   quantity: number;
   notes: string | null;
   created_at: string;
   warehouse_category: string | null; // Added warehouse_category
-  stock_items: { nama_barang: string }[] | null;
+  products: { nama_barang: string }[] | null; // Changed from stock_items
 }
 
-// Define interface for stock movement data with joined stock_items
-interface StockMovementWithItem {
+// Define interface for stock movement data with joined products
+interface StockMovementWithProduct { // Changed from StockMovementWithItem
   id: string;
   from_category: string;
   to_category: string;
   quantity: number;
   reason: string | null;
   created_at: string;
-  stock_items: { nama_barang: string }[] | null;
+  products: { nama_barang: string }[] | null; // Changed from stock_items
 }
 
 // Chart configuration
@@ -107,8 +107,8 @@ const DashboardOverviewPage = () => {
         setTodaySchedules(schedulesCount || 0);
 
         // Fetch Low Stock Items (using safe_stock_limit and aggregated warehouse_inventories)
-        const { data: stockItemsData, error: stockError } = await supabase
-          .from("stock_items")
+        const { data: productsData, error: productsError } = await supabase // Changed from stockItemsData, stockError
+          .from("products") // Changed from stock_items
           .select(`
             id,
             safe_stock_limit,
@@ -117,11 +117,11 @@ const DashboardOverviewPage = () => {
             )
           `);
 
-        if (stockError) throw stockError;
+        if (productsError) throw productsError; // Changed from stockError
 
         let lowStockCount = 0;
-        if (stockItemsData) {
-          stockItemsData.forEach((item) => {
+        if (productsData) { // Changed from stockItemsData
+          productsData.forEach((item) => {
             const totalStock = item.warehouse_inventories?.reduce((sum: number, inv: { quantity: number }) => sum + inv.quantity, 0) || 0;
             const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
             if (totalStock < limit) {
@@ -159,7 +159,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockTransactionsData, error: recentStockTransactionsError } = await supabase
           .from("stock_transactions")
-          .select("id, transaction_type, quantity, notes, created_at, warehouse_category, stock_items(nama_barang)")
+          .select("id, transaction_type, quantity, notes, created_at, warehouse_category, products(nama_barang)") // Changed from stock_items to products
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -167,7 +167,7 @@ const DashboardOverviewPage = () => {
 
         const { data: recentStockMovementsData, error: recentStockMovementsError } = await supabase
           .from("stock_movements")
-          .select("id, from_category, to_category, quantity, reason, created_at, stock_items(nama_barang)")
+          .select("id, from_category, to_category, quantity, reason, created_at, products(nama_barang)") // Changed from stock_items to products
           .order("created_at", { ascending: false })
           .limit(5);
 
@@ -182,8 +182,8 @@ const DashboardOverviewPage = () => {
         if (recentPurchaseRequestsError) throw recentPurchaseRequestsError;
 
         // Cast the data to the defined interface
-        const recentStockTransactions: StockTransactionWithItem[] = recentStockTransactionsData as StockTransactionWithItem[];
-        const recentStockMovements: StockMovementWithItem[] = recentStockMovementsData as StockMovementWithItem[];
+        const recentStockTransactions: StockTransactionWithProduct[] = recentStockTransactionsData as StockTransactionWithProduct[]; // Changed type
+        const recentStockMovements: StockMovementWithProduct[] = recentStockMovementsData as StockMovementWithProduct[]; // Changed type
 
         const allActivities: LatestActivity[] = [];
 
@@ -206,7 +206,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockTransactions.forEach(trans => {
-          const itemName = trans.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal";
+          const itemName = trans.products?.[0]?.nama_barang || "Item Tidak Dikenal"; // Changed from stock_items
           const category = trans.warehouse_category ? ` di ${getCategoryDisplay(trans.warehouse_category)}` : "";
           let desc = "";
           if (trans.transaction_type === 'initial') {
@@ -231,7 +231,7 @@ const DashboardOverviewPage = () => {
         });
 
         recentStockMovements.forEach(mov => {
-          const itemName = mov.stock_items?.[0]?.nama_barang || "Item Tidak Dikenal";
+          const itemName = mov.products?.[0]?.nama_barang || "Item Tidak Dikenal"; // Changed from stock_items
           const fromCategory = getCategoryDisplay(mov.from_category);
           const toCategory = getCategoryDisplay(mov.to_category);
           allActivities.push({

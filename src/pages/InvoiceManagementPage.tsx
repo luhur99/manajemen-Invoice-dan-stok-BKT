@@ -230,7 +230,7 @@ const InvoiceManagementPage = () => {
               <Table className="min-w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>No</TableHead> {/* New TableHead */}
+                    <TableHead>No</TableHead>
                     <TableHead>Nomor Invoice</TableHead>
                     <TableHead>Tanggal Invoice</TableHead>
                     <TableHead>Jatuh Tempo</TableHead>
@@ -247,7 +247,7 @@ const InvoiceManagementPage = () => {
                 <TableBody>
                   {currentItems.map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell>{invoice.no}</TableCell> {/* New TableCell */}
+                      <TableCell>{invoice.no}</TableCell>
                       <TableCell>{invoice.invoice_number}</TableCell>
                       <TableCell>{format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</TableCell>

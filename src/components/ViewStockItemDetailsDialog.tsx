@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StockItem, StockTransactionWithItemName, WarehouseInventory } from "@/types/data";
+import { Product, StockTransactionWithItemName, WarehouseInventory } from "@/types/data"; // Changed from StockItem
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import PaginationControls from "@/components/PaginationControls";
@@ -12,14 +12,14 @@ import { Loader2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
 
-interface ViewStockItemDetailsDialogProps {
-  stockItem: StockItem;
+interface ViewProductDetailsDialogProps { // Changed from ViewStockItemDetailsDialogProps
+  product: Product; // Changed from stockItem
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
-  stockItem,
+const ViewStockItemDetailsDialog: React.FC<ViewProductDetailsDialogProps> = ({ // Changed component name and prop
+  product, // Changed from stockItem
   isOpen,
   onOpenChange,
 }) => {
@@ -46,12 +46,12 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
   };
 
   const fetchInventories = useCallback(async () => {
-    if (!stockItem?.id) return;
+    if (!product?.id) return; // Changed from stockItem?.id
     setLoadingInventories(true);
     const { data, error } = await supabase
       .from("warehouse_inventories")
       .select("*")
-      .eq("product_id", stockItem.id);
+      .eq("product_id", product.id); // Changed from stockItem.id
 
     if (error) {
       showError("Gagal memuat inventaris item.");
@@ -61,10 +61,10 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
       setCurrentInventories(data as WarehouseInventory[]);
     }
     setLoadingInventories(false);
-  }, [stockItem?.id]);
+  }, [product?.id]); // Changed from stockItem?.id
 
   const fetchStockTransactions = useCallback(async () => {
-    if (!stockItem?.id) return;
+    if (!product?.id) return; // Changed from stockItem?.id
 
     setLoadingTransactions(true);
     setTransactionsError(null);
@@ -79,12 +79,12 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
           transaction_date,
           created_at,
           warehouse_category,
-          stock_items (
+          products (
             nama_barang,
             kode_barang
           )
-        `)
-        .eq("stock_item_id", stockItem.id)
+        `) // Changed from stock_items to products
+        .eq("product_id", product.id) // Changed from stock_item_id
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -93,19 +93,19 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
 
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null,
+        products: item.products ? [item.products] : null, // Changed from stock_items to products
       }));
 
       setTransactions(processedData);
       setCurrentPage(1); // Reset to first page on new data fetch
     } catch (err: any) {
       setTransactionsError(`Gagal memuat riwayat transaksi: ${err.message}`);
-      console.error("Error fetching stock item transactions:", err);
+      console.error("Error fetching product transactions:", err); // Changed message
       setTransactions([]);
     } finally {
       setLoadingTransactions(false);
     }
-  }, [stockItem?.id]);
+  }, [product?.id]); // Changed from stockItem?.id
 
   useEffect(() => {
     if (isOpen) {
@@ -160,29 +160,29 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     setCurrentPage(page);
   };
 
-  if (!stockItem) return null;
+  if (!product) return null; // Changed from stockItem
 
   const totalStockAkhir = currentInventories.reduce((sum, inv) => sum + inv.quantity, 0);
-  const isLowStock = totalStockAkhir < (stockItem.safe_stock_limit || 10);
+  const isLowStock = totalStockAkhir < (product.safe_stock_limit || 10); // Changed from stockItem.safe_stock_limit
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Item Stok: {stockItem["NAMA BARANG"]}</DialogTitle>
-          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk item stok ini.</DialogDescription>
+          <DialogTitle>Detail Produk: {product["NAMA BARANG"]}</DialogTitle> {/* Changed title */}
+          <DialogDescription>Informasi lengkap dan riwayat transaksi untuk produk ini.</DialogDescription> {/* Changed description */}
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
           <div>
-            <p><strong>Kode Barang:</strong> {stockItem["KODE BARANG"]}</p>
-            <p><strong>Nama Barang:</strong> {stockItem["NAMA BARANG"]}</p>
-            <p><strong>Satuan:</strong> {stockItem.SATUAN || "-"}</p>
-            <p><strong>Batas Stok Aman:</strong> {stockItem.safe_stock_limit || 0}</p>
+            <p><strong>Kode Barang:</strong> {product["KODE BARANG"]}</p>
+            <p><strong>Nama Barang:</strong> {product["NAMA BARANG"]}</p>
+            <p><strong>Satuan:</strong> {product.SATUAN || "-"}</p>
+            <p><strong>Batas Stok Aman:</strong> {product.safe_stock_limit || 0}</p>
           </div>
           <div>
-            <p><strong>Harga Beli:</strong> {stockItem["HARGA BELI"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
-            <p><strong>Harga Jual:</strong> {stockItem["HARGA JUAL"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+            <p><strong>Harga Beli:</strong> {product["HARGA BELI"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
+            <p><strong>Harga Jual:</strong> {product["HARGA JUAL"].toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</p>
             <p><strong>Total Stok Akhir:</strong> <span className={isLowStock ? "font-bold text-red-600 dark:text-red-400" : ""}>{totalStockAkhir}</span></p>
             <p className="mt-2"><strong>Stok per Kategori:</strong></p>
             {loadingInventories ? (

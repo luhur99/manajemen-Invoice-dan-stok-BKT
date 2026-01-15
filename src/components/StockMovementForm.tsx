@@ -20,7 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem, WarehouseInventory } from "@/types/data";
+import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
 import { format } from "date-fns";
 
 // Define the ENUM type for warehouse categories
@@ -39,14 +39,14 @@ const formSchema = z.object({
 });
 
 interface StockMovementFormProps {
-  stockItem: StockItem;
+  product: Product; // Changed from stockItem
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
 const StockMovementForm: React.FC<StockMovementFormProps> = ({
-  stockItem,
+  product, // Changed from stockItem
   isOpen,
   onOpenChange,
   onSuccess,
@@ -65,12 +65,12 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
   };
 
   const fetchInventories = useCallback(async () => {
-    if (!stockItem?.id) return;
+    if (!product?.id) return; // Changed from stockItem?.id
     setLoadingInventories(true);
     const { data, error } = await supabase
       .from("warehouse_inventories")
       .select("*")
-      .eq("product_id", stockItem.id);
+      .eq("product_id", product.id); // Changed from stockItem.id
 
     if (error) {
       showError("Gagal memuat inventaris item.");
@@ -80,30 +80,30 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
       setCurrentInventories(data as WarehouseInventory[]);
     }
     setLoadingInventories(false);
-  }, [stockItem?.id]);
+  }, [product?.id]); // Changed from stockItem?.id
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      from_category: stockItem.inventories?.[0]?.warehouse_category || "siap_jual", // Default to first category or siap_jual
-      to_category: stockItem.inventories?.[0]?.warehouse_category === "siap_jual" ? "riset" : "siap_jual",
+      from_category: product.inventories?.[0]?.warehouse_category || "siap_jual", // Changed from stockItem.inventories
+      to_category: product.inventories?.[0]?.warehouse_category === "siap_jual" ? "riset" : "siap_jual", // Changed from stockItem.inventories
       quantity: 1,
       reason: "",
     },
   });
 
-  // Reset form when dialog opens or stockItem changes
+  // Reset form when dialog opens or product changes
   useEffect(() => {
     if (isOpen) {
       fetchInventories();
       form.reset({
-        from_category: stockItem.inventories?.[0]?.warehouse_category || "siap_jual",
-        to_category: stockItem.inventories?.[0]?.warehouse_category === "siap_jual" ? "riset" : "siap_jual",
+        from_category: product.inventories?.[0]?.warehouse_category || "siap_jual", // Changed from stockItem.inventories
+        to_category: product.inventories?.[0]?.warehouse_category === "siap_jual" ? "riset" : "siap_jual", // Changed from stockItem.inventories
         quantity: 1,
         reason: "",
       });
     }
-  }, [isOpen, stockItem, form, fetchInventories]);
+  }, [isOpen, product, form, fetchInventories]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const user = await supabase.auth.getUser();
@@ -142,7 +142,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         .from("warehouse_inventories")
         .upsert(
           {
-            product_id: stockItem.id,
+            product_id: product.id, // Changed from stockItem.id
             warehouse_category: values.from_category,
             quantity: fromQuantity - values.quantity,
             user_id: userId,
@@ -160,7 +160,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         .from("warehouse_inventories")
         .upsert(
           {
-            product_id: stockItem.id,
+            product_id: product.id, // Changed from stockItem.id
             warehouse_category: values.to_category,
             quantity: toQuantity + values.quantity,
             user_id: userId,
@@ -178,7 +178,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         .from("stock_movements")
         .insert({
           user_id: userId,
-          stock_item_id: stockItem.id,
+          product_id: product.id, // Changed from stock_item_id
           from_category: values.from_category,
           to_category: values.to_category,
           quantity: values.quantity,
@@ -190,7 +190,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         throw movementError;
       }
 
-      showSuccess(`Stok item "${stockItem["NAMA BARANG"]}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`);
+      showSuccess(`Stok produk "${product["NAMA BARANG"]}" berhasil dipindahkan dari ${getCategoryDisplay(values.from_category)} ke ${getCategoryDisplay(values.to_category)}!`); // Changed message
       onOpenChange(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
@@ -203,8 +203,8 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Pindahkan Stok Barang</DialogTitle>
-          <DialogDescription>Pindahkan item stok "{stockItem["NAMA BARANG"]}" antar kategori gudang.</DialogDescription>
+          <DialogTitle>Pindahkan Stok Produk</DialogTitle> {/* Changed title */}
+          <DialogDescription>Pindahkan produk "{product["NAMA BARANG"]}" antar kategori gudang.</DialogDescription> {/* Changed description */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

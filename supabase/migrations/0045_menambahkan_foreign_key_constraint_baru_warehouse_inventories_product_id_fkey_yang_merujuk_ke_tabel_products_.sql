@@ -1,0 +1,1 @@
+ALTER TABLE public.warehouse_inventories ADD CONSTRAINT warehouse_inventories_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id) ON DELETE CASCADE;

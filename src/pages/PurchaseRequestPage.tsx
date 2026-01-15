@@ -115,19 +115,19 @@ const PurchaseRequestPage = () => {
         throw updateReqError;
       }
 
-      // 2. Check if stock item exists or create new
-      const { data: existingStockItem, error: fetchStockError } = await supabase
-        .from("stock_items")
+      // 2. Check if product exists or create new
+      const { data: existingProduct, error: fetchProductError } = await supabase // Changed from existingStockItem, fetchStockError
+        .from("products") // Changed from stock_items
         .select("id, harga_beli, harga_jual, satuan, supplier_id") // Select supplier_id
         .eq("kode_barang", request.item_code)
         .single();
 
-      let stockItemId: string;
+      let productId: string; // Changed from stockItemId
 
-      if (fetchStockError && fetchStockError.code === 'PGRST116') { // No rows found
-        // Create new stock item
-        const { data: newStockData, error: createStockError } = await supabase
-          .from("stock_items")
+      if (fetchProductError && fetchProductError.code === 'PGRST116') { // No rows found
+        // Create new product
+        const { data: newProductData, error: createProductError } = await supabase // Changed from newStockData, createStockError
+          .from("products") // Changed from stock_items
           .insert({
             user_id: session?.user?.id,
             kode_barang: request.item_code,
@@ -141,33 +141,33 @@ const PurchaseRequestPage = () => {
           .select("id")
           .single();
 
-        if (createStockError) throw createStockError;
-        stockItemId = newStockData.id;
+        if (createProductError) throw createProductError;
+        productId = newProductData.id; // Changed from stockItemId
 
-      } else if (existingStockItem) {
-        // Update existing stock item metadata (prices, satuan, supplier_id)
-        const { error: updateStockMetadataError } = await supabase
-          .from("stock_items")
+      } else if (existingProduct) { // Changed from existingStockItem
+        // Update existing product metadata (prices, satuan, supplier_id)
+        const { error: updateProductMetadataError } = await supabase // Changed from updateStockMetadataError
+          .from("products") // Changed from stock_items
           .update({
             harga_beli: request.unit_price,
             harga_jual: request.suggested_selling_price,
-            satuan: request.satuan || existingStockItem.satuan,
-            supplier_id: request.supplier_id || existingStockItem.supplier_id || null, // Update supplier_id
+            satuan: request.satuan || existingProduct.satuan,
+            supplier_id: request.supplier_id || existingProduct.supplier_id || null, // Update supplier_id
           })
-          .eq("id", existingStockItem.id);
+          .eq("id", existingProduct.id);
 
-        if (updateStockMetadataError) throw updateStockMetadataError;
-        stockItemId = existingStockItem.id;
+        if (updateProductMetadataError) throw updateProductMetadataError;
+        productId = existingProduct.id; // Changed from stockItemId
 
       } else {
-        throw new Error("Gagal memproses item stok.");
+        throw new Error("Gagal memproses item produk."); // Changed message
       }
 
       // 3. Update or insert into warehouse_inventories for 'siap_jual' category
       const { data: currentInventory, error: fetchInventoryError } = await supabase
         .from("warehouse_inventories")
         .select("quantity")
-        .eq("product_id", stockItemId)
+        .eq("product_id", productId) // Changed from stockItemId
         .eq("warehouse_category", "siap_jual")
         .single();
 
@@ -178,7 +178,7 @@ const PurchaseRequestPage = () => {
         .from("warehouse_inventories")
         .upsert(
           {
-            product_id: stockItemId,
+            product_id: productId, // Changed from stockItemId
             warehouse_category: "siap_jual",
             quantity: newQuantityInInventory,
             user_id: session?.user?.id,
@@ -196,7 +196,7 @@ const PurchaseRequestPage = () => {
         .from("stock_transactions")
         .insert({
           user_id: session?.user?.id,
-          stock_item_id: stockItemId,
+          product_id: productId, // Changed from stockItemId
           transaction_type: "in",
           quantity: request.quantity,
           notes: `Stok masuk dari pengajuan pembelian #${request.no} (${request.item_name})`,

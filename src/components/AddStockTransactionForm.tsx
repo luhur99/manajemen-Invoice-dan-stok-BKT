@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem, WarehouseInventory } from "@/types/data";
+import { Product, WarehouseInventory } from "@/types/data"; // Changed from StockItem
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -40,7 +40,7 @@ const formSchema = z.object({
 });
 
 interface AddStockTransactionFormProps {
-  stockItem: StockItem;
+  product: Product; // Changed from stockItem
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -48,7 +48,7 @@ interface AddStockTransactionFormProps {
 }
 
 const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
-  stockItem,
+  product, // Changed from stockItem
   isOpen,
   onOpenChange,
   onSuccess,
@@ -72,12 +72,12 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   const transactionTypeWatch = form.watch("transaction_type");
 
   const fetchInventories = useCallback(async () => {
-    if (!stockItem?.id) return;
+    if (!product?.id) return; // Changed from stockItem?.id
     setLoadingInventories(true);
     const { data, error } = await supabase
       .from("warehouse_inventories")
       .select("*")
-      .eq("product_id", stockItem.id);
+      .eq("product_id", product.id); // Changed from stockItem.id
 
     if (error) {
       showError("Gagal memuat inventaris item.");
@@ -87,7 +87,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       setCurrentInventories(data as WarehouseInventory[]);
     }
     setLoadingInventories(false);
-  }, [stockItem?.id]);
+  }, [product?.id]); // Changed from stockItem?.id
 
   useEffect(() => {
     if (isOpen) {
@@ -135,7 +135,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         .from("warehouse_inventories")
         .upsert(
           {
-            product_id: stockItem.id,
+            product_id: product.id, // Changed from stockItem.id
             warehouse_category: values.warehouse_category,
             quantity: newQuantityInInventory,
             user_id: userId,
@@ -153,7 +153,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         .from("stock_transactions")
         .insert({
           user_id: userId,
-          stock_item_id: stockItem.id,
+          product_id: product.id, // Changed from stock_item_id
           transaction_type: values.transaction_type,
           quantity: values.quantity,
           notes: values.notes || null,
@@ -191,7 +191,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     damage_loss: "Catat Stok Rusak/Hilang",
   }[transactionTypeWatch];
 
-  const dialogDescription = `Catat transaksi stok untuk item "${stockItem["NAMA BARANG"]}".`;
+  const dialogDescription = `Catat transaksi stok untuk produk "${product["NAMA BARANG"]}".`; // Changed message
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>

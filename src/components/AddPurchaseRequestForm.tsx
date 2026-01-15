@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { StockItem, Supplier } from "@/types/data";
+import { Product, Supplier } from "@/types/data"; // Changed from StockItem
 import StockItemCombobox from "@/components/StockItemCombobox";
 import SupplierCombobox from "@/components/SupplierCombobox"; // Import new SupplierCombobox
 
@@ -34,7 +34,7 @@ const formSchema = z.object({
   supplier_name_input: z.string().optional(), // For the combobox input text
   notes: z.string().optional(),
   satuan: z.string().optional(),
-  selected_stock_item_id: z.string().uuid().optional().or(z.literal("")), // New field to hold the selected stock item ID
+  selected_product_id: z.string().uuid().optional().or(z.literal("")), // Changed from selected_stock_item_id
 });
 
 interface AddPurchaseRequestFormProps {
@@ -43,9 +43,9 @@ interface AddPurchaseRequestFormProps {
 
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSuccess }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [stockItems, setStockItems] = useState<StockItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]); // Changed from stockItems
   const [suppliers, setSuppliers] = useState<Supplier[]>([]); // New state for suppliers
-  const [loadingStockItems, setLoadingStockItems] = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true); // Changed from loadingStockItems
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -60,15 +60,15 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       supplier_name_input: "",
       notes: "",
       satuan: "",
-      selected_stock_item_id: "", // Initialize new field
+      selected_product_id: "", // Initialize new field
     },
   });
 
   useEffect(() => {
-    const fetchStockItems = async () => {
-      setLoadingStockItems(true);
+    const fetchProducts = async () => { // Changed from fetchStockItems
+      setLoadingProducts(true); // Changed from setLoadingStockItems
       const { data, error } = await supabase
-        .from("stock_items")
+        .from("products") // Changed from stock_items
         .select(`
           id,
           kode_barang,
@@ -81,10 +81,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
         `);
 
       if (error) {
-        showError("Gagal memuat daftar item stok.");
-        console.error("Error fetching stock items:", error);
+        showError("Gagal memuat daftar produk."); // Changed message
+        console.error("Error fetching products:", error); // Changed message
       } else {
-        setStockItems(data.map(item => ({
+        setProducts(data.map(item => ({ // Changed from setStockItems
           id: item.id,
           "KODE BARANG": item.kode_barang,
           "NAMA BARANG": item.nama_barang,
@@ -94,9 +94,9 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           supplier_id: item.supplier_id || undefined, // Include supplier_id
           inventories: item.warehouse_inventories || [],
           safe_stock_limit: 0,
-        })) as StockItem[]);
+        })) as Product[]); // Changed from StockItem[]
       }
-      setLoadingStockItems(false);
+      setLoadingProducts(false); // Changed from setLoadingStockItems
     };
 
     const fetchSuppliers = async () => {
@@ -115,23 +115,23 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       setLoadingSuppliers(false);
     };
 
-    fetchStockItems();
+    fetchProducts(); // Changed from fetchStockItems
     fetchSuppliers();
   }, []);
 
-  // Handler for when a stock item is selected from the combobox
-  const handleStockItemSelect = (selectedItemId: string | undefined) => {
-    form.setValue("selected_stock_item_id", selectedItemId || "");
+  // Handler for when a product is selected from the combobox
+  const handleProductSelect = (selectedItemId: string | undefined) => { // Changed from handleStockItemSelect
+    form.setValue("selected_product_id", selectedItemId || ""); // Changed from selected_stock_item_id
     if (selectedItemId) {
-      const selectedStock = stockItems.find(item => item.id === selectedItemId);
-      if (selectedStock) {
-        form.setValue("item_name", selectedStock["NAMA BARANG"]);
-        form.setValue("item_code", selectedStock["KODE BARANG"]);
-        form.setValue("unit_price", selectedStock["HARGA BELI"]);
-        form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
-        form.setValue("satuan", selectedStock.SATUAN || "");
-        form.setValue("supplier_id", selectedStock.supplier_id || "");
-        const selectedSupplier = suppliers.find(s => s.id === selectedStock.supplier_id);
+      const selectedProduct = products.find(item => item.id === selectedItemId); // Changed from selectedStock
+      if (selectedProduct) {
+        form.setValue("item_name", selectedProduct["NAMA BARANG"]);
+        form.setValue("item_code", selectedProduct["KODE BARANG"]);
+        form.setValue("unit_price", selectedProduct["HARGA BELI"]);
+        form.setValue("suggested_selling_price", selectedProduct["HARGA JUAL"]);
+        form.setValue("satuan", selectedProduct.SATUAN || "");
+        form.setValue("supplier_id", selectedProduct.supplier_id || "");
+        const selectedSupplier = suppliers.find(s => s.id === selectedProduct.supplier_id);
         form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
       }
     } else {
@@ -145,23 +145,23 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
     }
   };
 
-  // Handler for when the stock item combobox input text changes
-  const handleStockItemInputChange = (value: string) => {
+  // Handler for when the product combobox input text changes
+  const handleProductInputChange = (value: string) => { // Changed from handleStockItemInputChange
     form.setValue("item_name", value);
     // If the user types, clear the selected item ID and other prepopulated fields
     // unless the typed value exactly matches an existing item.
-    const matchedItem = stockItems.find(item => item["NAMA BARANG"] === value);
+    const matchedItem = products.find(item => item["NAMA BARANG"] === value); // Changed from stockItems
     if (!matchedItem) {
-      form.setValue("selected_stock_item_id", "");
+      form.setValue("selected_product_id", ""); // Changed from selected_stock_item_id
       form.setValue("item_code", "");
       form.setValue("unit_price", 0);
       form.setValue("suggested_selling_price", 0);
       form.setValue("satuan", "");
       form.setValue("supplier_id", "");
       form.setValue("supplier_name_input", "");
-    } else if (matchedItem.id !== form.getValues().selected_stock_item_id) {
+    } else if (matchedItem.id !== form.getValues().selected_product_id) { // Changed from selected_stock_item_id
       // If it matches a different item, update all fields
-      handleStockItemSelect(matchedItem.id);
+      handleProductSelect(matchedItem.id); // Changed from handleStockItemSelect
     }
   };
 
@@ -191,6 +191,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           notes: values.notes || null,
           status: "pending",
           satuan: values.satuan || null,
+          product_id: values.selected_product_id || null, // Save product_id
         });
 
       if (error) {
@@ -228,15 +229,15 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                 <FormItem className="md:col-span-2">
                   <FormLabel>Nama Item</FormLabel>
                   <FormControl>
-                    <StockItemCombobox
+                    <StockItemCombobox // Still using StockItemCombobox, but it will now handle Product type
                       name={field.name}
-                      items={stockItems}
-                      selectedItemId={form.watch("selected_stock_item_id")} // Pass the selected ID
-                      onSelectItemId={handleStockItemSelect} // Handle ID selection
+                      items={products} // Changed from stockItems
+                      selectedItemId={form.watch("selected_product_id")} // Pass the selected ID
+                      onSelectItemId={handleProductSelect} // Handle ID selection
                       inputValue={field.value} // Pass the current item_name as input text
-                      onInputValueChange={handleStockItemInputChange} // Handle input text changes
-                      disabled={loadingStockItems}
-                      placeholder={loadingStockItems ? "Memuat item stok..." : "Pilih item yang sudah ada atau ketik baru..."}
+                      onInputValueChange={handleProductInputChange} // Handle input text changes
+                      disabled={loadingProducts} // Changed from loadingStockItems
+                      placeholder={loadingProducts ? "Memuat produk..." : "Pilih produk yang sudah ada atau ketik baru..."} // Changed message
                     />
                   </FormControl>
                   <FormMessage />

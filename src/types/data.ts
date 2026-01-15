@@ -1,6 +1,6 @@
 export interface WarehouseInventory {
   id?: string;
-  product_id: string; // Foreign key to StockItem
+  product_id: string; // Foreign key to Product
   warehouse_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
   quantity: number;
   user_id: string;
@@ -22,7 +22,7 @@ export interface Supplier {
   no?: number; // New: Sequential number for display
 }
 
-export interface StockItem {
+export interface Product { // Renamed from StockItem
   id?: string; // UUID from Supabase, made optional for initial data loading
   user_id?: string; // User ID for RLS, made optional for initial data loading
   "KODE BARANG": string;
@@ -40,7 +40,7 @@ export interface StockItem {
 export interface StockTransaction {
   id: string;
   user_id: string;
-  stock_item_id: string; // Renamed from product_id to match stock_items.id
+  product_id: string; // Renamed from stock_item_id to product_id
   transaction_type: 'initial' | 'in' | 'out' | 'return' | 'damage_loss' | 'adjustment';
   quantity: number;
   notes?: string;
@@ -51,7 +51,7 @@ export interface StockTransaction {
 
 // New interface for Stock Transaction with Item Name for display
 export interface StockTransactionWithItemName extends StockTransaction {
-  stock_items: {
+  products: { // Changed from stock_items
     nama_barang: string;
     kode_barang: string;
   }[] | null;
@@ -61,7 +61,7 @@ export interface StockTransactionWithItemName extends StockTransaction {
 export interface StockMovement {
   id: string;
   user_id: string;
-  stock_item_id: string; // Renamed from product_id to match stock_items.id
+  product_id: string; // Renamed from stock_item_id to product_id
   from_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
   to_category: 'siap_jual' | 'riset' | 'retur' | 'backup_teknisi';
   quantity: number;
@@ -72,7 +72,7 @@ export interface StockMovement {
 
 // New interface for Stock Movement with Item Name for display
 export interface StockMovementWithItemName extends StockMovement {
-  stock_items: {
+  products: { // Changed from stock_items
     nama_barang: string;
     kode_barang: string;
   }[] | null;
@@ -122,6 +122,7 @@ export interface InvoiceItem {
   subtotal: number;
   unit_type?: string; // New field for unit type
   created_at?: string;
+  product_id?: string; // New: Foreign key to products table
 }
 
 export interface Invoice {
@@ -193,4 +194,5 @@ export interface PurchaseRequest {
   created_at: string;
   no?: number; // For display purposes
   satuan?: string; // Added satuan field
+  product_id?: string; // New: Foreign key to products table
 }

@@ -24,7 +24,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Schedule, InvoiceItem, StockItem, Invoice } from "@/types/data"; // Import Invoice type
+import { Schedule, InvoiceItem, Product, Invoice } from "@/types/data"; // Changed from StockItem
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -184,40 +184,53 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
           // Continue with schedule update, but stock deduction failed
         } else if (invoiceItems && invoiceItems.length > 0) {
           for (const item of invoiceItems as InvoiceItem[]) {
-            const { data: stockItemData, error: stockItemError } = await supabase
-              .from("stock_items")
-              .select("id, nama_barang, stock_keluar, stock_akhir")
-              .eq("nama_barang", item.item_name)
+            // Use product_id from invoice_item to find the product
+            const { data: productData, error: productItemError } = await supabase // Changed from stockItemData, stockItemError
+              .from("products") // Changed from stock_items
+              .select("id, nama_barang")
+              .eq("id", item.product_id) // Use product_id
               .single();
 
-            if (stockItemError) {
-              console.warn(`Stock item for "${item.item_name}" not found or error:`, stockItemError);
-              showError(`Item stok "${item.item_name}" tidak ditemukan atau gagal diperbarui.`);
+            if (productItemError) { // Changed from stockItemError
+              console.warn(`Product for "${item.item_name}" not found or error:`, productItemError); // Changed message
+              showError(`Produk "${item.item_name}" tidak ditemukan atau gagal diperbarui.`); // Changed message
               continue; // Skip to next invoice item
             }
 
-            if (stockItemData) {
-              const newStockKeluar = stockItemData.stock_keluar + item.quantity;
-              const newStockAkhir = stockItemData.stock_akhir - item.quantity;
+            if (productData) { // Changed from stockItemData
+              // Fetch current inventory for 'siap_jual' category
+              const { data: currentInventory, error: inventoryFetchError } = await supabase
+                .from("warehouse_inventories")
+                .select("quantity")
+                .eq("product_id", productData.id) // Changed from stockItemData.id
+                .eq("warehouse_category", "siap_jual")
+                .single();
 
-              if (newStockAkhir < 0) {
-                showError(`Stok akhir untuk "${item.item_name}" akan menjadi negatif. Pengurangan dibatalkan.`);
-                // Optionally, revert schedule status or mark as partially completed
+              const currentQuantity = currentInventory ? currentInventory.quantity : 0;
+              const newQuantityInInventory = currentQuantity - item.quantity;
+
+              if (newQuantityInInventory < 0) {
+                showError(`Stok akhir untuk "${item.item_name}" akan menjadi negatif di kategori 'Siap Jual'. Pengurangan dibatalkan.`);
                 continue;
               }
 
-              // Update stock item
-              const { error: updateStockError } = await supabase
-                .from("stock_items")
-                .update({
-                  stock_keluar: newStockKeluar,
-                  stock_akhir: newStockAkhir,
-                })
-                .eq("id", stockItemData.id);
+              // Update warehouse inventory
+              const { error: updateInventoryError } = await supabase
+                .from("warehouse_inventories")
+                .upsert(
+                  {
+                    product_id: productData.id, // Changed from stockItemData.id
+                    warehouse_category: "siap_jual",
+                    quantity: newQuantityInInventory,
+                    user_id: userId,
+                    updated_at: new Date().toISOString(),
+                  },
+                  { onConflict: "product_id, warehouse_category" }
+                );
 
-              if (updateStockError) {
-                console.error(`Error updating stock for "${item.item_name}":`, updateStockError);
-                showError(`Gagal memperbarui stok untuk "${item.item_name}".`);
+              if (updateInventoryError) {
+                console.error(`Error updating inventory for "${item.item_name}":`, updateInventoryError);
+                showError(`Gagal memperbarui inventaris untuk "${item.item_name}".`);
                 continue;
               }
 
@@ -226,10 +239,11 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                 .from("stock_transactions")
                 .insert({
                   user_id: userId,
-                  stock_item_id: stockItemData.id,
+                  product_id: productData.id, // Changed from stock_item_id
                   transaction_type: "out",
                   quantity: item.quantity,
                   notes: `Pengurangan stok untuk jadwal ${values.type} (Invoice: ${relatedInvoiceNumber || values.invoice_id})`, // Use relatedInvoiceNumber
+                  warehouse_category: "siap_jual", // Transaction happened in 'siap_jual'
                 });
 
               if (transactionError) {
@@ -239,7 +253,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
               }
             }
           }
-          showSuccess("Stok barang terkait berhasil diperbarui.");
+          showSuccess("Stok produk terkait berhasil diperbarui."); // Changed message
         }
       }
 

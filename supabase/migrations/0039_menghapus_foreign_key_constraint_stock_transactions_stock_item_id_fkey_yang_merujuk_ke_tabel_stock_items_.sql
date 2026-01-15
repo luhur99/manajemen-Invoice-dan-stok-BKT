@@ -1,0 +1,1 @@
+ALTER TABLE public.stock_transactions DROP CONSTRAINT IF EXISTS stock_transactions_stock_item_id_fkey;

@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
-import { StockItem } from "@/types/data";
+import { Product } from "@/types/data"; // Changed from StockItem
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -30,44 +30,44 @@ const formSchema = z.object({
   safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
 });
 
-interface EditStockItemFormProps {
-  stockItem: StockItem;
+interface EditProductFormProps { // Changed from EditStockItemFormProps
+  product: Product; // Changed from stockItem
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
-const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen, onOpenChange, onSuccess }) => {
+const EditStockItemForm: React.FC<EditProductFormProps> = ({ product, isOpen, onOpenChange, onSuccess }) => { // Changed component name and prop
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      kode_barang: stockItem["KODE BARANG"],
-      nama_barang: stockItem["NAMA BARANG"],
-      satuan: stockItem.SATUAN,
-      harga_beli: stockItem["HARGA BELI"],
-      harga_jual: stockItem["HARGA JUAL"],
-      safe_stock_limit: stockItem.safe_stock_limit || 0,
+      kode_barang: product["KODE BARANG"],
+      nama_barang: product["NAMA BARANG"],
+      satuan: product.SATUAN,
+      harga_beli: product["HARGA BELI"],
+      harga_jual: product["HARGA JUAL"],
+      safe_stock_limit: product.safe_stock_limit || 0,
     },
   });
 
-  // Reset form with new stock item data when the dialog opens or stockItem prop changes
+  // Reset form with new product data when the dialog opens or product prop changes
   useEffect(() => {
-    if (isOpen && stockItem) {
+    if (isOpen && product) {
       form.reset({
-        kode_barang: stockItem["KODE BARANG"],
-        nama_barang: stockItem["NAMA BARANG"],
-        satuan: stockItem.SATUAN,
-        harga_beli: stockItem["HARGA BELI"],
-        harga_jual: stockItem["HARGA JUAL"],
-        safe_stock_limit: stockItem.safe_stock_limit || 0,
+        kode_barang: product["KODE BARANG"],
+        nama_barang: product["NAMA BARANG"],
+        satuan: product.SATUAN,
+        harga_beli: product["HARGA BELI"],
+        harga_jual: product["HARGA JUAL"],
+        safe_stock_limit: product.safe_stock_limit || 0,
       });
     }
-  }, [isOpen, stockItem, form]);
+  }, [isOpen, product, form]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       const { error: updateError } = await supabase
-        .from("stock_items")
+        .from("products") // Changed from stock_items
         .update({
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
@@ -76,18 +76,18 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
           harga_jual: values.harga_jual,
           safe_stock_limit: values.safe_stock_limit,
         })
-        .eq("id", stockItem.id);
+        .eq("id", product.id); // Changed from stockItem.id
 
       if (updateError) {
         throw updateError;
       }
 
-      showSuccess("Metadata item stok berhasil diperbarui!");
+      showSuccess("Metadata produk berhasil diperbarui!"); // Changed message
       onOpenChange(false);
       onSuccess(); // Trigger refresh of stock data
     } catch (error: any) {
-      showError(`Gagal memperbarui metadata item stok: ${error.message}`);
-      console.error("Error updating stock item metadata:", error);
+      showError(`Gagal memperbarui metadata produk: ${error.message}`); // Changed message
+      console.error("Error updating product metadata:", error); // Changed message
     }
   };
 
@@ -95,8 +95,8 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ stockItem, isOpen
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Item Stok Metadata</DialogTitle>
-          <DialogDescription>Perbarui detail metadata untuk item stok "{stockItem["NAMA BARANG"]}".</DialogDescription>
+          <DialogTitle>Edit Produk Metadata</DialogTitle> {/* Changed title */}
+          <DialogDescription>Perbarui detail metadata untuk produk "{product["NAMA BARANG"]}".</DialogDescription> {/* Changed description */}
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">

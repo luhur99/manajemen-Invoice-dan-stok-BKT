@@ -1,0 +1,1 @@
+ALTER TABLE public.stock_items RENAME TO products;

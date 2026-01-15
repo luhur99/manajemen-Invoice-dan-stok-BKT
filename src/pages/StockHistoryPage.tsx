@@ -25,7 +25,6 @@ interface FlattenedStockTransactionForExport {
   item_name: string;
   item_code: string;
   transaction_type: string;
-  quantity: number;
   warehouse_category: string; // New field for export
   notes: string;
 }
@@ -95,18 +94,18 @@ const StockHistoryPage = () => {
         .select(`
           id,
           user_id,
-          stock_item_id,
+          product_id,
           transaction_type,
           quantity,
           notes,
           transaction_date,
           created_at,
           warehouse_category,
-          stock_items (
+          products (
             nama_barang,
             kode_barang
           )
-        `);
+        `); // Changed from stock_items to products
 
       // Apply date filters
       if (startDate) {
@@ -136,19 +135,19 @@ const StockHistoryPage = () => {
         throw error;
       }
 
-      // Correctly map stock_items to be an array for consistency with the type,
+      // Correctly map products to be an array for consistency with the type,
       // even if it's a single object from the join.
       const processedData: StockTransactionWithItemName[] = data.map((item: any) => ({
         ...item,
-        stock_items: item.stock_items ? [item.stock_items] : null,
+        products: item.products ? [item.products] : null, // Changed from stock_items to products
       }));
 
       // Client-side search filtering (only for text search, category filter already applied server-side)
       const lowerCaseSearchTerm = searchTerm.toLowerCase();
       const filteredBySearch = processedData.filter(item => {
         return (
-          item.stock_items?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          item.stock_items?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          item.products?.[0]?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from stock_items
+          item.products?.[0]?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from stock_items
           item.transaction_type.toLowerCase().includes(lowerCaseSearchTerm) ||
           item.notes?.toLowerCase().includes(lowerCaseSearchTerm)
         );
@@ -158,9 +157,9 @@ const StockHistoryPage = () => {
       setFilteredTransactions(filteredBySearch); // Apply search filter on top
       setCurrentPage(1);
     } catch (err: any) {
-      setError(`Gagal memuat riwayat transaksi stok: ${err.message}`);
-      console.error("Error fetching stock transactions:", err);
-      showError("Gagal memuat riwayat transaksi stok.");
+      setError(`Gagal memuat riwayat transaksi produk: ${err.message}`); // Changed message
+      console.error("Error fetching product transactions:", err); // Changed message
+      showError("Gagal memuat riwayat transaksi produk."); // Changed message
       setTransactions([]);
       setFilteredTransactions([]);
     } finally {
@@ -181,11 +180,11 @@ const StockHistoryPage = () => {
           transaction_date,
           created_at,
           warehouse_category,
-          stock_items (
+          products (
             nama_barang,
             kode_barang
           )
-        `);
+        `); // Changed from stock_items to products
 
       // Apply date filters for export as well
       if (startDate) {
@@ -243,8 +242,8 @@ const StockHistoryPage = () => {
           transaction_date: format(new Date(item.transaction_date), "yyyy-MM-dd"),
           created_at: format(new Date(item.created_at), "yyyy-MM-dd HH:mm"),
           // Corrected access for item_name and item_code
-          item_name: item.stock_items?.[0]?.nama_barang || "N/A",
-          item_code: item.stock_items?.[0]?.kode_barang || "N/A",
+          item_name: item.products?.[0]?.nama_barang || "N/A", // Changed from stock_items
+          item_code: item.products?.[0]?.kode_barang || "N/A", // Changed from stock_items
           transaction_type: getTransactionTypeDisplay(item.transaction_type),
           quantity: item.quantity,
           warehouse_category: getCategoryDisplay(item.warehouse_category), // Include category in export
@@ -253,8 +252,8 @@ const StockHistoryPage = () => {
       }));
       return flattenedData;
     } catch (err: any) {
-      console.error("Error fetching all stock transactions for export:", err);
-      showError("Gagal memuat semua data riwayat stok untuk ekspor.");
+      console.error("Error fetching all product transactions for export:", err); // Changed message
+      showError("Gagal memuat semua data riwayat produk untuk ekspor."); // Changed message
       return null;
     }
   }, [startDate, endDate, filterType, filterWarehouseCategory]);
@@ -262,8 +261,8 @@ const StockHistoryPage = () => {
   const stockTransactionHeaders: { key: keyof FlattenedStockTransactionForExport; label: string }[] = [
     { key: "transaction_date", label: "Tanggal Transaksi" },
     { key: "created_at", label: "Waktu Dibuat" },
-    { key: "item_name", label: "Nama Barang" },
-    { key: "item_code", label: "Kode Barang" },
+    { key: "item_name", label: "Nama Produk" }, // Changed label
+    { key: "item_code", label: "Kode Produk" }, // Changed label
     { key: "transaction_type", label: "Tipe Transaksi" },
     { key: "warehouse_category", label: "Kategori Gudang" },
     { key: "notes", label: "Catatan" },
@@ -330,21 +329,21 @@ const StockHistoryPage = () => {
     <Card className="border shadow-sm">
       <CardHeader>
         <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Riwayat Transaksi Stok</CardTitle>
+          <CardTitle className="text-2xl font-semibold">Riwayat Transaksi Produk</CardTitle> {/* Changed title */}
           <ExportDataButton
             fetchDataFunction={fetchAllStockTransactionsForExport}
-            fileName="stock_transactions_history.csv"
+            fileName="product_transactions_history.csv" // Changed filename
             headers={stockTransactionHeaders}
           />
         </div>
-        <CardDescription>Lihat semua transaksi keluar dan masuk stok untuk keperluan audit.</CardDescription>
+        <CardDescription>Lihat semua transaksi keluar dan masuk produk untuk keperluan audit.</CardDescription> {/* Changed description */}
       </CardHeader>
       <CardContent className="space-y-4">
         {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
         <div className="flex flex-col md:flex-row gap-4 mb-4 flex-wrap">
           <Input
             type="text"
-            placeholder="Cari berdasarkan nama/kode barang, tipe transaksi, atau catatan..."
+            placeholder="Cari berdasarkan nama/kode produk, tipe transaksi, atau catatan..." // Changed message
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-grow"
@@ -447,10 +446,10 @@ const StockHistoryPage = () => {
                   <TableRow>
                     <TableHead>Tanggal Transaksi</TableHead>
                     <TableHead>Waktu Dibuat</TableHead>
-                    <TableHead>Nama Barang</TableHead>
-                    <TableHead>Kode Barang</TableHead>
+                    <TableHead>Nama Produk</TableHead> {/* Changed label */}
+                    <TableHead>Kode Produk</TableHead> {/* Changed label */}
                     <TableHead>Tipe Transaksi</TableHead>
-                    <TableHead>Kategori Gudang</TableHead> {/* New TableHead */}
+                    <TableHead>Kategori Gudang</TableHead>
                     <TableHead className="text-right">Kuantitas</TableHead>
                     <TableHead>Catatan</TableHead>
                   </TableRow>
@@ -460,14 +459,14 @@ const StockHistoryPage = () => {
                     <TableRow key={transaction.id}>
                       <TableCell>{format(new Date(transaction.transaction_date), "dd-MM-yyyy")}</TableCell>
                       <TableCell>{format(new Date(transaction.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.nama_barang || "N/A"}</TableCell>
-                      <TableCell>{transaction.stock_items?.[0]?.kode_barang || "N/A"}</TableCell>
+                      <TableCell>{transaction.products?.[0]?.nama_barang || "N/A"}</TableCell> {/* Changed from stock_items */}
+                      <TableCell>{transaction.products?.[0]?.kode_barang || "N/A"}</TableCell> {/* Changed from stock_items */}
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTransactionTypeColor(transaction.transaction_type)}`}>
                           {getTransactionTypeDisplay(transaction.transaction_type)}
                         </span>
                       </TableCell>
-                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell> {/* New TableCell */}
+                      <TableCell>{getCategoryDisplay(transaction.warehouse_category)}</TableCell>
                       <TableCell className="text-right">{transaction.quantity}</TableCell>
                       <TableCell>
                         {transaction.notes ? (
@@ -492,7 +491,7 @@ const StockHistoryPage = () => {
             )}
           </>
         ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat transaksi stok yang tersedia atau cocok dengan pencarian Anda.</p>
+          <p className="text-gray-700 dark:text-gray-300">Tidak ada riwayat transaksi produk yang tersedia atau cocok dengan pencarian Anda.</p> /* Changed message */
         )}
       </CardContent>
 

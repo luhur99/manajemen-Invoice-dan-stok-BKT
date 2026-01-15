@@ -1,0 +1,1 @@
+ALTER TABLE public.warehouse_inventories DROP CONSTRAINT IF EXISTS warehouse_inventories_product_id_fkey;
