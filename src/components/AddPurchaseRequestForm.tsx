@@ -31,6 +31,7 @@ const formSchema = z.object({
   suggested_selling_price: z.coerce.number().min(0, "Harga Jual yang disarankan tidak boleh negatif"),
   supplier: z.string().optional(),
   notes: z.string().optional(),
+  satuan: z.string().optional(), // New field for satuan
 });
 
 interface AddPurchaseRequestFormProps {
@@ -52,6 +53,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
       suggested_selling_price: 0,
       supplier: "",
       notes: "",
+      satuan: "", // Initialize new field
     },
   });
 
@@ -109,6 +111,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
           supplier: values.supplier || null,
           notes: values.notes || null,
           status: "pending", // Default status
+          satuan: values.satuan || null, // Save new field
         });
 
       if (error) {
@@ -158,6 +161,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                           form.setValue("item_code", selectedStock["KODE BARANG"]);
                           form.setValue("unit_price", selectedStock["HARGA BELI"]);
                           form.setValue("suggested_selling_price", selectedStock["HARGA JUAL"]);
+                          form.setValue("satuan", selectedStock.SATUAN || ""); // Set satuan
                         } else {
                           // If no stock item is selected (e.g., user cleared or typed new)
                           // Keep item_name as is (from onInputValueChange)
@@ -165,6 +169,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                           form.setValue("item_code", "");
                           form.setValue("unit_price", 0);
                           form.setValue("suggested_selling_price", 0);
+                          form.setValue("satuan", ""); // Clear satuan
                         }
                       }}
                       disabled={loadingStockItems}
@@ -222,6 +227,19 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                   <FormLabel>Harga Jual yang Disarankan per Unit</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="satuan"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Satuan</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
