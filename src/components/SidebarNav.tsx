@@ -84,7 +84,7 @@ const SidebarNav = () => {
             )}
           >
             {item.icon}
-            <span className="ml-2">{item.text}</span>
+            <span className="ml-2 overflow-hidden whitespace-nowrap text-ellipsis">{item.text}</span>
           </Link>
         ))}
       </div>
