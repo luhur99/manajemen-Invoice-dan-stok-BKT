@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form"; // Removed useFieldArray
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react"; // Removed PlusCircle, Trash2
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, CustomerTypeEnum } from "@/types/data";
@@ -37,23 +37,22 @@ import { useQuery } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
 
 const formSchema = z.object({
-  sr_number: z.string().optional(),
+  sr_number: z.string().optional().nullable(),
   customer_id: z.string().uuid().optional().nullable(),
   customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
-  company_name: z.string().optional(),
+  company_name: z.string().optional().nullable(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
-  // Removed vehicle_units, vehicle_type, vehicle_year
-  vehicle_details: z.string().optional(), // New field for combined vehicle details
+  vehicle_details: z.string().optional().nullable(),
   full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
-  landmark: z.string().optional(),
+  landmark: z.string().optional().nullable(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
-  requested_time: z.string().optional(),
+  requested_time: z.string().optional().nullable(),
   contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
   phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
-  payment_method: z.string().optional(), // Keep as string, will use specific values
+  // customer_type is removed from formSchema as it's not a column in scheduling_requests
+  payment_method: z.string().optional().nullable(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable(),
   invoice_id: z.string().uuid().optional().nullable(),
 });
 
@@ -77,7 +76,6 @@ const generateSrNumber = async (): Promise<string> => {
 
   if (error) {
     console.error("Error fetching latest PR number:", error);
-    // Fallback to a less ideal but unique number
     return `${prefix}-${Date.now().toString().slice(-4)}`;
   }
 
@@ -104,22 +102,22 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      sr_number: "",
+      sr_number: null,
       customer_id: null,
       customer_name: "",
-      company_name: "",
+      company_name: null,
       type: SchedulingRequestType.INSTALLATION,
-      vehicle_details: "",
+      vehicle_details: null,
       full_address: "",
-      landmark: "",
+      landmark: null,
       requested_date: new Date(),
-      requested_time: "",
+      requested_time: null,
       contact_person: "",
       phone_number: "",
-      customer_type: undefined,
-      payment_method: "", // Default empty string for select
+      // customer_type is removed from defaultValues
+      payment_method: null,
       status: SchedulingRequestStatus.PENDING,
-      notes: "",
+      notes: null,
       invoice_id: null,
     },
   });
@@ -181,15 +179,15 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         form.reset({
           ...initialData,
           requested_date: new Date(initialData.requested_date),
-          vehicle_details: initialData.vehicle_details || "",
-          sr_number: initialData.sr_number || "",
+          vehicle_details: initialData.vehicle_details || null,
+          sr_number: initialData.sr_number || null,
           invoice_id: initialData.invoice_id || null,
           customer_name: initialData.customer_name || "",
-          company_name: initialData.company_name || "",
+          company_name: initialData.company_name || null,
           full_address: initialData.full_address || "",
           phone_number: initialData.phone_number || "",
-          customer_type: initialData.customer_type as CustomerTypeEnum || undefined,
-          payment_method: initialData.payment_method || "", // Ensure payment_method is reset
+          // customer_type is removed from reset
+          payment_method: initialData.payment_method || null,
         });
         if (initialData.customer_name) {
           setCustomerSearchInput(initialData.customer_name);
@@ -200,24 +198,27 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             sr_number: srNum,
             customer_id: null,
             customer_name: "",
-            company_name: "",
+            company_name: null,
             type: SchedulingRequestType.INSTALLATION,
-            vehicle_details: "",
+            vehicle_details: null,
             full_address: "",
-            landmark: "",
+            landmark: null,
             requested_date: new Date(),
-            requested_time: "",
+            requested_time: null,
             contact_person: "",
             phone_number: "",
-            customer_type: undefined,
-            payment_method: "", // Reset to empty string
+            // customer_type is removed from reset
+            payment_method: null,
             status: SchedulingRequestStatus.PENDING,
-            notes: "",
+            notes: null,
             invoice_id: null,
           });
           setCustomerSearchInput("");
         });
       }
+    } else {
+      // Reset customerSearchInput when dialog closes
+      setCustomerSearchInput("");
     }
   }, [isOpen, initialData, form]);
 
@@ -225,18 +226,20 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     if (customer) {
       form.setValue("customer_id", customer.id);
       form.setValue("customer_name", customer.customer_name);
-      form.setValue("company_name", customer.company_name || "");
+      form.setValue("company_name", customer.company_name || null);
       form.setValue("full_address", customer.address || "");
       form.setValue("phone_number", customer.phone_number || "");
-      form.setValue("customer_type", customer.customer_type);
+      // customer_type is not set here as it's not a column in scheduling_requests
       setCustomerSearchInput(customer.customer_name);
+      // Clear errors for autofilled fields
+      form.clearErrors(["customer_name", "company_name", "full_address", "phone_number"]);
     } else {
       form.setValue("customer_id", null);
       form.setValue("customer_name", "");
-      form.setValue("company_name", "");
+      form.setValue("company_name", null);
       form.setValue("full_address", "");
       form.setValue("phone_number", "");
-      form.setValue("customer_type", undefined);
+      // customer_type is not set here
       setCustomerSearchInput("");
     }
   };
@@ -251,15 +254,21 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     try {
       const dataToSubmit = {
         ...values,
+        sr_number: values.sr_number?.trim() || null,
+        customer_name: values.customer_name.trim(),
+        company_name: values.company_name?.trim() || null,
+        vehicle_details: values.vehicle_details?.trim() || null,
+        full_address: values.full_address.trim(),
+        landmark: values.landmark?.trim() || null,
         requested_date: format(values.requested_date, "yyyy-MM-dd"),
+        requested_time: values.requested_time?.trim() || null,
+        contact_person: values.contact_person.trim(),
+        phone_number: values.phone_number.trim(),
+        payment_method: values.payment_method?.trim() || null,
+        notes: values.notes?.trim() || null,
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
         customer_id: values.customer_id || null,
-        customer_name: values.customer_name,
-        company_name: values.company_name,
-        phone_number: values.phone_number,
-        // Removed customer_type from dataToSubmit as it's not a column in scheduling_requests
-        vehicle_details: values.vehicle_details || null,
-        payment_method: values.payment_method || null,
+        // customer_type is explicitly removed from dataToSubmit
       };
 
       if (initialData) {
@@ -534,37 +543,14 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="customer_type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!!watchedCustomerId}>
-                    <FormControl>
-                      <SelectTrigger className={cn({ "bg-gray-100": !!watchedCustomerId })}>
-                        <SelectValue placeholder="Pilih tipe pelanggan" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(CustomerTypeEnum).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* customer_type field is removed from the form */}
             <FormField
               control={form.control}
               name="payment_method"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih metode pembayaran" />
