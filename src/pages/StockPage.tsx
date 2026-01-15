@@ -376,9 +376,7 @@ const StockPage = () => {
                               <DropdownMenuItem onClick={() => handleOpenTransactionForm(item)}>
                                 <PlusCircle className="mr-2 h-4 w-4" /> Tambah/Kurangi Stok
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleOpenMovementForm(item)}>
-                                <ArrowRightLeft className="mr-2 h-4 w-4" /> Pindah Stok Antar Kategori
-                              </DropdownMenuItem>
+                              {/* Removed "Pindah Stok Antar Kategori" */}
                               <DropdownMenuItem onClick={() => handleOpenAdjustmentForm(item)}>
                                 <SlidersHorizontal className="mr-2 h-4 w-4" /> Penyesuaian Stok
                               </DropdownMenuItem>
