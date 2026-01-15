@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm, useFieldArray, Path } from "react-hook-form"; // Import Path
+import { useForm, useFieldArray, Path } from "react-hook-form"; // Path is still imported but not used in useFieldArray generics
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -128,12 +128,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
 
   const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray({
     control: form.control,
-    name: "vehicle_type" as Path<z.infer<typeof formSchema>>, // Explicitly cast name
+    name: "vehicle_type", // Removed explicit generic type
   });
 
   const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray({
     control: form.control,
-    name: "vehicle_year" as Path<z.infer<typeof formSchema>>, // Explicitly cast name
+    name: "vehicle_year", // Removed explicit generic type
   });
 
   const watchedVehicleUnits = form.watch("vehicle_units");
