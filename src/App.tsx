@@ -16,7 +16,8 @@ import PurchaseRequestPage from "./pages/PurchaseRequestPage";
 import SupplierManagementPage from "./pages/SupplierManagementPage";
 import WarehouseCategoryPage from "./pages/WarehouseCategoryPage";
 import StockManagementPage from "./pages/StockManagementPage";
-import SchedulingRequestPage from "./pages/SchedulingRequestPage"; // Import the new page
+import SchedulingRequestPage from "./pages/SchedulingRequestPage";
+import CustomerManagementPage from "./pages/CustomerManagementPage"; // Import the new page
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
@@ -44,7 +45,8 @@ const App = () => (
             <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} />
             <Route path="/suppliers" element={<MainLayout><SupplierManagementPage /></MainLayout>} />
             <Route path="/warehouse-categories" element={<MainLayout><WarehouseCategoryPage /></MainLayout>} />
-            <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} /> {/* New route */}
+            <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} />
+            <Route path="/customers" element={<MainLayout><CustomerManagementPage /></MainLayout>} /> {/* New route */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>

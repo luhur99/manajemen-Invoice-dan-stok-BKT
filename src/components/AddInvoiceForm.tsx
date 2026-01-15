@@ -35,7 +35,7 @@ import {
   Product,
   InvoicePaymentStatus,
   InvoiceType,
-  CustomerType,
+  CustomerTypeEnum, // Corrected import
   WarehouseInventory,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
@@ -49,7 +49,7 @@ const formSchema = z.object({
   total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
-  customer_type: z.nativeEnum(CustomerType).optional(),
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional(), // Corrected enum usage
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
@@ -204,8 +204,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         .insert({
           user_id: user.data.user.id,
           invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
-          due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
+          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"), // Explicitly cast to Date
+          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null, // Explicitly cast to Date
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -221,7 +221,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
       if (invoiceError) throw invoiceError;
 
-      const invoiceItems = values.items.map(item => ({
+      const invoiceItems = (values.items as typeof formSchema._type['items']).map(item => ({ // Explicitly cast to correct type
         invoice_id: invoiceData.id,
         user_id: user.data.user?.id,
         product_id: item.selected_product_id,
@@ -437,7 +437,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(CustomerType).map((type) => (
+                        {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => ( // Explicitly cast type
                           <SelectItem key={type} value={type}>
                             {type.charAt(0).toUpperCase() + type.slice(1)}
                           </SelectItem>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useFieldArray } from "react-hook-form"; // Import useFieldArray
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -28,30 +28,34 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react"; // Import PlusCircle and Trash2
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, CustomerTypeEnum } from "@/types/data"; // Import Invoice and Customer, CustomerTypeEnum
 import { useSession } from "@/components/SessionContextProvider";
+import { useQuery } from "@tanstack/react-query"; // Import useQuery
+import CustomerCombobox from "./CustomerCombobox"; // Import CustomerCombobox
 
 const formSchema = z.object({
   sr_number: z.string().optional(),
+  customer_id: z.string().uuid().optional().nullable(), // New field for customer_id
   customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
   company_name: z.string().optional(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
-  vehicle_units: z.coerce.number().int().min(0, "Jumlah unit kendaraan tidak boleh negatif.").optional(),
-  vehicle_type: z.string().optional(),
-  vehicle_year: z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.").optional(),
+  vehicle_units: z.coerce.number().int().min(0, "Jumlah unit kendaraan tidak boleh negatif.").default(0),
+  vehicle_type: z.array(z.string()).optional(), // Changed to array
+  vehicle_year: z.array(z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.")).optional(), // Changed to array
   full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
   landmark: z.string().optional(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
   requested_time: z.string().optional(),
   contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
   phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  customer_type: z.string().optional(),
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional(), // Changed to enum
   payment_method: z.string().optional(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
   notes: z.string().optional(),
+  invoice_id: z.string().uuid().optional().nullable(), // New field for conditional invoice
 });
 
 interface AddEditSchedulingRequestFormProps {
@@ -80,7 +84,7 @@ const generateSrNumber = async (): Promise<string> => {
   let sequence = 1;
   if (data && data.length > 0 && data[0].sr_number) {
     const latestSrNumber = data[0].sr_number;
-    const parts = latestSrNumber.split('-');
+    const parts = latestPrNumber.split('-');
     const lastPart = parts[parts.length - 1];
     const currentSequence = parseInt(lastPart, 10);
     if (!isNaN(currentSequence)) {
@@ -101,22 +105,88 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     resolver: zodResolver(formSchema),
     defaultValues: {
       sr_number: "",
+      customer_id: null,
       customer_name: "",
       company_name: "",
       type: SchedulingRequestType.INSTALLATION,
       vehicle_units: 0,
-      vehicle_type: "",
-      vehicle_year: undefined,
+      vehicle_type: [],
+      vehicle_year: [],
       full_address: "",
       landmark: "",
       requested_date: new Date(),
       requested_time: "",
       contact_person: "",
       phone_number: "",
-      customer_type: "",
+      customer_type: undefined,
       payment_method: "",
       status: SchedulingRequestStatus.PENDING,
       notes: "",
+      invoice_id: null,
+    },
+  });
+
+  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray({
+    control: form.control,
+    name: "vehicle_type", // Corrected type inference
+  });
+
+  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray({
+    control: form.control,
+    name: "vehicle_year", // Corrected type inference
+  });
+
+  const watchedVehicleUnits = form.watch("vehicle_units");
+  const watchedRequestType = form.watch("type");
+  const watchedCustomerId = form.watch("customer_id");
+  const [customerSearchInput, setCustomerSearchInput] = useState("");
+
+  // Fetch invoices for conditional input
+  const { data: invoices, isLoading: loadingInvoices, error: invoicesError } = useQuery<Invoice[], Error>({
+    queryKey: ["invoices"],
+    queryFn: async (): Promise<Invoice[]> => { // Explicitly define return type
+      const { data, error } = await supabase
+        .from("invoices")
+        .select(`
+          id,
+          invoice_number,
+          invoice_date,
+          due_date,
+          customer_name,
+          company_name,
+          total_amount,
+          payment_status,
+          created_at,
+          type,
+          customer_type,
+          payment_method,
+          notes,
+          document_url,
+          courier_service
+        `) // Select all fields to match Invoice interface
+        .order("invoice_number", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar invoice.");
+        throw error;
+      }
+      return data as Invoice[]; // Cast data to Invoice[]
+    },
+    enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID,
+  });
+
+  // Fetch customers for combobox
+  const { data: customers, isLoading: loadingCustomers, error: customersError } = useQuery<Customer[], Error>({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("customer_name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar pelanggan.");
+        throw error;
+      }
+      return data;
     },
   });
 
@@ -126,36 +196,89 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         form.reset({
           ...initialData,
           requested_date: new Date(initialData.requested_date),
-          vehicle_year: initialData.vehicle_year || undefined,
           vehicle_units: initialData.vehicle_units || 0,
+          vehicle_type: initialData.vehicle_type || [],
+          vehicle_year: initialData.vehicle_year || [],
           sr_number: initialData.sr_number || "",
+          invoice_id: initialData.invoice_id || null,
+          // customer_id will be set if initialData has it, otherwise it's null
+          customer_name: initialData.customer_name || "",
+          company_name: initialData.company_name || "",
+          full_address: initialData.full_address || "",
+          phone_number: initialData.phone_number || "",
+          customer_type: initialData.customer_type as CustomerTypeEnum || undefined,
         });
+        // If initialData has a customer_name, set the combobox input value
+        if (initialData.customer_name) {
+          setCustomerSearchInput(initialData.customer_name);
+        }
       } else {
-        // For new requests, generate SR number and reset form
         generateSrNumber().then(srNum => {
           form.reset({
             sr_number: srNum,
+            customer_id: null,
             customer_name: "",
             company_name: "",
             type: SchedulingRequestType.INSTALLATION,
             vehicle_units: 0,
-            vehicle_type: "",
-            vehicle_year: undefined,
+            vehicle_type: [],
+            vehicle_year: [],
             full_address: "",
             landmark: "",
             requested_date: new Date(),
             requested_time: "",
             contact_person: "",
             phone_number: "",
-            customer_type: "",
+            customer_type: undefined,
             payment_method: "",
             status: SchedulingRequestStatus.PENDING,
             notes: "",
+            invoice_id: null,
           });
+          setCustomerSearchInput(""); // Clear combobox input for new form
         });
       }
     }
   }, [isOpen, initialData, form]);
+
+  // Sync vehicle_type and vehicle_year arrays with vehicle_units
+  useEffect(() => {
+    const currentVehicleTypes = form.getValues("vehicle_type") || [];
+    const currentVehicleYears = form.getValues("vehicle_year") || [];
+
+    if (watchedVehicleUnits > currentVehicleTypes.length) {
+      for (let i = currentVehicleTypes.length; i < watchedVehicleUnits; i++) {
+        appendVehicleType("");
+        appendVehicleYear(undefined);
+      }
+    } else if (watchedVehicleUnits < currentVehicleTypes.length) {
+      for (let i = currentVehicleTypes.length - 1; i >= watchedVehicleUnits; i--) {
+        removeVehicleType(i);
+        removeVehicleYearField(i);
+      }
+    }
+  }, [watchedVehicleUnits, appendVehicleType, removeVehicleType, appendVehicleYear, removeVehicleYearField, form]);
+
+  // Populate form fields when a customer is selected from combobox
+  const handleCustomerSelect = (customer: Customer | undefined) => {
+    if (customer) {
+      form.setValue("customer_id", customer.id);
+      form.setValue("customer_name", customer.customer_name);
+      form.setValue("company_name", customer.company_name || "");
+      form.setValue("full_address", customer.address || "");
+      form.setValue("phone_number", customer.phone_number || "");
+      form.setValue("customer_type", customer.customer_type);
+      setCustomerSearchInput(customer.customer_name); // Keep selected customer name in combobox input
+    } else {
+      form.setValue("customer_id", null);
+      form.setValue("customer_name", "");
+      form.setValue("company_name", "");
+      form.setValue("full_address", "");
+      form.setValue("phone_number", "");
+      form.setValue("customer_type", undefined);
+      setCustomerSearchInput(""); // Clear combobox input
+    }
+  };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const userId = session?.user?.id;
@@ -165,15 +288,22 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     }
 
     try {
+      const dataToSubmit = {
+        ...values,
+        requested_date: format(values.requested_date, "yyyy-MM-dd"),
+        vehicle_year: values.vehicle_year?.filter(year => year !== undefined) || null,
+        vehicle_type: values.vehicle_type?.filter(type => type !== "") || null,
+        vehicle_units: values.vehicle_units || 0,
+        invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
+        customer_id: values.customer_id || null, // Ensure customer_id is passed
+        customer_type: values.customer_type || null, // Ensure customer_type is passed
+      };
+
       if (initialData) {
-        // Update existing request
         const { error } = await supabase
           .from("scheduling_requests")
           .update({
-            ...values,
-            requested_date: format(values.requested_date, "yyyy-MM-dd"),
-            vehicle_year: values.vehicle_year || null,
-            vehicle_units: values.vehicle_units || 0,
+            ...dataToSubmit,
             updated_at: new Date().toISOString(),
           })
           .eq("id", initialData.id);
@@ -181,15 +311,11 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         if (error) throw error;
         showSuccess("Permintaan jadwal berhasil diperbarui!");
       } else {
-        // Insert new request
         const { error } = await supabase
           .from("scheduling_requests")
           .insert({
-            ...values,
+            ...dataToSubmit,
             user_id: userId,
-            requested_date: format(values.requested_date, "yyyy-MM-dd"),
-            vehicle_year: values.vehicle_year || null,
-            vehicle_units: values.vehicle_units || 0,
           });
 
         if (error) throw error;
@@ -231,12 +357,33 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             />
             <FormField
               control={form.control}
+              name="customer_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pilih Pelanggan</FormLabel>
+                  <FormControl>
+                    <CustomerCombobox
+                      customers={customers || []}
+                      value={field.value || undefined}
+                      onValueChange={handleCustomerSelect}
+                      inputValue={customerSearchInput}
+                      onInputValueChange={setCustomerSearchInput}
+                      disabled={loadingCustomers}
+                      loading={loadingCustomers}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="customer_name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nama Pelanggan</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} readOnly={!!watchedCustomerId} className={cn({ "bg-gray-100": !!watchedCustomerId })} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -249,7 +396,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 <FormItem>
                   <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} readOnly={!!watchedCustomerId} className={cn({ "bg-gray-100": !!watchedCustomerId })} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -279,6 +426,35 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 </FormItem>
               )}
             />
+
+            {/* Conditional Invoice ID Input */}
+            {(watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) && (
+              <FormField
+                control={form.control}
+                name="invoice_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nomor Invoice Terkait</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""} disabled={loadingInvoices}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingInvoices ? "Memuat invoice..." : "Pilih nomor invoice"} />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {invoices?.map((invoice: Invoice) => ( // Explicitly cast invoice to Invoice
+                          <SelectItem key={invoice.id} value={invoice.id}>
+                            {invoice.invoice_number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             <FormField
               control={form.control}
               name="vehicle_units"
@@ -286,38 +462,45 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 <FormItem>
                   <FormLabel>Jumlah Unit Kendaraan (Opsional)</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="vehicle_type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipe Kendaraan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="vehicle_year"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tahun Kendaraan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
+            {/* Dynamic Vehicle Type and Year Inputs */}
+            {Array.from({ length: watchedVehicleUnits }).map((_, index) => (
+              <React.Fragment key={index}>
+                <FormField
+                  control={form.control}
+                  name={`vehicle_type.${index}`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipe Kendaraan {index + 1} (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name={`vehicle_year.${index}`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tahun Kendaraan {index + 1} (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </React.Fragment>
+            ))}
+
             <FormField
               control={form.control}
               name="full_address"
@@ -325,7 +508,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 <FormItem className="md:col-span-2">
                   <FormLabel>Alamat Lengkap</FormLabel>
                   <FormControl>
-                    <Textarea {...field} />
+                    <Textarea {...field} readOnly={!!watchedCustomerId} className={cn({ "bg-gray-100": !!watchedCustomerId })} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -415,7 +598,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 <FormItem>
                   <FormLabel>Nomor Telepon</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} readOnly={!!watchedCustomerId} className={cn({ "bg-gray-100": !!watchedCustomerId })} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -427,9 +610,20 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={!!watchedCustomerId}>
+                    <FormControl>
+                      <SelectTrigger className={cn({ "bg-gray-100": !!watchedCustomerId })}>
+                        <SelectValue placeholder="Pilih tipe pelanggan" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(CustomerTypeEnum).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -63,9 +63,10 @@ export enum InvoiceType {
   KIRIM_BARANG = "kirim barang",
 }
 
-export enum CustomerType {
-  LAMA = "lama",
-  BARU = "baru",
+// Renamed to CustomerTypeEnum to avoid conflict with CustomerType interface
+export enum CustomerTypeEnum {
+  B2C = "B2C",
+  B2B = "B2B",
 }
 
 export enum ScheduleType {
@@ -192,8 +193,8 @@ export interface SchedulingRequest {
   company_name?: string;
   type: SchedulingRequestType;
   vehicle_units?: number;
-  vehicle_type?: string;
-  vehicle_year?: number;
+  vehicle_type?: string[]; // Changed to array of strings
+  vehicle_year?: number[]; // Changed to array of numbers
   full_address: string;
   landmark?: string;
   requested_date: string;
@@ -206,11 +207,13 @@ export interface SchedulingRequest {
   notes?: string;
   created_at: string;
   updated_at?: string; // Added for consistency
+  invoice_id?: string; // Added for conditional invoice input
 }
 
 // New interface for SchedulingRequest with 'no' for display
 export interface SchedulingRequestWithDetails extends SchedulingRequest {
   no?: number;
+  invoice_number?: string; // For displaying invoice number in table/details
 }
 
 export interface Schedule {
@@ -250,7 +253,7 @@ export interface Invoice {
   payment_status: InvoicePaymentStatus; // Using new enum
   created_at: string;
   type?: InvoiceType; // Using new enum
-  customer_type?: CustomerType; // Using new enum
+  customer_type?: CustomerTypeEnum; // Using new enum
   payment_method?: string;
   notes?: string;
   document_url?: string;
@@ -327,4 +330,22 @@ export interface SalesDetail {
   payment?: string;
   catatan?: string;
   created_at: string;
+}
+
+// New interface for Customer
+export interface Customer {
+  id: string;
+  user_id?: string;
+  customer_name: string;
+  company_name?: string;
+  address?: string;
+  phone_number?: string;
+  customer_type: CustomerTypeEnum;
+  created_at: string;
+  updated_at?: string;
+}
+
+// New interface for Customer with 'no' for display
+export interface CustomerWithDetails extends Customer {
+  no?: number;
 }

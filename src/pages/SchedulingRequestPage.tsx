@@ -61,7 +61,11 @@ const SchedulingRequestPage = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("scheduling_requests")
-        .select("*")
+        .select(`
+          *,
+          invoices (invoice_number),
+          customers (customer_name, company_name)
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -69,6 +73,9 @@ const SchedulingRequestPage = () => {
       return data.map((req, index) => ({
         ...req,
         no: index + 1,
+        invoice_number: req.invoices?.invoice_number || undefined,
+        customer_name: req.customers?.customer_name || req.customer_name, // Use customer_name from customers table if available
+        company_name: req.customers?.company_name || req.company_name, // Use company_name from customers table if available
       }));
     },
   });
@@ -149,6 +156,7 @@ const SchedulingRequestPage = () => {
       getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
       request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
       request.phone_number.toLowerCase().includes(lowerCaseSearchTerm) ||
+      request.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
   });
@@ -201,6 +209,7 @@ const SchedulingRequestPage = () => {
               <TableHead>Pelanggan</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Tanggal Diminta</TableHead>
+              <TableHead>No. Invoice</TableHead>
               <TableHead>Kontak Person</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
@@ -214,6 +223,7 @@ const SchedulingRequestPage = () => {
                 <TableCell>{request.customer_name}</TableCell>
                 <TableCell>{getTypeDisplay(request.type)}</TableCell>
                 <TableCell>{format(new Date(request.requested_date), "dd-MM-yyyy")}</TableCell>
+                <TableCell>{request.invoice_number || "-"}</TableCell>
                 <TableCell>{request.contact_person}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>

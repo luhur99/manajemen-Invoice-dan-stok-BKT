@@ -37,7 +37,7 @@ import {
   InvoiceItem,
   InvoicePaymentStatus,
   InvoiceType,
-  CustomerType,
+  CustomerTypeEnum, // Corrected import
   WarehouseInventory,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
@@ -51,7 +51,7 @@ const formSchema = z.object({
   total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
-  customer_type: z.nativeEnum(CustomerType).optional(),
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional(), // Corrected enum usage
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
@@ -87,7 +87,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       company_name: invoice.company_name || "",
       payment_status: invoice.payment_status as InvoicePaymentStatus, // Cast to enum
       type: invoice.type as InvoiceType | undefined, // Cast to enum
-      customer_type: invoice.customer_type as CustomerType | undefined, // Cast to enum
+      customer_type: invoice.customer_type as CustomerTypeEnum | undefined, // Cast to enum
       payment_method: invoice.payment_method || "",
       notes: invoice.notes || "",
       courier_service: invoice.courier_service || "",
@@ -243,8 +243,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         .from("invoices")
         .update({
           invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
-          due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
+          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"), // Explicitly cast to Date
+          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null, // Explicitly cast to Date
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -261,7 +261,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
       // Handle invoice items: delete removed, update existing, insert new
       const itemsToDelete = initialItems.filter(
-        (initialItem) => !values.items.some((currentItem) => currentItem.id === initialItem.id)
+        (initialItem) => !(values.items as typeof formSchema._type['items']).some((currentItem) => currentItem.id === initialItem.id) // Explicitly cast to correct type
       );
       if (itemsToDelete.length > 0) {
         const { error: deleteError } = await supabase
@@ -271,7 +271,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         if (deleteError) throw deleteError;
       }
 
-      for (const item of values.items) {
+      for (const item of (values.items as typeof formSchema._type['items'])) { // Explicitly cast to correct type
         const commonItemData = {
           invoice_id: invoice.id,
           user_id: user.data.user?.id,
@@ -497,7 +497,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(CustomerType).map((type) => (
+                        {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => ( // Explicitly cast type
                           <SelectItem key={type} value={type}>
                             {type.charAt(0).toUpperCase() + type.slice(1)}
                           </SelectItem>
@@ -635,7 +635,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                 {form.formState.isSubmitting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Simpan Perubahan"
+                  "Simpan Invoice"
                 )}
               </Button>
             </DialogFooter>
