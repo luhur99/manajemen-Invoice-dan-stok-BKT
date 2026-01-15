@@ -83,7 +83,7 @@ const generateSrNumber = async (): Promise<string> => {
 
   let sequence = 1;
   if (data && data.length > 0 && data[0].sr_number) {
-    const latestSrNumber = data[0].sr_number; // Corrected from pr_number
+    const latestSrNumber = data[0].sr_number;
     const parts = latestSrNumber.split('-');
     const lastPart = parts[parts.length - 1];
     const currentSequence = parseInt(lastPart, 10);
@@ -127,14 +127,14 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   });
 
   const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray<
-    z.infer<typeof formSchema> // Only one generic type
+    z.infer<typeof formSchema> // Explicitly provide the form schema type
   >({
     control: form.control,
     name: "vehicle_type",
   });
 
   const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray<
-    z.infer<typeof formSchema> // Only one generic type
+    z.infer<typeof formSchema> // Explicitly provide the form schema type
   >({
     control: form.control,
     name: "vehicle_year",
