@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, CheckCircle } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
 import EditScheduleForm from "@/components/EditScheduleForm";
@@ -32,10 +32,12 @@ const getStatusColor = (status: ScheduleStatus) => {
 };
 
 const ScheduleManagementPage = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
+  const [isCompleteModalOpen, setIsCompleteModalOpen] = React.useState(false); // New state for complete dialog
   const [selectedSchedule, setSelectedSchedule] = React.useState<ScheduleWithDetails | null>(null);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [scheduleToView, setScheduleToView] = React.useState<ScheduleWithDetails | null>(null);
@@ -64,6 +66,28 @@ const ScheduleManagementPage = () => {
     },
   });
 
+  const completeScheduleMutation = useMutation({
+    mutationFn: async (scheduleId: string) => {
+      const { error } = await supabase
+        .from("schedules")
+        .update({ status: ScheduleStatus.COMPLETED, updated_at: new Date().toISOString() })
+        .eq("id", scheduleId);
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      showSuccess(`Jadwal berhasil diselesaikan!`);
+      setIsCompleteModalOpen(false);
+      setSelectedSchedule(null);
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+    },
+    onError: (err: any) => {
+      showError(`Gagal menyelesaikan jadwal: ${err.message}`);
+      console.error("Error completing schedule:", err);
+    },
+  });
+
   const handleEditClick = (schedule: ScheduleWithDetails) => {
     setSelectedSchedule(schedule);
     setIsEditModalOpen(true);
@@ -82,6 +106,17 @@ const ScheduleManagementPage = () => {
   const handleUploadClick = (schedule: ScheduleWithDetails) => {
     setSelectedSchedule(schedule);
     setIsUploadModalOpen(true);
+  };
+
+  const handleCompleteClick = (schedule: ScheduleWithDetails) => {
+    setSelectedSchedule(schedule);
+    setIsCompleteModalOpen(true);
+  };
+
+  const handleConfirmComplete = () => {
+    if (selectedSchedule) {
+      completeScheduleMutation.mutate(selectedSchedule.id);
+    }
   };
 
   const handleDeleteSchedule = async () => {
@@ -154,14 +189,15 @@ const ScheduleManagementPage = () => {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[50px]">No</TableHead>
-              <TableHead>No. DO</TableHead> {/* New column */}
+              <TableHead>No. DO</TableHead>
+              <TableHead>No. SR</TableHead> {/* New column */}
               <TableHead>Tanggal</TableHead>
               <TableHead>Waktu</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Pelanggan</TableHead>
               <TableHead>Alamat</TableHead>
               <TableHead>Teknisi</TableHead>
-              <TableHead>No. Invoice Terkait</TableHead> {/* Renamed column */}
+              <TableHead>No. Invoice Terkait</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
@@ -170,7 +206,8 @@ const ScheduleManagementPage = () => {
             {filteredSchedules?.map((schedule) => (
               <TableRow key={schedule.id}>
                 <TableCell>{schedule.no}</TableCell>
-                <TableCell>{schedule.do_number || "-"}</TableCell> {/* Display DO number */}
+                <TableCell>{schedule.do_number || "-"}</TableCell>
+                <TableCell>{schedule.sr_number || "-"}</TableCell> {/* Display SR number */}
                 <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{schedule.schedule_time || "-"}</TableCell>
                 <TableCell>{schedule.type}</TableCell>
@@ -190,6 +227,11 @@ const ScheduleManagementPage = () => {
                   <Button variant="ghost" size="icon" onClick={() => handleEditClick(schedule)} title="Edit Jadwal">
                     <Edit className="h-4 w-4" />
                   </Button>
+                  {schedule.status !== ScheduleStatus.COMPLETED && schedule.status !== ScheduleStatus.CANCELLED && (
+                    <Button variant="outline" size="icon" onClick={() => handleCompleteClick(schedule)} title="Selesaikan Jadwal">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    </Button>
+                  )}
                   <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(schedule)} title="Hapus Jadwal">
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -248,6 +290,24 @@ const ScheduleManagementPage = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
             <Button variant="destructive" onClick={handleDeleteSchedule}>Hapus</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Complete Schedule Confirmation Modal */}
+      <Dialog open={isCompleteModalOpen} onOpenChange={setIsCompleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Selesaikan Jadwal</DialogTitle>
+            <DialogDescription>
+              Anda akan Menyelesaikan pekerjaan dengan no DO: <strong>{selectedSchedule?.do_number || "-"}</strong>. Apakah Anda yakin?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCompleteModalOpen(false)} disabled={completeScheduleMutation.isPending}>Batal</Button>
+            <Button onClick={handleConfirmComplete} disabled={completeScheduleMutation.isPending}>
+              {completeScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Selesaikan"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
