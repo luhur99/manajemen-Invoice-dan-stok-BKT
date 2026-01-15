@@ -94,11 +94,12 @@ const StockManagementPage = () => {
     },
   });
 
-  const handleOpenTransactionForm = (product: ProductWithDetails, type: StockEventType) => { // Changed type
-    setSelectedProductForTransaction(product);
-    setInitialEventType(type); // Changed to initialEventType
-    setIsTransactionFormOpen(true);
-  };
+  // Removed handleOpenTransactionForm as it's no longer needed for direct IN/OUT buttons
+  // const handleOpenTransactionForm = (product: ProductWithDetails, type: StockEventType) => {
+  //   setSelectedProductForTransaction(product);
+  //   setInitialEventType(type);
+  //   setIsTransactionFormOpen(true);
+  // };
 
   const handleViewDetails = (product: ProductWithDetails) => {
     setProductToView(product);
@@ -188,12 +189,13 @@ const StockManagementPage = () => {
                   <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok">
                     <ArrowRightLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.IN)} title="Stok Masuk">
+                  {/* Removed Stok Masuk and Stok Keluar buttons */}
+                  {/* <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.IN)} title="Stok Masuk">
                     <ArrowUp className="h-4 w-4" />
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.OUT)} title="Stok Keluar">
                     <ArrowDown className="h-4 w-4" />
-                  </Button>
+                  </Button> */}
                   <Button variant="outline" size="sm" onClick={() => handleOpenAdjustmentForm(product)} title="Sesuaikan Stok">
                     <PlusCircle className="h-4 w-4" /> {/* Using PlusCircle for adjustment */}
                   </Button>
@@ -204,7 +206,7 @@ const StockManagementPage = () => {
         </Table>
       </div>
 
-      {/* Add Stock Transaction Form (controlled by parent) */}
+      {/* Add Stock Transaction Form (controlled by parent) - This component is still needed for other uses, but not triggered by these buttons */}
       {isTransactionFormOpen && selectedProductForTransaction && products && (
         <AddStockTransactionForm
           products={products}
