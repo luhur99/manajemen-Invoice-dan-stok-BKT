@@ -1,0 +1,1 @@
+ALTER TYPE public.purchase_request_status ADD VALUE 'waiting for received' AFTER 'rejected';
