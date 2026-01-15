@@ -127,19 +127,13 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   });
 
   // Explicitly type useFieldArray for vehicle_type
-  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray<
-    z.infer<typeof formSchema>,
-    "vehicle_type"
-  >({
+  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray({
     control: form.control,
     name: "vehicle_type",
   });
 
   // Explicitly type useFieldArray for vehicle_year
-  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray<
-    z.infer<typeof formSchema>,
-    "vehicle_year"
-  >({
+  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray({
     control: form.control,
     name: "vehicle_year",
   });
