@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer } from "@/types/data"; // Removed CustomerTypeEnum from here
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
 import { useQuery } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
@@ -48,11 +48,29 @@ const formSchema = z.object({
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
   requested_time: z.string().optional().nullable(),
   contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
-  phone_number: z.string().min(1, "Nomor telepon wajib diisi."), // Kept as it exists in DB schema
+  phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
   payment_method: z.string().optional().nullable(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
   notes: z.string().optional().nullable(),
   invoice_id: z.string().uuid().optional().nullable(),
+  technician_name: z.string().optional().nullable(), // New field
+}).superRefine((data, ctx) => {
+  // Custom validation for notes based on status
+  if (['rescheduled', 'rejected', 'cancelled'].includes(data.status) && (!data.notes || data.notes.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Alasan (catatan) wajib diisi untuk status ini.",
+      path: ['notes'],
+    });
+  }
+  // Custom validation for technician_name when approved
+  if (data.status === 'approved' && (!data.technician_name || data.technician_name.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Nama teknisi wajib diisi saat menyetujui permintaan.",
+      path: ['technician_name'],
+    });
+  }
 });
 
 interface AddEditSchedulingRequestFormProps {
@@ -117,11 +135,13 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       status: SchedulingRequestStatus.PENDING,
       notes: null,
       invoice_id: null,
+      technician_name: null, // New field
     },
   });
 
   const watchedRequestType = form.watch("type");
   const watchedCustomerId = form.watch("customer_id");
+  const watchedStatus = form.watch("status"); // Watch status for conditional validation
   const [customerSearchInput, setCustomerSearchInput] = useState("");
 
   const { data: invoices, isLoading: loadingInvoices, error: invoicesError } = useQuery<Invoice[], Error>({
@@ -153,7 +173,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
       return data as Invoice[];
     },
-    enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL, // Only enable for SERVICE_UNBILL
+    enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL,
   });
 
   const { data: customers, isLoading: loadingCustomers, error: customersError } = useQuery<Customer[], Error>({
@@ -185,6 +205,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           full_address: initialData.full_address || "",
           phone_number: initialData.phone_number || "",
           payment_method: initialData.payment_method || null,
+          technician_name: initialData.technician_name || null, // Set initial technician name
         });
         if (initialData.customer_name) {
           setCustomerSearchInput(initialData.customer_name);
@@ -208,12 +229,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             status: SchedulingRequestStatus.PENDING,
             notes: null,
             invoice_id: null,
+            technician_name: null,
           });
           setCustomerSearchInput("");
         });
       }
     } else {
-      // Reset customerSearchInput when dialog closes
       setCustomerSearchInput("");
     }
   }, [isOpen, initialData, form]);
@@ -226,7 +247,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("full_address", customer.address || "");
       form.setValue("phone_number", customer.phone_number || "");
       setCustomerSearchInput(customer.customer_name);
-      // Clear errors for autofilled fields
       form.clearErrors(["customer_name", "company_name", "full_address", "phone_number"]);
     } else {
       form.setValue("customer_id", null);
@@ -262,7 +282,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         payment_method: values.payment_method?.trim() || null,
         status: values.status,
         notes: values.notes?.trim() || null,
-        invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL) ? values.invoice_id : null, // Only include invoice_id for SERVICE_UNBILL
+        invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL) ? values.invoice_id : null,
+        technician_name: values.technician_name?.trim() || null, // Include technician name
       };
 
       if (initialData) {
@@ -562,6 +583,64 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             />
             <FormField
               control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(SchedulingRequestStatus).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* Conditional Notes Field */}
+            {(watchedStatus === SchedulingRequestStatus.RESCHEDULED ||
+              watchedStatus === SchedulingRequestStatus.REJECTED ||
+              watchedStatus === SchedulingRequestStatus.CANCELLED) && (
+              <FormField
+                control={form.control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Alasan (Wajib)</FormLabel>
+                    <FormControl>
+                      <Textarea placeholder="Masukkan alasan..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {/* Technician Name field */}
+            {watchedStatus === SchedulingRequestStatus.APPROVED && (
+              <FormField
+                control={form.control}
+                name="technician_name"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>Nama Teknisi (Wajib)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Masukkan nama teknisi..." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <FormField
+              control={form.control}
               name="notes"
               render={({ field }) => (
                 <FormItem className="md:col-span-2">
@@ -573,32 +652,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                 </FormItem>
               )}
             />
-            {initialData && (
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Pilih status" />
-                        </SelectTrigger>
-                      </FormControl>
-                    <SelectContent>
-                      {Object.values(SchedulingRequestStatus).map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            )}
             <DialogFooter className="md:col-span-2">
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? (

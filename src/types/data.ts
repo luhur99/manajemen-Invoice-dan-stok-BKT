@@ -30,10 +30,12 @@ export enum SchedulingRequestType {
 
 export enum SchedulingRequestStatus {
   PENDING = "pending",
-  APPROVED = "approved",
+  IN_PROGRESS = "in_progress", // New status
+  RESCHEDULED = "rescheduled", // New status
   REJECTED = "rejected",
+  CANCELLED = "cancelled", // New status
+  APPROVED = "approved",
   COMPLETED = "completed",
-  CANCELLED = "cancelled",
 }
 
 export enum DeliveryOrderStatus {
@@ -208,6 +210,7 @@ export interface SchedulingRequest {
   created_at: string;
   updated_at?: string;
   invoice_id?: string;
+  technician_name?: string; // New field for technician name
 }
 
 // New interface for SchedulingRequest with 'no' for display
@@ -236,13 +239,15 @@ export interface Schedule {
   phone_number?: string;
   courier_service?: string;
   document_url?: string;
-  scheduling_request_id?: string;
+  scheduling_request_id?: string; // New field
+  do_number?: string; // New field
 }
 
 // New interface for Schedule with invoice number and 'no'
 export interface ScheduleWithDetails extends Schedule {
   invoice_number?: string;
   no?: number;
+  sr_number?: string; // Added sr_number here
 }
 
 export interface Invoice {

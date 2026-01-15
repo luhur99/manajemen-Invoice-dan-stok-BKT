@@ -22,10 +22,12 @@ interface ViewSchedulingRequestDetailsDialogProps {
 const getStatusDisplay = (status: SchedulingRequestStatus) => {
   switch (status) {
     case SchedulingRequestStatus.PENDING: return "Pending";
-    case SchedulingRequestStatus.APPROVED: return "Disetujui";
+    case SchedulingRequestStatus.IN_PROGRESS: return "Diproses";
+    case SchedulingRequestStatus.RESCHEDULED: return "Dijadwal Ulang";
     case SchedulingRequestStatus.REJECTED: return "Ditolak";
-    case SchedulingRequestStatus.COMPLETED: return "Selesai";
     case SchedulingRequestStatus.CANCELLED: return "Dibatalkan";
+    case SchedulingRequestStatus.APPROVED: return "Disetujui";
+    case SchedulingRequestStatus.COMPLETED: return "Selesai";
     default: return status;
   }
 };
@@ -75,7 +77,7 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           </div>
           {request.invoice_id && (
             <div className="grid grid-cols-2 gap-2">
-              <p className="font-medium">Nomor Invoice Terkait:</p>
+              <p className="font-medium">Nomor Invoice Terkait:</p> {/* Updated label */}
               <p>{(request as any).invoice_number || request.invoice_id}</p>
             </div>
           )}
@@ -84,7 +86,6 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
             <p className="font-medium">Detil Kendaraan:</p>
             <p className="whitespace-pre-wrap">{request.vehicle_details || "-"}</p>
           </div>
-          {/* Removed old vehicle_units, vehicle_type, vehicle_year display */}
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Alamat Lengkap:</p>
             <p>{request.full_address}</p>
@@ -116,6 +117,10 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Metode Pembayaran:</p>
             <p>{request.payment_method || "-"}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <p className="font-medium">Nama Teknisi:</p> {/* New field */}
+            <p>{request.technician_name || "-"}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Status:</p>

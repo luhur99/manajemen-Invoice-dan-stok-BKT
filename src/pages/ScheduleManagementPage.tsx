@@ -48,7 +48,8 @@ const ScheduleManagementPage = () => {
         .from("schedules")
         .select(`
           *,
-          invoices (invoice_number)
+          invoices (invoice_number),
+          scheduling_requests (sr_number)
         `)
         .order("schedule_date", { ascending: false });
 
@@ -58,6 +59,7 @@ const ScheduleManagementPage = () => {
         ...schedule,
         no: index + 1, // Add sequential number
         invoice_number: schedule.invoices?.invoice_number || "-",
+        sr_number: schedule.scheduling_requests?.sr_number || "-", // Get SR number
       }));
     },
   });
@@ -113,6 +115,8 @@ const ScheduleManagementPage = () => {
       item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.do_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by DO number
+      item.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by SR number
       format(new Date(item.schedule_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
   });
@@ -150,13 +154,14 @@ const ScheduleManagementPage = () => {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[50px]">No</TableHead>
+              <TableHead>No. DO</TableHead> {/* New column */}
               <TableHead>Tanggal</TableHead>
               <TableHead>Waktu</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Pelanggan</TableHead>
               <TableHead>Alamat</TableHead>
               <TableHead>Teknisi</TableHead>
-              <TableHead>No. Invoice</TableHead>
+              <TableHead>No. Invoice Terkait</TableHead> {/* Renamed column */}
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
@@ -165,6 +170,7 @@ const ScheduleManagementPage = () => {
             {filteredSchedules?.map((schedule) => (
               <TableRow key={schedule.id}>
                 <TableCell>{schedule.no}</TableCell>
+                <TableCell>{schedule.do_number || "-"}</TableCell> {/* Display DO number */}
                 <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{schedule.schedule_time || "-"}</TableCell>
                 <TableCell>{schedule.type}</TableCell>
