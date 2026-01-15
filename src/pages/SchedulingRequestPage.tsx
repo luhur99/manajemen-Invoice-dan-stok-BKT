@@ -73,11 +73,18 @@ const SchedulingRequestPage = () => {
       return data.map((req, index) => ({
         ...req,
         no: index + 1,
-        invoice_number: req.invoices?.invoice_number || undefined,
-        customer_name_from_customers: req.customers?.customer_name || undefined,
-        company_name_from_customers: req.customers?.company_name || undefined,
-        phone_number_from_customers: req.customers?.phone_number || undefined,
-        customer_type_from_customers: req.customers?.customer_type || undefined,
+        invoice_number: req.invoices?.[0]?.invoice_number || undefined,
+        customer_name_from_customers: req.customers?.[0]?.customer_name || undefined,
+        company_name_from_customers: req.customers?.[0]?.company_name || undefined,
+        phone_number_from_customers: req.customers?.[0]?.phone_number || undefined,
+        customer_type_from_customers: req.customers?.[0]?.customer_type || undefined,
+        // Ensure required fields from the base table are always strings/enums
+        customer_name: req.customer_name || "",
+        full_address: req.full_address || "",
+        contact_person: req.contact_person || "",
+        phone_number: req.phone_number || "",
+        type: req.type || SchedulingRequestType.INSTALLATION, // Provide a default enum value
+        status: req.status || SchedulingRequestStatus.PENDING, // Provide a default enum value
       }));
     },
   });
