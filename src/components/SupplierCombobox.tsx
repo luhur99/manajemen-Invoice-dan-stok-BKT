@@ -36,16 +36,14 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
   suppliers,
   value,
   onValueChange,
-  inputValue, // This is for the CommandInput
-  onInputValueChange, // This is for the CommandInput
-  placeholder = "Pilih pemasok...",
+  inputValue,
+  onInputValueChange,
+  placeholder = "Cari pemasok...", // Changed default placeholder
   disabled = false,
   id,
   name,
 }) => {
   const [open, setOpen] = React.useState(false);
-
-  const selectedSupplier = suppliers.find((supplier) => supplier.id === value);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -59,8 +57,8 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
           id={id}
           name={name}
         >
-          {/* Display inputValue if it exists, otherwise selectedSupplier's name, otherwise placeholder */}
-          {inputValue || (selectedSupplier ? selectedSupplier.name : placeholder)}
+          {/* Display inputValue directly, as it should be controlled by the parent form */}
+          {inputValue || placeholder} 
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -68,8 +66,8 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
         <Command>
           <CommandInput
             placeholder="Cari pemasok..."
-            value={inputValue} // Controlled by parent's form.watch("supplier_name_input")
-            onValueChange={onInputValueChange} // Updates parent's form.setValue("supplier_name_input", val)
+            value={inputValue}
+            onValueChange={onInputValueChange}
           />
           <CommandList>
             <CommandEmpty>Tidak ada pemasok ditemukan.</CommandEmpty>
@@ -77,17 +75,23 @@ const SupplierCombobox: React.FC<SupplierComboboxProps> = ({
               {suppliers.map((supplier) => (
                 <CommandItem
                   key={supplier.id}
-                  value={supplier.name}
+                  value={supplier.name} // Use supplier name for CommandItem value
                   onSelect={(currentCommandItemValue) => {
                     const selected = suppliers.find(s => s.name === currentCommandItemValue);
-                    onValueChange(selected); // This will update both supplier_id and supplier_name_input in parent
+                    if (selected) {
+                      onValueChange(selected); // Update parent's supplier_id
+                      onInputValueChange(selected.name); // Update parent's supplier_name_input
+                    } else {
+                      onValueChange(undefined);
+                      onInputValueChange("");
+                    }
                     setOpen(false);
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0"
+                      value === supplier.id ? "opacity-100" : "opacity-0" // Use 'value' (supplier_id) for checkmark
                     )}
                   />
                   {supplier.name}

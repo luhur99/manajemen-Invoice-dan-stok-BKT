@@ -326,7 +326,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ onSucce
                         form.setValue("supplier_name_input", selectedSupplier ? selectedSupplier.name : "");
                       }}
                       disabled={loadingSuppliers}
-                      placeholder={loadingSuppliers ? "Memuat pemasok..." : "Pilih pemasok..."}
+                      placeholder={loadingSuppliers ? "Memuat pemasok..." : "Cari pemasok..."}
                     />
                   </FormControl>
                   <FormMessage />
