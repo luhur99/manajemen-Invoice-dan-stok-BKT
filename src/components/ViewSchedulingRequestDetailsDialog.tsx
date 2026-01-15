@@ -41,7 +41,6 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
 }) => {
   if (!request) return null;
 
-  // Use data from joined customers table if available, otherwise fallback to direct columns
   const customerName = (request as any).customer_name_from_customers || request.customer_name;
   const companyName = (request as any).company_name_from_customers || request.company_name;
   const phoneNumber = (request as any).phone_number_from_customers || request.phone_number;
@@ -77,33 +76,15 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           {request.invoice_id && (
             <div className="grid grid-cols-2 gap-2">
               <p className="font-medium">Nomor Invoice Terkait:</p>
-              <p>{(request as any).invoice_number || request.invoice_id}</p> {/* Display invoice number if joined */}
+              <p>{(request as any).invoice_number || request.invoice_id}</p>
             </div>
           )}
+          {/* New: Display Vehicle Details */}
           <div className="grid grid-cols-2 gap-2">
-            <p className="font-medium">Jumlah Unit Kendaraan:</p>
-            <p>{request.vehicle_units || "-"}</p>
+            <p className="font-medium">Detil Kendaraan:</p>
+            <p className="whitespace-pre-wrap">{request.vehicle_details || "-"}</p>
           </div>
-          {request.vehicle_type && request.vehicle_type.length > 0 && (
-            <div className="grid grid-cols-2 gap-2">
-              <p className="font-medium">Tipe Kendaraan:</p>
-              <div className="flex flex-col">
-                {request.vehicle_type.map((type, index) => (
-                  <p key={index}>{type || "-"}</p>
-                ))}
-              </div>
-            </div>
-          )}
-          {request.vehicle_year && request.vehicle_year.length > 0 && (
-            <div className="grid grid-cols-2 gap-2">
-              <p className="font-medium">Tahun Kendaraan:</p>
-              <div className="flex flex-col">
-                {request.vehicle_year.map((year, index) => (
-                  <p key={index}>{year || "-"}</p>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Removed old vehicle_units, vehicle_type, vehicle_year display */}
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Alamat Lengkap:</p>
             <p>{request.full_address}</p>

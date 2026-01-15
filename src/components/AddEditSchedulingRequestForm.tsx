@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm, useFieldArray, Path } from "react-hook-form";
+import { useForm } from "react-hook-form"; // Removed useFieldArray
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2, PlusCircle, Trash2 } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react"; // Removed PlusCircle, Trash2
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, CustomerTypeEnum } from "@/types/data";
@@ -42,9 +42,8 @@ const formSchema = z.object({
   customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
   company_name: z.string().optional(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
-  vehicle_units: z.coerce.number().int().min(0, "Jumlah unit kendaraan tidak boleh negatif.").default(0),
-  vehicle_type: z.array(z.string()).default([]),
-  vehicle_year: z.array(z.coerce.number().int().min(1900, "Tahun kendaraan tidak valid.")).default([]),
+  // Removed vehicle_units, vehicle_type, vehicle_year
+  vehicle_details: z.string().optional(), // New field for combined vehicle details
   full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
   landmark: z.string().optional(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
@@ -109,9 +108,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       customer_name: "",
       company_name: "",
       type: SchedulingRequestType.INSTALLATION,
-      vehicle_units: 0,
-      vehicle_type: [],
-      vehicle_year: [],
+      // Removed vehicle_units, vehicle_type, vehicle_year
+      vehicle_details: "", // New default value
       full_address: "",
       landmark: "",
       requested_date: new Date(),
@@ -126,21 +124,9 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     },
   });
 
-  const { fields: vehicleTypeFields, append: appendVehicleType, remove: removeVehicleType } = useFieldArray<
-    z.infer<typeof formSchema> // Explicitly provide the form schema type
-  >({
-    control: form.control,
-    name: "vehicle_type",
-  });
+  // Removed useFieldArray hooks for vehicle_type and vehicle_year
 
-  const { fields: vehicleYearFields, append: appendVehicleYear, remove: removeVehicleYearField } = useFieldArray<
-    z.infer<typeof formSchema> // Explicitly provide the form schema type
-  >({
-    control: form.control,
-    name: "vehicle_year",
-  });
-
-  const watchedVehicleUnits = form.watch("vehicle_units");
+  // Removed watchedVehicleUnits
   const watchedRequestType = form.watch("type");
   const watchedCustomerId = form.watch("customer_id");
   const [customerSearchInput, setCustomerSearchInput] = useState("");
@@ -198,9 +184,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         form.reset({
           ...initialData,
           requested_date: new Date(initialData.requested_date),
-          vehicle_units: initialData.vehicle_units || 0,
-          vehicle_type: initialData.vehicle_type || [],
-          vehicle_year: initialData.vehicle_year || [],
+          // Removed vehicle_units, vehicle_type, vehicle_year from reset
+          vehicle_details: initialData.vehicle_details || "", // New reset for vehicle_details
           sr_number: initialData.sr_number || "",
           invoice_id: initialData.invoice_id || null,
           customer_name: initialData.customer_name || "",
@@ -220,9 +205,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             customer_name: "",
             company_name: "",
             type: SchedulingRequestType.INSTALLATION,
-            vehicle_units: 0,
-            vehicle_type: [],
-            vehicle_year: [],
+            // Removed vehicle_units, vehicle_type, vehicle_year from reset
+            vehicle_details: "", // New reset for vehicle_details
             full_address: "",
             landmark: "",
             requested_date: new Date(),
@@ -241,22 +225,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     }
   }, [isOpen, initialData, form]);
 
-  useEffect(() => {
-    const currentVehicleTypes = form.getValues("vehicle_type") || [];
-    const currentVehicleYears = form.getValues("vehicle_year") || [];
-
-    if (watchedVehicleUnits > currentVehicleTypes.length) {
-      for (let i = currentVehicleTypes.length; i < watchedVehicleUnits; i++) {
-        appendVehicleType("");
-        appendVehicleYear(undefined);
-      }
-    } else if (watchedVehicleUnits < currentVehicleTypes.length) {
-      for (let i = currentVehicleTypes.length - 1; i >= watchedVehicleUnits; i--) {
-        removeVehicleType(i);
-        removeVehicleYearField(i);
-      }
-    }
-  }, [watchedVehicleUnits, appendVehicleType, removeVehicleType, appendVehicleYear, removeVehicleYearField, form]);
+  // Removed useEffect for syncing vehicle_type and vehicle_year arrays with vehicle_units
 
   const handleCustomerSelect = (customer: Customer | undefined) => {
     if (customer) {
@@ -289,15 +258,15 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       const dataToSubmit = {
         ...values,
         requested_date: format(values.requested_date, "yyyy-MM-dd"),
-        vehicle_year: values.vehicle_year?.filter(year => year !== undefined) || null,
-        vehicle_type: values.vehicle_type?.filter(type => type !== "") || null,
-        vehicle_units: values.vehicle_units || 0,
+        // Removed vehicle_year and vehicle_type from dataToSubmit
+        // vehicle_units is also removed from schema and form
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL || watchedRequestType === SchedulingRequestType.SERVICE_PAID) ? values.invoice_id : null,
         customer_id: values.customer_id || null,
         customer_name: values.customer_name,
         company_name: values.company_name,
         phone_number: values.phone_number,
         customer_type: values.customer_type || null,
+        vehicle_details: values.vehicle_details || null, // New field
       };
 
       if (initialData) {
@@ -455,50 +424,20 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               />
             )}
 
+            {/* New: Single Textarea for Vehicle Details */}
             <FormField
               control={form.control}
-              name="vehicle_units"
+              name="vehicle_details"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Jumlah Unit Kendaraan (Opsional)</FormLabel>
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Detil Kendaraan (Opsional)</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? 0 : Number(e.target.value))} />
+                    <Textarea placeholder="Contoh: 2 unit mobil, 1 unit motor. Mobil: Toyota Avanza 2020, Honda Brio 2022. Motor: Yamaha NMAX 2021." {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            {Array.from({ length: watchedVehicleUnits }).map((_, index) => (
-              <React.Fragment key={index}>
-                <FormField
-                  control={form.control}
-                  name={`vehicle_type.${index}`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipe Kendaraan {index + 1} (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name={`vehicle_year.${index}`}
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tahun Kendaraan {index + 1} (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </React.Fragment>
-            ))}
 
             <FormField
               control={form.control}

@@ -21,11 +21,11 @@ export enum StockEventType {
 
 export enum SchedulingRequestType {
   INSTALLATION = "installation",
-  SERVICE_PAID = "service_paid", // New
-  SERVICE_UNBILL = "service_unbill", // New
-  DELIVERY = "delivery", // New
-  MAINTENANCE = "maintenance", // Keep existing for now
-  SURVEY = "survey", // Keep existing for now
+  SERVICE_PAID = "service_paid",
+  SERVICE_UNBILL = "service_unbill",
+  DELIVERY = "delivery",
+  MAINTENANCE = "maintenance",
+  SURVEY = "survey",
 }
 
 export enum SchedulingRequestStatus {
@@ -47,7 +47,7 @@ export enum PurchaseRequestStatus {
   PENDING = "pending",
   APPROVED = "approved",
   REJECTED = "rejected",
-  WAITING_FOR_RECEIVED = "waiting for received", // Changed from WAITING_FOR_RECEIPT
+  WAITING_FOR_RECEIVED = "waiting for received",
   CLOSED = "closed",
 }
 
@@ -92,13 +92,13 @@ export interface Product {
   safe_stock_limit?: number;
   created_at: string;
   supplier_id?: string;
-  inventories?: WarehouseInventory[]; // Added for StockItemCombobox and StockPage
+  inventories?: WarehouseInventory[];
 }
 
 export interface WarehouseInventory {
   id: string;
   product_id: string;
-  warehouse_category: string; // Changed to string as it will reference WarehouseCategory.code
+  warehouse_category: string;
   quantity: number;
   user_id: string;
   created_at: string;
@@ -112,10 +112,10 @@ export interface StockLedger {
   product_id: string;
   event_type: StockEventType;
   quantity: number;
-  from_warehouse_category?: string; // Nullable for 'in', 'initial'
-  to_warehouse_category?: string;   // Nullable for 'out', 'initial'
+  from_warehouse_category?: string;
+  to_warehouse_category?: string;
   notes?: string;
-  event_date: string; // Date of the event
+  event_date: string;
   created_at: string;
 }
 
@@ -156,7 +156,7 @@ export interface Profile {
 export interface PurchaseRequest {
   id: string;
   user_id?: string;
-  pr_number?: string; // Added pr_number here
+  pr_number?: string;
   item_name: string;
   item_code: string;
   quantity: number;
@@ -166,12 +166,12 @@ export interface PurchaseRequest {
   notes?: string;
   status: PurchaseRequestStatus;
   created_at: string;
-  updated_at?: string; // Added updated_at
+  updated_at?: string;
   document_url?: string;
   received_quantity?: number;
   returned_quantity?: number;
   damaged_quantity?: number;
-  target_warehouse_category?: string; // Changed to string
+  target_warehouse_category?: string;
   received_notes?: string;
   received_at?: string;
   product_id?: string;
@@ -188,37 +188,36 @@ export interface PurchaseRequestWithDetails extends PurchaseRequest {
 export interface SchedulingRequest {
   id: string;
   user_id?: string;
-  sr_number?: string; // Added sr_number
-  customer_id?: string | null; // New: Foreign key to customers table
-  customer_name: string; // Kept for display/fallback, but ideally from customer_id join
-  company_name?: string; // Kept for display/fallback
+  sr_number?: string;
+  customer_id?: string | null;
+  customer_name: string;
+  company_name?: string;
   type: SchedulingRequestType;
-  vehicle_units?: number;
-  vehicle_type?: string[]; // Changed to array of strings
-  vehicle_year?: number[]; // Changed to array of numbers
+  // Removed vehicle_units, vehicle_type, vehicle_year
+  vehicle_details?: string; // New field for combined vehicle details
   full_address: string;
   landmark?: string;
   requested_date: string;
   requested_time?: string;
   contact_person: string;
-  phone_number: string; // Kept for display/fallback
-  customer_type?: CustomerTypeEnum; // Kept for display/fallback
+  phone_number: string;
+  customer_type?: CustomerTypeEnum;
   payment_method?: string;
   status: SchedulingRequestStatus;
   notes?: string;
   created_at: string;
-  updated_at?: string; // Added for consistency
-  invoice_id?: string; // Added for conditional invoice input
+  updated_at?: string;
+  invoice_id?: string;
 }
 
 // New interface for SchedulingRequest with 'no' for display
 export interface SchedulingRequestWithDetails extends SchedulingRequest {
   no?: number;
-  invoice_number?: string; // For displaying invoice number in table/details
-  customer_name_from_customers?: string; // For joined customer name
-  company_name_from_customers?: string; // For joined company name
-  phone_number_from_customers?: string; // For joined phone number
-  customer_type_from_customers?: CustomerTypeEnum; // For joined customer type
+  invoice_number?: string;
+  customer_name_from_customers?: string;
+  company_name_from_customers?: string;
+  phone_number_from_customers?: string;
+  customer_type_from_customers?: CustomerTypeEnum;
 }
 
 export interface Schedule {
@@ -226,12 +225,12 @@ export interface Schedule {
   user_id?: string;
   schedule_date: string;
   schedule_time?: string;
-  type: ScheduleType; // Using new enum
+  type: ScheduleType;
   customer_name: string;
   address?: string;
   technician_name?: string;
   invoice_id?: string;
-  status: ScheduleStatus; // Using new enum
+  status: ScheduleStatus;
   notes?: string;
   created_at: string;
   phone_number?: string;
@@ -255,10 +254,10 @@ export interface Invoice {
   customer_name: string;
   company_name?: string;
   total_amount: number;
-  payment_status: InvoicePaymentStatus; // Using new enum
+  payment_status: InvoicePaymentStatus;
   created_at: string;
-  type?: InvoiceType; // Using new enum
-  customer_type?: CustomerTypeEnum; // Using new enum
+  type?: InvoiceType;
+  customer_type?: CustomerTypeEnum;
   payment_method?: string;
   notes?: string;
   document_url?: string;
@@ -277,11 +276,11 @@ export interface InvoiceItem {
   invoice_id?: string;
   user_id?: string;
   item_name: string;
-  item_code?: string; // Added for ViewInvoiceDetailsDialog
+  item_code?: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
-  created_at: string; // Added for EditInvoiceForm
+  created_at: string;
   unit_type?: string;
   product_id?: string;
 }
@@ -291,7 +290,7 @@ export interface DeliveryOrder {
   request_id?: string;
   user_id?: string;
   do_number: string;
-  items_json?: any; // Consider defining a more specific type for items
+  items_json?: any;
   delivery_date: string;
   delivery_time?: string;
   status: DeliveryOrderStatus;
