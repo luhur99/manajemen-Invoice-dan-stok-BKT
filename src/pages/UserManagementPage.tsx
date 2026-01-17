@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Terminal, Edit, Trash2, Loader2 } from "lucide-react";
+import { PlusCircle, Terminal, Edit, Trash2, Loader2, KeyRound } from "lucide-react"; // Added KeyRound icon
 import { useSession } from "@/components/SessionContextProvider";
 import AddUserForm from "@/components/AddUserForm";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,13 +11,14 @@ import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { UserWithProfile } from "@/types/data"; // Import new type
+import { UserWithProfile } from "@/types/data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import EditUserRoleForm from "@/components/EditUserRoleForm"; // Will create this
-import { Input } from "@/components/ui/input"; // Added Input import
+import EditUserRoleForm from "@/components/EditUserRoleForm";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label"; // Added Label import
 
 const UserManagementPage = () => {
   const { session, loading: sessionLoading, profile } = useSession();
@@ -34,6 +35,11 @@ const UserManagementPage = () => {
   const [isDeleteUserModalOpen, setIsDeleteUserModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserWithProfile | null>(null);
 
+  // Password Reset States
+  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
+  const [userToReset, setUserToReset] = useState<UserWithProfile | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+
   const { data: users, isLoading: usersLoading, error: usersError, refetch: refetchUsers } = useQuery<UserWithProfile[], Error>({
     queryKey: ["allUsersWithProfiles"],
     queryFn: async () => {
@@ -44,10 +50,9 @@ const UserManagementPage = () => {
       if (data && data.error) {
         throw new Error(data.error);
       }
-      // Add sequential 'no' for display
       return (data as UserWithProfile[]).map((user, index) => ({ ...user, no: index + 1 }));
     },
-    enabled: !!session && profile?.role === 'admin', // Only fetch if authenticated and admin
+    enabled: !!session && profile?.role === 'admin',
   });
 
   const deleteUserMutation = useMutation({
@@ -68,6 +73,26 @@ const UserManagementPage = () => {
     },
     onError: (err) => {
       showError(`Gagal menghapus pengguna: ${err.message}`);
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPassword }: { userId: string, newPassword: string }) => {
+      const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+        body: JSON.stringify({ userId, newPassword }),
+      });
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      showSuccess("Password berhasil direset!");
+      setIsResetPasswordOpen(false);
+      setUserToReset(null);
+      setNewPassword("");
+    },
+    onError: (err) => {
+      showError(`Gagal mereset password: ${err.message}`);
     },
   });
 
@@ -98,6 +123,12 @@ const UserManagementPage = () => {
   const handleDeleteUserClick = (user: UserWithProfile) => {
     setUserToDelete(user);
     setIsDeleteUserModalOpen(true);
+  };
+
+  const handleResetPasswordClick = (user: UserWithProfile) => {
+    setUserToReset(user);
+    setNewPassword("");
+    setIsResetPasswordOpen(true);
   };
 
   if (sessionLoading || usersLoading) {
@@ -196,7 +227,10 @@ const UserManagementPage = () => {
                         <Button variant="ghost" size="icon" onClick={() => handleEditRoleClick(user)} title="Edit Peran">
                           <Edit className="h-4 w-4" />
                         </Button>
-                        {user.id !== session?.user.id && ( // Prevent admin from deleting themselves
+                        <Button variant="ghost" size="icon" onClick={() => handleResetPasswordClick(user)} title="Reset Password">
+                          <KeyRound className="h-4 w-4" />
+                        </Button>
+                        {user.id !== session?.user.id && (
                           <Button variant="destructive" size="icon" onClick={() => handleDeleteUserClick(user)} title="Hapus Pengguna">
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -234,6 +268,40 @@ const UserManagementPage = () => {
           onSuccess={refetchUsers}
         />
       )}
+
+      {/* Reset Password Modal */}
+      <Dialog open={isResetPasswordOpen} onOpenChange={setIsResetPasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset Password Pengguna</DialogTitle>
+            <DialogDescription>
+              Masukkan password baru untuk pengguna <strong>{userToReset?.email}</strong>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Password Baru</Label>
+              <Input 
+                id="new-password" 
+                type="password" 
+                value={newPassword} 
+                onChange={(e) => setNewPassword(e.target.value)} 
+                placeholder="Minimal 6 karakter"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetPasswordOpen(false)}>Batal</Button>
+            <Button 
+              onClick={() => resetPasswordMutation.mutate({ userId: userToReset!.id, newPassword })} 
+              disabled={resetPasswordMutation.isPending || newPassword.length < 6}
+            >
+              {resetPasswordMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Reset Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete User Confirmation Modal */}
       <Dialog open={isDeleteUserModalOpen} onOpenChange={setIsDeleteUserModalOpen}>

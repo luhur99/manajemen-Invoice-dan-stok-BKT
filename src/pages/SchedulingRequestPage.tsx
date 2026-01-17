@@ -6,17 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, CheckCircle, Clock } from "lucide-react"; // Removed XCircle, RefreshCcw, PlayCircle
+import { Loader2, PlusCircle, Edit, Trash2, Eye, CheckCircle, Clock } from "lucide-react"; 
 import { showSuccess, showError } from "@/utils/toast";
 import AddEditSchedulingRequestForm from "@/components/AddEditSchedulingRequestForm";
 import ViewSchedulingRequestDetailsDialog from "@/components/ViewSchedulingRequestDetailsDialog";
-import CancelRequestDialog from "@/components/CancelRequestDialog"; // Keep CancelRequestDialog
+import CancelRequestDialog from "@/components/CancelRequestDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician } from "@/types/data";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
-import TechnicianCombobox from "@/components/TechnicianCombobox"; // Import TechnicianCombobox
+import TechnicianCombobox from "@/components/TechnicianCombobox";
 
 const getStatusColor = (status: SchedulingRequestStatus) => {
   switch (status) {
@@ -66,9 +66,9 @@ const SchedulingRequestPage = () => {
 
   // States for new action dialogs
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false); // For technician name input on approve
-  const [technicianNameForApproval, setTechnicianNameForApproval] = useState(""); // State for technician name input
-  const [technicianSearchInputForApproval, setTechnicianSearchInputForApproval] = useState(""); // State for combobox input
+  const [isApproveModalOpen, setIsApproveModalOpen] = useState(false); 
+  const [technicianNameForApproval, setTechnicianNameForApproval] = useState(""); 
+  const [technicianSearchInputForApproval, setTechnicianSearchInputForApproval] = useState(""); 
 
   const { data: requests, isLoading, isError, error, refetch } = useQuery<SchedulingRequestWithDetails[], Error>({
     queryKey: ["schedulingRequests"],
@@ -98,12 +98,12 @@ const SchedulingRequestPage = () => {
         phone_number: req.phone_number || "",
         type: req.type || SchedulingRequestType.INSTALLATION,
         status: req.status || SchedulingRequestStatus.PENDING,
-        technician_name: req.technician_name || undefined, // Ensure technician_name is passed
+        technician_name: req.technician_name || undefined,
       }));
     },
   });
 
-  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+  const { data: technicians, isLoading: loadingTechnicians } = useQuery<Technician[], Error>({
     queryKey: ["technicians"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -134,26 +134,27 @@ const SchedulingRequestPage = () => {
     },
   });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status, notes, technician_name }: { id: string; status: SchedulingRequestStatus; notes?: string | null; technician_name?: string | null }) => {
-      const { error } = await supabase
-        .from("scheduling_requests")
-        .update({ status: status, notes: notes || null, technician_name: technician_name || null, updated_at: new Date().toISOString() })
-        .eq("id", id);
+  // Use Edge Function for Approval
+  const approveRequestMutation = useMutation({
+    mutationFn: async ({ id, technician_name }: { id: string; technician_name: string }) => {
+      const { data, error } = await supabase.functions.invoke('approve-scheduling-request', {
+        body: JSON.stringify({ request_id: id, technician_name }),
+      });
       if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schedulingRequests"] });
-      queryClient.invalidateQueries({ queryKey: ["schedules"] }); // Invalidate schedules cache as well
-      showSuccess("Status permintaan jadwal berhasil diperbarui!");
-      setSelectedRequest(null);
-      setIsCancelModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["schedules"] }); 
+      showSuccess("Permintaan disetujui dan jadwal telah dibuat!");
       setIsApproveModalOpen(false);
-      setTechnicianNameForApproval(""); // Clear input
-      setTechnicianSearchInputForApproval(""); // Clear combobox input
+      setTechnicianNameForApproval("");
+      setTechnicianSearchInputForApproval("");
+      setSelectedRequest(null);
     },
     onError: (err) => {
-      showError(`Gagal memperbarui status permintaan jadwal: ${err.message}`);
+      showError(`Gagal menyetujui permintaan: ${err.message}`);
     },
   });
 
@@ -183,7 +184,6 @@ const SchedulingRequestPage = () => {
     setIsViewDetailsOpen(true);
   };
 
-  // Handlers for new status transitions
   const handleCancelClick = (request: SchedulingRequestWithDetails) => {
     setSelectedRequest(request);
     setIsCancelModalOpen(true);
@@ -191,9 +191,9 @@ const SchedulingRequestPage = () => {
 
   const handleApproveClick = (request: SchedulingRequestWithDetails) => {
     setSelectedRequest(request);
-    setTechnicianNameForApproval(request.technician_name || ""); // Pre-fill if exists
+    setTechnicianNameForApproval(request.technician_name || ""); 
     setTechnicianSearchInputForApproval(request.technician_name || "");
-    setIsApproveModalOpen(true); // Open the dialog to input technician name
+    setIsApproveModalOpen(true); 
   };
 
   const handleTechnicianSelectForApproval = (technician: Technician | undefined) => {
@@ -221,7 +221,7 @@ const SchedulingRequestPage = () => {
       request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
       phoneNumber.toLowerCase().includes(lowerCaseSearchTerm) ||
       request.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by technician name
+      request.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
   });
@@ -298,26 +298,22 @@ const SchedulingRequestPage = () => {
                   </span>
                 </TableCell>
                 <TableCell className="flex space-x-2 justify-center">
-                  {/* 1. View */}
                   <Button variant="ghost" size="icon" onClick={() => handleViewDetails(request)} title="Lihat Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
 
-                  {/* 2. Edit (only if PENDING) */}
                   {request.status === SchedulingRequestStatus.PENDING && (
                     <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request)} title="Edit Permintaan">
                       <Edit className="h-4 w-4" />
                     </Button>
                   )}
 
-                  {/* 3. Disetujui (Approve) (only if PENDING) */}
                   {request.status === SchedulingRequestStatus.PENDING && (
                     <Button variant="ghost" size="icon" onClick={() => handleApproveClick(request)} title="Setujui Permintaan">
-                      <CheckCircle className="h-4 w-4" />
+                      <CheckCircle className="h-4 w-4 text-green-600" />
                     </Button>
                   )}
 
-                  {/* 4. Dibatalkan (Cancel) (if PENDING, IN_PROGRESS, or RESCHEDULED) */}
                   {(request.status === SchedulingRequestStatus.PENDING ||
                     request.status === SchedulingRequestStatus.IN_PROGRESS ||
                     request.status === SchedulingRequestStatus.RESCHEDULED) && (
@@ -326,7 +322,6 @@ const SchedulingRequestPage = () => {
                     </Button>
                   )}
 
-                  {/* 5. Dihapus (Delete) (only if PENDING) */}
                   {request.status === SchedulingRequestStatus.PENDING && (
                     <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(request)} title="Hapus Permintaan">
                       <Trash2 className="h-4 w-4" />
@@ -384,14 +379,14 @@ const SchedulingRequestPage = () => {
         />
       )}
 
-      {/* Approve Request Dialog (for technician name input) */}
+      {/* Approve Request Dialog */}
       {selectedRequest && (
         <Dialog open={isApproveModalOpen} onOpenChange={setIsApproveModalOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Setujui Permintaan Jadwal</DialogTitle>
               <DialogDescription>
-                Pilih nama teknisi untuk permintaan jadwal ini.
+                Pilih nama teknisi untuk permintaan jadwal ini. Jadwal akan otomatis dibuat.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={(e) => {
@@ -400,7 +395,7 @@ const SchedulingRequestPage = () => {
                 showError('Nama teknisi wajib diisi.');
                 return;
               }
-              updateStatusMutation.mutate({ id: selectedRequest.id, status: SchedulingRequestStatus.APPROVED, technician_name: technicianNameForApproval });
+              approveRequestMutation.mutate({ id: selectedRequest.id, technician_name: technicianNameForApproval });
             }} className="space-y-4">
               <TechnicianCombobox
                 technicians={technicians || []}
@@ -411,16 +406,13 @@ const SchedulingRequestPage = () => {
                 disabled={loadingTechnicians}
                 loading={loadingTechnicians}
                 placeholder="Pilih atau cari teknisi..."
-                id="technician_name_for_approval"
-                name="technician_name_for_approval"
               />
-              {updateStatusMutation.isError && <p className="text-red-500 text-sm">{updateStatusMutation.error?.message}</p>}
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsApproveModalOpen(false)} disabled={updateStatusMutation.isPending}>
+                <Button variant="outline" onClick={() => setIsApproveModalOpen(false)} disabled={approveRequestMutation.isPending}>
                   Batal
                 </Button>
-                <Button type="submit" disabled={updateStatusMutation.isPending || !technicianNameForApproval.trim()}>
-                  {updateStatusMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Setujui & Simpan"}
+                <Button type="submit" disabled={approveRequestMutation.isPending || !technicianNameForApproval.trim()}>
+                  {approveRequestMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Setujui & Buat Jadwal"}
                 </Button>
               </DialogFooter>
             </form>

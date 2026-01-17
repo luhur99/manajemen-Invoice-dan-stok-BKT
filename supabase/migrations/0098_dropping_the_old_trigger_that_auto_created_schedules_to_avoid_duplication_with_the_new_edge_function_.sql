@@ -1,0 +1,2 @@
+DROP TRIGGER IF EXISTS on_scheduling_request_approved_to_schedule ON public.scheduling_requests;
+DROP FUNCTION IF EXISTS public.handle_approved_scheduling_request_to_schedule();
