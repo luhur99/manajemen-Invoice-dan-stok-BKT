@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query"; // Import useQuery
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
 import { Button } from "@/components/ui/button"; // Import Button component
 import { Loader2 } from "lucide-react"; // Import Loader2 icon
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -46,6 +47,7 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 const DashboardOverviewPage = () => {
+  const { session } = useSession(); // Get session
   const [pendingInvoices, setPendingInvoices] = useState(0);
   const [todaySchedules, setTodaySchedules] = useState(0);
   const [lowStockItems, setLowStockItems] = useState(0);
@@ -73,12 +75,14 @@ const DashboardOverviewPage = () => {
         return data;
       } catch (err: any) {
         setDashboardDataError(`Gagal memuat data dashboard: ${err.message}`);
-        showError(`Gagal memuat data dashboard: ${err.message}`);
+        // Suppress toast on initial load error to avoid spamming if it's just auth delay
+        console.error(`Dashboard load error: ${err.message}`); 
         throw err;
       } finally {
         setLoadingDashboardData(false);
       }
     },
+    enabled: !!session, // Only fetch when session is available!
   });
 
   useEffect(() => {
@@ -94,8 +98,22 @@ const DashboardOverviewPage = () => {
   }, [data]);
 
   // Combined loading state
-  const overallLoading = isFetchingDashboardData || loadingDashboardData;
-  const overallError = dashboardDataError || fetchError;
+  const overallLoading = (isFetchingDashboardData || loadingDashboardData) && !!session;
+  
+  // Show loading state while checking session
+  if (!session) {
+     return (
+      <Card className="border shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-2xl font-semibold">Dashboard</CardTitle>
+          <CardDescription>Memeriksa sesi...</CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center items-center h-32">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (overallLoading) {
     return (
@@ -111,12 +129,14 @@ const DashboardOverviewPage = () => {
     );
   }
 
+  const overallError = dashboardDataError || fetchError;
+
   if (overallError) {
     return (
-      <div className="container mx-auto p-4">
+      <div className="space-y-6">
         <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
-          <AlertTitle>Terjadi Kesalahan!</AlertTitle>
+          <AlertTitle>Gagal Memuat Dashboard</AlertTitle>
           <AlertDescription>
             {overallError instanceof Error ? overallError.message : overallError}
             <div className="mt-2">
@@ -126,6 +146,8 @@ const DashboardOverviewPage = () => {
             </div>
           </AlertDescription>
         </Alert>
+        {/* Render Calendar anyway so the page isn't empty */}
+        <TechnicianScheduleCalendar />
       </div>
     );
   }
