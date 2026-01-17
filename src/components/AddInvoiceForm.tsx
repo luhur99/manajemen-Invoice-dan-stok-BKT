@@ -38,12 +38,12 @@ import {
   CustomerTypeEnum,
   WarehouseInventory,
   ScheduleWithDetails,
-  InvoiceDocumentStatus, // Import new enum
+  InvoiceDocumentStatus,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 
 const formSchema = z.object({
-  invoice_number: z.string().min(1, "Nomor Invoice harus diisi."),
+  // invoice_number: Removed from client-side schema as it's generated on server
   invoice_date: z.date({ required_error: "Tanggal Invoice harus diisi." }),
   due_date: z.date().optional(),
   customer_name: z.string().min(1, "Nama Pelanggan harus diisi."),
@@ -55,7 +55,7 @@ const formSchema = z.object({
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
-  invoice_status: z.nativeEnum(InvoiceDocumentStatus).default(InvoiceDocumentStatus.WAITING_DOCUMENT_INV), // Add to schema
+  invoice_status: z.nativeEnum(InvoiceDocumentStatus).default(InvoiceDocumentStatus.WAITING_DOCUMENT_INV),
   items: z.array(
     z.object({
       selected_product_id: z.string().min(1, "Produk harus dipilih."),
@@ -76,44 +76,15 @@ interface AddInvoiceFormProps {
   initialSchedule?: ScheduleWithDetails | null;
 }
 
-// Function to generate INV-YYMMDDXXXX
-const generateInvoiceNumber = async (): Promise<string> => {
-  const today = format(new Date(), "yyMMdd");
-  const prefix = `INV${today}`;
-
-  const { data, error } = await supabase
-    .from("invoices")
-    .select("invoice_number")
-    .like("invoice_number", `${prefix}%`)
-    .order("invoice_number", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    console.error("Error fetching latest invoice number:", error);
-    return `${prefix}${Date.now().toString().slice(-4)}`; // Fallback
-  }
-
-  let sequence = 1;
-  if (data && data.length > 0 && data[0].invoice_number) {
-    const latestInvoiceNumber = data[0].invoice_number;
-    const currentSequence = parseInt(latestInvoiceNumber.substring(8), 10); // Get last 4 digits
-    if (!isNaN(currentSequence)) {
-      sequence = currentSequence + 1;
-    }
-  }
-  return `${prefix}${String(sequence).padStart(4, '0')}`;
-};
-
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess, initialSchedule }) => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      invoice_number: "",
       invoice_date: new Date(),
       customer_name: "",
       total_amount: 0,
       payment_status: InvoicePaymentStatus.PENDING,
-      invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV, // Set default here
+      invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
       items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
     },
   });
@@ -175,34 +146,29 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     fetchProducts();
   }, []);
 
-  // Effect to handle initial schedule data and generate invoice number
+  // Effect to handle initial schedule data
   React.useEffect(() => {
     if (isOpen) {
-      const resetFormWithDefaults = async () => {
-        const newInvoiceNumber = await generateInvoiceNumber();
-        let defaultNotes = "";
-        if (initialSchedule?.do_number) {
-          defaultNotes = `DO Number: ${initialSchedule.do_number}`;
-        }
+      let defaultNotes = "";
+      if (initialSchedule?.do_number) {
+        defaultNotes = `DO Number: ${initialSchedule.do_number}`;
+      }
 
-        form.reset({
-          invoice_number: newInvoiceNumber,
-          invoice_date: new Date(),
-          due_date: undefined,
-          customer_name: initialSchedule?.customer_name || "",
-          company_name: undefined, // Can be fetched from customer if customer_id is available
-          total_amount: 0,
-          payment_status: InvoicePaymentStatus.PENDING,
-          type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI, // Set invoice type based on schedule type
-          customer_type: undefined,
-          payment_method: initialSchedule?.payment_method || undefined,
-          notes: defaultNotes,
-          courier_service: initialSchedule?.courier_service || undefined,
-          invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV, // Set default here
-          items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
-        });
-      };
-      resetFormWithDefaults();
+      form.reset({
+        invoice_date: new Date(),
+        due_date: undefined,
+        customer_name: initialSchedule?.customer_name || "",
+        company_name: undefined,
+        total_amount: 0,
+        payment_status: InvoicePaymentStatus.PENDING,
+        type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
+        customer_type: undefined,
+        payment_method: initialSchedule?.payment_method || undefined,
+        notes: defaultNotes,
+        courier_service: initialSchedule?.courier_service || undefined,
+        invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
+        items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+      });
     }
   }, [isOpen, initialSchedule, form]);
 
@@ -260,20 +226,13 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
   };
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) {
-      showError("Anda harus login untuk membuat invoice.");
-      return;
-    }
-
     try {
-      const { data: invoiceData, error: invoiceError } = await supabase
-        .from("invoices")
-        .insert({
-          user_id: user.data.user.id,
-          invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"),
-          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null,
+      // Use Edge Function for secure, atomic invoice creation
+      const { data, error } = await supabase.functions.invoke('create-invoice', {
+        body: JSON.stringify({
+          // invoice_number is generated on the server
+          invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
+          due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -283,30 +242,13 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           payment_method: values.payment_method,
           notes: values.notes,
           courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null,
-          invoice_status: values.invoice_status, // Include new status
-        })
-        .select()
-        .single();
+          invoice_status: values.invoice_status,
+          items: values.items, // Pass items to function
+        }),
+      });
 
-      if (invoiceError) throw invoiceError;
-
-      const invoiceItems = (values.items as typeof formSchema._type['items']).map(item => ({
-        invoice_id: invoiceData.id,
-        user_id: user.data.user?.id,
-        product_id: item.selected_product_id,
-        item_name: item.item_name,
-        item_code: item.item_code,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal: item.subtotal,
-        unit_type: item.unit_type,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from("invoice_items")
-        .insert(invoiceItems);
-
-      if (itemsError) throw itemsError;
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
 
       showSuccess("Invoice berhasil ditambahkan!");
       onSuccess();
@@ -324,25 +266,12 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         <DialogHeader>
           <DialogTitle>Tambah Invoice Baru</DialogTitle>
           <DialogDescription>
-            Isi detail invoice baru di sini. Klik simpan saat Anda selesai.
+            Isi detail invoice baru di sini. Nomor Invoice akan dibuat otomatis.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="invoice_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nomor Invoice</FormLabel>
-                    <FormControl>
-                      <Input {...field} readOnly className="bg-gray-100" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="invoice_date"
