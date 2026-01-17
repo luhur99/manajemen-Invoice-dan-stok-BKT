@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, Printer } from "lucide-react"; // Added Printer
+import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
 import EditInvoiceForm from "@/components/EditInvoiceForm";
@@ -110,10 +110,6 @@ const InvoiceManagementPage = () => {
   const handleViewDocument = (url: string) => {
     setDocumentUrlToView(url);
     setIsViewDocumentOpen(true);
-  };
-
-  const handlePrintClick = (invoiceId: string) => {
-    window.open(`/print/invoice/${invoiceId}`, '_blank');
   };
 
   const handleDeleteInvoice = async () => {
@@ -249,9 +245,6 @@ const InvoiceManagementPage = () => {
                   </span>
                 </TableCell>
                 <TableCell className="flex space-x-2 justify-center">
-                  <Button variant="ghost" size="icon" onClick={() => handlePrintClick(invoice.id)} title="Cetak Invoice">
-                    <Printer className="h-4 w-4 text-blue-600" />
-                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleViewDetails(invoice)} title="Lihat Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
