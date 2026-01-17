@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
 import { WarehouseCategory } from "@/types/data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 // Define the schema for the new warehouse_categories table
 interface WarehouseCategoryWithNo extends WarehouseCategory {
@@ -36,14 +37,11 @@ const slugify = (text: string) => {
 
 const formSchema = z.object({
   name: z.string().min(1, "Nama kategori wajib diisi."),
-  // 'code' is no longer directly input by the user, but will be generated
 });
 
 const WarehouseCategoryPage: React.FC = () => {
   const { session } = useSession();
-  const [categories, setCategories] = useState<WarehouseCategoryWithNo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -58,110 +56,111 @@ const WarehouseCategoryPage: React.FC = () => {
     },
   });
 
-  const fetchCategories = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { data: categories = [], isLoading, error } = useQuery<WarehouseCategoryWithNo[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
         .select("*")
         .order("name", { ascending: true });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      const categoriesWithNo: WarehouseCategoryWithNo[] = data.map((cat, index) => ({
+      return data.map((cat, index) => ({
         ...cat,
         no: index + 1,
       }));
+    },
+  });
 
-      setCategories(categoriesWithNo);
-    } catch (err: any) {
-      setError(`Gagal memuat kategori gudang: ${err.message}`);
-      console.error("Error fetching warehouse categories:", err);
-      showError("Gagal memuat kategori gudang.");
-      setCategories([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const addCategoryMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) throw new Error("Pengguna tidak terautentikasi.");
 
-  useEffect(() => {
-    fetchCategories();
-  }, [fetchCategories]);
+      const generatedCode = slugify(values.name);
+      const { error } = await supabase.from("warehouse_categories").insert({
+        user_id: userId,
+        name: values.name,
+        code: generatedCode,
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Kategori gudang berhasil ditambahkan!");
+      form.reset();
+      setIsAddModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["warehouseCategories"] });
+    },
+    onError: (err: any) => {
+      showError(`Gagal menambahkan kategori gudang: ${err.message}`);
+    },
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      if (!selectedCategory) throw new Error("Kategori tidak dipilih.");
+      
+      const generatedCode = slugify(values.name);
+      const { error } = await supabase
+        .from("warehouse_categories")
+        .update({
+          name: values.name,
+          code: generatedCode,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedCategory.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Kategori gudang berhasil diperbarui!");
+      setIsEditModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["warehouseCategories"] });
+    },
+    onError: (err: any) => {
+      showError(`Gagal memperbarui kategori gudang: ${err.message}`);
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("warehouse_categories")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Kategori gudang berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["warehouseCategories"] });
+    },
+    onError: (err: any) => {
+      showError(`Gagal menghapus kategori gudang: ${err.message}`);
+    },
+  });
 
   const filteredCategories = categories.filter((category) =>
     category.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddCategory = async (values: z.infer<typeof formSchema>) => {
-    const userId = session?.user?.id;
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
-
-    const generatedCode = slugify(values.name);
-
-    try {
-      const { error } = await supabase
-        .from("warehouse_categories")
-        .insert({
-          user_id: userId,
-          name: values.name,
-          code: generatedCode, // Use generated code
-        });
-
-      if (error) {
-        throw error;
-      }
-
-      showSuccess("Kategori gudang berhasil ditambahkan!");
-      form.reset();
-      setIsAddModalOpen(false);
-      fetchCategories();
-    } catch (err: any) {
-      showError(`Gagal menambahkan kategori gudang: ${err.message}`);
-      console.error("Error adding warehouse category:", err);
-    }
+  const handleAddCategory = (values: z.infer<typeof formSchema>) => {
+    addCategoryMutation.mutate(values);
   };
 
   const handleEditClick = (category: WarehouseCategoryWithNo) => {
     setSelectedCategory(category);
     form.reset({
       name: category.name,
-      // code is not reset as it's not editable
     });
     setIsEditModalOpen(true);
   };
 
-  const handleUpdateCategory = async (values: z.infer<typeof formSchema>) => {
-    if (!selectedCategory) return;
-
-    const generatedCode = slugify(values.name); // Re-generate code based on new name
-
-    try {
-      const { error } = await supabase
-        .from("warehouse_categories")
-        .update({
-          name: values.name,
-          code: generatedCode, // Update code based on new name
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedCategory.id);
-
-      if (error) {
-        throw error;
-      }
-
-      showSuccess("Kategori gudang berhasil diperbarui!");
-      setIsEditModalOpen(false);
-      fetchCategories();
-    } catch (err: any) {
-      showError(`Gagal memperbarui kategori gudang: ${err.message}`);
-      console.error("Error updating warehouse category:", err);
-    }
+  const handleUpdateCategory = (values: z.infer<typeof formSchema>) => {
+    updateCategoryMutation.mutate(values);
   };
 
   const handleDeleteClick = (category: WarehouseCategoryWithNo) => {
@@ -169,29 +168,13 @@ const WarehouseCategoryPage: React.FC = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteCategory = async () => {
-    if (!selectedCategory) return;
-
-    try {
-      const { error } = await supabase
-        .from("warehouse_categories")
-        .delete()
-        .eq("id", selectedCategory.id);
-
-      if (error) {
-        throw error;
-      }
-
-      showSuccess("Kategori gudang berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      fetchCategories();
-    } catch (err: any) {
-      showError(`Gagal menghapus kategori gudang: ${err.message}`);
-      console.error("Error deleting warehouse category:", err);
+  const handleDeleteCategory = () => {
+    if (selectedCategory) {
+      deleteCategoryMutation.mutate(selectedCategory.id);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="border shadow-sm">
         <CardHeader>
@@ -219,7 +202,7 @@ const WarehouseCategoryPage: React.FC = () => {
         <CardDescription>Kelola semua kategori gudang yang digunakan dalam sistem.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
+        {error && <p className="text-red-500 dark:text-red-400 mb-4">Error: {error.message}</p>}
         <Input
           type="text"
           placeholder="Cari berdasarkan nama..."
@@ -283,8 +266,8 @@ const WarehouseCategoryPage: React.FC = () => {
                 )}
               />
               <DialogFooter>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? (
+                <Button type="submit" disabled={addCategoryMutation.isPending}>
+                  {addCategoryMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     "Tambah Kategori"
@@ -319,8 +302,8 @@ const WarehouseCategoryPage: React.FC = () => {
                 )}
               />
               <DialogFooter>
-                <Button type="submit" disabled={form.formState.isSubmitting}>
-                  {form.formState.isSubmitting ? (
+                <Button type="submit" disabled={updateCategoryMutation.isPending}>
+                  {updateCategoryMutation.isPending ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     "Simpan Perubahan"
@@ -343,7 +326,13 @@ const WarehouseCategoryPage: React.FC = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteCategory}>Hapus</Button>
+            <Button variant="destructive" onClick={handleDeleteCategory} disabled={deleteCategoryMutation.isPending}>
+              {deleteCategoryMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Hapus"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

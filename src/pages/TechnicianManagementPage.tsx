@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -13,13 +13,11 @@ import { TechnicianWithDetails, TechnicianType } from "@/types/data";
 import AddEditTechnicianForm from "@/components/AddEditTechnicianForm";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
-import ViewNotesDialog from "@/components/ViewNotesDialog"; // Reusing for address/notes if needed
+import ViewNotesDialog from "@/components/ViewNotesDialog";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const TechnicianManagementPage = () => {
-  const [technicians, setTechnicians] = useState<TechnicianWithDetails[]>([]);
-  const [filteredTechnicians, setFilteredTechnicians] = useState<TechnicianWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
 
   const [isAddEditFormOpen, setIsAddEditFormOpen] = useState(false);
@@ -33,77 +31,56 @@ const TechnicianManagementPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const fetchTechnicians = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { data: technicians = [], isLoading, error } = useQuery<TechnicianWithDetails[], Error>({
+    queryKey: ["technicians"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
         .select("*")
         .order("name", { ascending: true });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      const techniciansWithNo: TechnicianWithDetails[] = data.map((tech, index) => ({
+      return data.map((tech, index) => ({
         ...tech,
         no: index + 1,
       }));
+    },
+  });
 
-      setTechnicians(techniciansWithNo);
-      setFilteredTechnicians(techniciansWithNo);
-      setCurrentPage(1);
-    } catch (err: any) {
-      setError(`Gagal memuat data teknisi: ${err.message}`);
-      console.error("Error fetching technicians:", err);
-      showError("Gagal memuat data teknisi.");
-      setTechnicians([]);
-      setFilteredTechnicians([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTechnicians();
-  }, [fetchTechnicians]);
-
-  useEffect(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const filtered = technicians.filter(item =>
-      item.name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.type.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.city?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.province?.toLowerCase().includes(lowerCaseSearchTerm)
-    );
-    setFilteredTechnicians(filtered);
-    setCurrentPage(1);
-  }, [searchTerm, technicians]);
-
-  const handleDeleteTechnician = async () => {
-    if (!selectedTechnician) return;
-
-    try {
+  const deleteTechnicianMutation = useMutation({
+    mutationFn: async (id: string) => {
       const { error } = await supabase
         .from("technicians")
         .delete()
-        .eq("id", selectedTechnician.id);
+        .eq("id", id);
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
+    },
+    onSuccess: () => {
       showSuccess("Teknisi berhasil dihapus!");
       setIsDeleteModalOpen(false);
-      fetchTechnicians(); // Refresh the list
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["technicians"] });
+    },
+    onError: (err: any) => {
       showError(`Gagal menghapus teknisi: ${err.message}`);
-      console.error("Error deleting technician:", err);
+    },
+  });
+
+  const handleDeleteTechnician = () => {
+    if (selectedTechnician) {
+      deleteTechnicianMutation.mutate(selectedTechnician.id);
     }
   };
+
+  const filteredTechnicians = technicians.filter(item =>
+    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.province?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const handleAddClick = () => {
     setSelectedTechnician(null);
@@ -135,7 +112,11 @@ const TechnicianManagementPage = () => {
     setCurrentPage(page);
   };
 
-  if (loading) {
+  const handleSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ["technicians"] });
+  };
+
+  if (isLoading) {
     return (
       <Card className="border shadow-sm">
         <CardHeader>
@@ -163,7 +144,7 @@ const TechnicianManagementPage = () => {
         <CardDescription>Kelola semua informasi teknisi Anda di sini.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
+        {error && <p className="text-red-500 dark:text-red-400 mb-4">Error: {error.message}</p>}
         <Input
           type="text"
           placeholder="Cari berdasarkan nama, telepon, tipe, atau alamat..."
@@ -232,7 +213,7 @@ const TechnicianManagementPage = () => {
       <AddEditTechnicianForm
         isOpen={isAddEditFormOpen}
         onOpenChange={setIsAddEditFormOpen}
-        onSuccess={fetchTechnicians}
+        onSuccess={handleSuccess}
         initialData={selectedTechnician}
       />
 
@@ -254,7 +235,13 @@ const TechnicianManagementPage = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteTechnician}>Hapus</Button>
+            <Button variant="destructive" onClick={handleDeleteTechnician} disabled={deleteTechnicianMutation.isPending}>
+              {deleteTechnicianMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Hapus"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
