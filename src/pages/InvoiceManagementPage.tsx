@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText } from "lucide-react";
+import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, Printer } from "lucide-react"; // Added Printer
 import { showSuccess, showError } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
 import EditInvoiceForm from "@/components/EditInvoiceForm";
 import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { format } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data"; // Import InvoiceDocumentStatus
+import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data";
 import InvoiceUpload from "@/components/InvoiceUpload";
 
 const getPaymentStatusColor = (status: InvoicePaymentStatus) => {
@@ -50,6 +50,9 @@ const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
 
 const InvoiceManagementPage = () => {
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [startDate, setStartDate] = React.useState<string>(""); // Date filter
+  const [endDate, setEndDate] = React.useState<string>("");     // Date filter
+  
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -57,8 +60,8 @@ const InvoiceManagementPage = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [invoiceToView, setInvoiceToView] = React.useState<InvoiceWithDetails | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = React.useState(false);
-  const [isViewDocumentOpen, setIsViewDocumentOpen] = React.useState(false); // New state for viewing document
-  const [documentUrlToView, setDocumentUrlToView] = React.useState<string | null>(null); // New state for document URL
+  const [isViewDocumentOpen, setIsViewDocumentOpen] = React.useState(false);
+  const [documentUrlToView, setDocumentUrlToView] = React.useState<string | null>(null);
 
   const { data: invoices, isLoading, error, refetch: fetchInvoices } = useQuery<InvoiceWithDetails[], Error>({
     queryKey: ["invoices"],
@@ -68,7 +71,7 @@ const InvoiceManagementPage = () => {
         .select(`
           *,
           invoice_items (item_name)
-        `) // Removed the SQL comment here
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -77,7 +80,7 @@ const InvoiceManagementPage = () => {
         const itemNames = invoice.invoice_items?.map((item: { item_name: string }) => item.item_name).join(", ") || "";
         return {
           ...invoice,
-          no: index + 1, // Add sequential number
+          no: index + 1,
           item_names_summary: itemNames,
         };
       });
@@ -104,9 +107,13 @@ const InvoiceManagementPage = () => {
     setIsUploadModalOpen(true);
   };
 
-  const handleViewDocument = (url: string) => { // New handler for viewing document
+  const handleViewDocument = (url: string) => {
     setDocumentUrlToView(url);
     setIsViewDocumentOpen(true);
+  };
+
+  const handlePrintClick = (invoiceId: string) => {
+    window.open(`/print/invoice/${invoiceId}`, '_blank');
   };
 
   const handleDeleteInvoice = async () => {
@@ -131,14 +138,31 @@ const InvoiceManagementPage = () => {
 
   const filteredInvoices = invoices?.filter((item) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return (
+    const matchesSearch = 
       item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.payment_status.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.item_names_summary?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      getDocumentStatusDisplay(item.invoice_status).toLowerCase().includes(lowerCaseSearchTerm) // Search by new status
-    );
+      getDocumentStatusDisplay(item.invoice_status).toLowerCase().includes(lowerCaseSearchTerm);
+
+    // Date Filtering
+    let matchesDate = true;
+    if (startDate && endDate) {
+      const itemDate = new Date(item.invoice_date);
+      matchesDate = isWithinInterval(itemDate, {
+        start: startOfDay(new Date(startDate)),
+        end: endOfDay(new Date(endDate))
+      });
+    } else if (startDate) {
+      const itemDate = new Date(item.invoice_date);
+      matchesDate = itemDate >= startOfDay(new Date(startDate));
+    } else if (endDate) {
+      const itemDate = new Date(item.invoice_date);
+      matchesDate = itemDate <= endOfDay(new Date(endDate));
+    }
+
+    return matchesSearch && matchesDate;
   });
 
   if (isLoading) {
@@ -157,13 +181,32 @@ const InvoiceManagementPage = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Manajemen Invoice</h1>
 
-      <div className="flex justify-between items-center mb-6">
-        <Input
-          placeholder="Cari invoice..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+          <Input
+            placeholder="Cari invoice..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-xs"
+          />
+          <div className="flex items-center gap-2">
+            <Input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="w-auto"
+              title="Dari Tanggal"
+            />
+            <span className="text-gray-500">-</span>
+            <Input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="w-auto"
+              title="Sampai Tanggal"
+            />
+          </div>
+        </div>
         <Button onClick={() => setIsAddModalOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" /> Tambah Invoice
         </Button>
@@ -181,7 +224,7 @@ const InvoiceManagementPage = () => {
               <TableHead className="min-w-[200px]">Item</TableHead>
               <TableHead className="text-right">Total Jumlah</TableHead>
               <TableHead>Status Pembayaran</TableHead>
-              <TableHead>Status Dokumen</TableHead> {/* New column */}
+              <TableHead>Status Dokumen</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
           </TableHeader>
@@ -206,6 +249,9 @@ const InvoiceManagementPage = () => {
                   </span>
                 </TableCell>
                 <TableCell className="flex space-x-2 justify-center">
+                  <Button variant="ghost" size="icon" onClick={() => handlePrintClick(invoice.id)} title="Cetak Invoice">
+                    <Printer className="h-4 w-4 text-blue-600" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleViewDetails(invoice)} title="Lihat Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -218,7 +264,7 @@ const InvoiceManagementPage = () => {
                   <Button variant="outline" size="icon" onClick={() => handleUploadClick(invoice)} title="Unggah Dokumen">
                     <FileText className="h-4 w-4" />
                   </Button>
-                  {invoice.document_url && ( // Conditionally render view document button
+                  {invoice.document_url && (
                     <Button variant="outline" size="icon" onClick={() => handleViewDocument(invoice.document_url!)} title="Lihat Dokumen">
                       <Eye className="h-4 w-4" />
                     </Button>
@@ -274,7 +320,6 @@ const InvoiceManagementPage = () => {
           </DialogHeader>
           <div className="flex-grow">
             {documentUrlToView ? (
-              // Check if it's an image or PDF for direct embedding, otherwise provide a link
               documentUrlToView.match(/\.(jpeg|jpg|gif|png)$/i) != null ? (
                 <img src={documentUrlToView} alt="Invoice Document" className="max-w-full h-auto mx-auto" />
               ) : documentUrlToView.match(/\.pdf$/i) != null ? (

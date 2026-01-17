@@ -6,16 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, CheckCircle, ReceiptText } from "lucide-react"; // Import ReceiptText icon
+import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText, CheckCircle, ReceiptText, Printer } from "lucide-react"; // Added Printer
 import { showSuccess, showError } from "@/utils/toast";
 import AddScheduleForm from "@/components/AddScheduleForm";
 import EditScheduleForm from "@/components/EditScheduleForm";
 import ViewScheduleDetailsDialog from "@/components/ViewScheduleDetailsDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { format } from "date-fns";
+import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { ScheduleWithDetails, ScheduleStatus } from "@/types/data";
 import ScheduleDocumentUpload from "@/components/ScheduleDocumentUpload";
-import AddInvoiceForm from "@/components/AddInvoiceForm"; // Added this import
+import AddInvoiceForm from "@/components/AddInvoiceForm";
 
 const getStatusColor = (status: ScheduleStatus) => {
   switch (status) {
@@ -35,6 +35,9 @@ const getStatusColor = (status: ScheduleStatus) => {
 const ScheduleManagementPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [startDate, setStartDate] = React.useState<string>(""); // Date filter
+  const [endDate, setEndDate] = React.useState<string>("");     // Date filter
+
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -43,8 +46,8 @@ const ScheduleManagementPage = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = React.useState(false);
   const [scheduleToView, setScheduleToView] = React.useState<ScheduleWithDetails | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = React.useState(false);
-  const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = React.useState(false); // New state for create invoice modal
-  const [scheduleForInvoiceCreation, setScheduleForInvoiceCreation] = React.useState<ScheduleWithDetails | null>(null); // New state for schedule data to pass to invoice form
+  const [isCreateInvoiceModalOpen, setIsCreateInvoiceModalOpen] = React.useState(false);
+  const [scheduleForInvoiceCreation, setScheduleForInvoiceCreation] = React.useState<ScheduleWithDetails | null>(null);
 
   const { data: schedules, isLoading, error, refetch: fetchSchedules } = useQuery<ScheduleWithDetails[], Error>({
     queryKey: ["schedules"],
@@ -62,9 +65,9 @@ const ScheduleManagementPage = () => {
 
       return data.map((schedule, index) => ({
         ...schedule,
-        no: index + 1, // Add sequential number
+        no: index + 1,
         invoice_number: schedule.invoices?.invoice_number || "-",
-        sr_number: schedule.scheduling_requests?.sr_number || "-", // Get SR number
+        sr_number: schedule.scheduling_requests?.sr_number || "-",
       }));
     },
   });
@@ -116,6 +119,10 @@ const ScheduleManagementPage = () => {
     setIsCompleteModalOpen(true);
   };
 
+  const handlePrintClick = (scheduleId: string) => {
+    window.open(`/print/schedule/${scheduleId}`, '_blank');
+  };
+
   const handleConfirmComplete = () => {
     if (selectedSchedule) {
       completeScheduleMutation.mutate(selectedSchedule.id);
@@ -149,7 +156,7 @@ const ScheduleManagementPage = () => {
 
   const filteredSchedules = schedules?.filter((item) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
@@ -158,9 +165,26 @@ const ScheduleManagementPage = () => {
       item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.do_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Search by DO number
-      item.sr_number?.toLowerCase().includes(lowerCaseSearchTerm)
-    );
+      item.do_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.sr_number?.toLowerCase().includes(lowerCaseSearchTerm);
+
+    // Date Filtering
+    let matchesDate = true;
+    if (startDate && endDate) {
+      const itemDate = new Date(item.schedule_date);
+      matchesDate = isWithinInterval(itemDate, {
+        start: startOfDay(new Date(startDate)),
+        end: endOfDay(new Date(endDate))
+      });
+    } else if (startDate) {
+      const itemDate = new Date(item.schedule_date);
+      matchesDate = itemDate >= startOfDay(new Date(startDate));
+    } else if (endDate) {
+      const itemDate = new Date(item.schedule_date);
+      matchesDate = itemDate <= endOfDay(new Date(endDate));
+    }
+
+    return matchesSearch && matchesDate;
   });
 
   if (isLoading) {
@@ -179,13 +203,32 @@ const ScheduleManagementPage = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Manajemen Jadwal</h1>
 
-      <div className="flex justify-between items-center mb-6">
-        <Input
-          placeholder="Cari jadwal..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+        <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+          <Input
+            placeholder="Cari jadwal..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-xs"
+          />
+          <div className="flex items-center gap-2">
+            <Input 
+              type="date" 
+              value={startDate} 
+              onChange={(e) => setStartDate(e.target.value)} 
+              className="w-auto"
+              title="Dari Tanggal"
+            />
+            <span className="text-gray-500">-</span>
+            <Input 
+              type="date" 
+              value={endDate} 
+              onChange={(e) => setEndDate(e.target.value)} 
+              className="w-auto"
+              title="Sampai Tanggal"
+            />
+          </div>
+        </div>
         <Button onClick={() => setIsAddModalOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" /> Tambah Jadwal
         </Button>
@@ -222,6 +265,9 @@ const ScheduleManagementPage = () => {
                   </span>
                 </TableCell>
                 <TableCell className="flex space-x-2 justify-center">
+                  <Button variant="ghost" size="icon" onClick={() => handlePrintClick(schedule.id)} title="Cetak Surat Jalan/SPK">
+                    <Printer className="h-4 w-4 text-blue-600" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => handleViewDetails(schedule)} title="Lihat Detail">
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -290,8 +336,8 @@ const ScheduleManagementPage = () => {
           isOpen={isCreateInvoiceModalOpen}
           onOpenChange={setIsCreateInvoiceModalOpen}
           onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate invoices cache
-            fetchSchedules(); // Refresh schedules to reflect any changes if needed
+            queryClient.invalidateQueries({ queryKey: ["invoices"] });
+            fetchSchedules();
           }}
           initialSchedule={scheduleForInvoiceCreation}
         />

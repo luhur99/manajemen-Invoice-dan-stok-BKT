@@ -19,7 +19,9 @@ import StockManagementPage from "./pages/StockManagementPage";
 import SchedulingRequestPage from "./pages/SchedulingRequestPage";
 import CustomerManagementPage from "./pages/CustomerManagementPage";
 import TechnicianManagementPage from "./pages/TechnicianManagementPage";
-import TechnicianScheduleCalendar from "./pages/TechnicianScheduleCalendar"; // Import the calendar page
+import TechnicianScheduleCalendar from "./pages/TechnicianScheduleCalendar";
+import PrintInvoicePage from "./pages/PrintInvoicePage"; // Import Print Invoice
+import PrintSchedulePage from "./pages/PrintSchedulePage"; // Import Print Schedule
 import NotFound from "./pages/NotFound";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuthPage from "./pages/AuthPage";
@@ -36,6 +38,12 @@ const App = () => (
         <SessionContextProvider>
           <Routes>
             <Route path="/auth" element={<AuthPage />} />
+            
+            {/* Print Routes (No Layout) */}
+            <Route path="/print/invoice/:id" element={<PrintInvoicePage />} />
+            <Route path="/print/schedule/:id" element={<PrintSchedulePage />} />
+
+            {/* Main App Routes */}
             <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
             <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
             <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
@@ -51,7 +59,7 @@ const App = () => (
             <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} />
             <Route path="/customers" element={<MainLayout><CustomerManagementPage /></MainLayout>} />
             <Route path="/technicians" element={<MainLayout><TechnicianManagementPage /></MainLayout>} />
-            <Route path="/technician-calendar" element={<MainLayout><TechnicianScheduleCalendar /></MainLayout>} /> {/* Added route */}
+            <Route path="/technician-calendar" element={<MainLayout><TechnicianScheduleCalendar /></MainLayout>} />
             <Route path="/users" element={<MainLayout><UserManagementPage /></MainLayout>} />
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>
