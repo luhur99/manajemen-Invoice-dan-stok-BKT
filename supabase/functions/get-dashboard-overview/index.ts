@@ -90,29 +90,38 @@ serve(async (req) => {
       .eq("schedule_date", today);
     if (schedulesError) { console.error('Error fetching schedules:', schedulesError); throw schedulesError; }
 
-    // Fetch Low Stock Items
-    console.log('Fetching low stock items...');
-    const { data: productsData, error: productsError } = await supabaseAdminClient
+    // Fetch Low Stock Items (Optimized)
+    console.log('Fetching all products for low stock check...');
+    const { data: allProducts, error: allProductsError } = await supabaseAdminClient
       .from("products")
-      .select(`
-          id,
-          safe_stock_limit,
-          warehouse_inventories (
-            quantity
-          )
-        `);
-    if (productsError) { console.error('Error fetching products:', productsError); throw productsError; }
+      .select("id, safe_stock_limit");
+    if (allProductsError) { console.error('Error fetching all products:', allProductsError); throw allProductsError; }
+
+    console.log('Fetching all warehouse inventories...');
+    const { data: allInventories, error: allInventoriesError } = await supabaseAdminClient
+      .from("warehouse_inventories")
+      .select("product_id, quantity");
+    if (allInventoriesError) { console.error('Error fetching all inventories:', allInventoriesError); throw allInventoriesError; }
+
+    // Aggregate quantities per product in Deno
+    const productStockMap = new Map<string, number>();
+    if (allInventories) {
+      allInventories.forEach(inv => {
+        productStockMap.set(inv.product_id, (productStockMap.get(inv.product_id) || 0) + inv.quantity);
+      });
+    }
 
     let lowStockCount = 0;
-    if (productsData) {
-      productsData.forEach((item) => {
-        const totalStock = item.warehouse_inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
-        const limit = item.safe_stock_limit !== undefined && item.safe_stock_limit !== null ? item.safe_stock_limit : 10;
+    if (allProducts) {
+      allProducts.forEach((product) => {
+        const totalStock = productStockMap.get(product.id) || 0;
+        const limit = product.safe_stock_limit !== undefined && product.safe_stock_limit !== null ? product.safe_stock_limit : 10;
         if (totalStock < limit) {
           lowStockCount++;
         }
       });
     }
+    console.log('Finished calculating low stock items.');
 
     // Fetch Pending Purchase Requests
     console.log('Fetching pending purchase requests...');
@@ -216,6 +225,7 @@ serve(async (req) => {
     });
     allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const latestActivities = allActivities.slice(0, 5);
+    console.log('Finished processing all activities.');
 
     // Fetch data for monthly invoice chart
     console.log('Fetching monthly invoice chart data...');
@@ -245,6 +255,7 @@ serve(async (req) => {
         month,
         invoices: monthlyInvoiceCounts[month],
       }));
+    console.log('Finished fetching monthly invoice chart data.');
 
     // Fetch data for monthly stock ledger chart
     console.log('Fetching monthly stock ledger chart data...');
@@ -277,6 +288,7 @@ serve(async (req) => {
         month,
         ...monthlyStockAggregates[month],
       }));
+    console.log('Finished fetching monthly stock ledger chart data.');
 
     return new Response(JSON.stringify({
       pendingInvoices: invoicesCount,
