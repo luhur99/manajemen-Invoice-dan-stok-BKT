@@ -96,7 +96,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onOpenChange, onSucce
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"> {/* Increased max-width and ensured scrollability */}
         <DialogHeader>
           <DialogTitle>Buat Pengguna Baru</DialogTitle>
           <DialogDescription>
@@ -104,12 +104,12 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onOpenChange, onSucce
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
             <FormField
               control={form.control}
               name="email"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="md:col-span-2"> {/* Full width */}
                   <FormLabel>Email</FormLabel>
                   <FormControl>
                     <Input type="email" {...field} />
@@ -174,7 +174,7 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onOpenChange, onSucce
               control={form.control}
               name="role"
               render={({ field }) => (
-                <FormItem>
+                <FormItem className="md:col-span-2"> {/* Full width */}
                   <FormLabel>Peran</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
@@ -192,13 +192,15 @@ const AddUserForm: React.FC<AddUserFormProps> = ({ isOpen, onOpenChange, onSucce
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Buat Pengguna"
-              )}
-            </Button>
+            <div className="md:col-span-2"> {/* Button takes full width */}
+              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Buat Pengguna"
+                )}
+              </Button>
+            </div>
           </form>
         </Form>
       </DialogContent>
