@@ -2,6 +2,7 @@
 
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { useSession } from "./SessionContextProvider"; // Import useSession
 import { cn } from "@/lib/utils";
 import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo, User, HardHat } from "lucide-react"; // Import HardHat icon for Technician Management
 import { supabase } from "@/integrations/supabase/client";
@@ -79,6 +80,12 @@ const navItems = [
     href: "/profile",
     icon: UserCircle,
   },
+  {
+    title: "Manajemen Pengguna", // New nav item
+    href: "/users",
+    icon: Users, // Using Users icon
+    adminOnly: true, // Mark as admin-only
+  },
 ];
 
 const SidebarNav = () => {
@@ -94,6 +101,9 @@ const SidebarNav = () => {
       console.error("Error logging out:", error);
     }
   };
+  
+  const { profile } = useSession(); // Get profile from session context
+  const isAdmin = profile?.role === 'admin';
 
   return (
     <nav className="flex flex-col space-y-1 p-4 bg-sidebar dark:bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border h-full">
@@ -105,7 +115,7 @@ const SidebarNav = () => {
             to={item.href}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                item.adminOnly && !isAdmin ? "hidden" : "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 isActive
                   ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground"
