@@ -46,8 +46,10 @@ serve(async (req) => {
     );
 
     // Verify if the requesting user is an admin or staff
+    console.log('Verifying user role...');
     const { data: { user }, error: userError } = await userSupabaseClient.auth.getUser();
     if (userError || !user) {
+      console.error('User authentication failed:', userError);
       return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user session' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -61,30 +63,35 @@ serve(async (req) => {
       .single();
 
     if (profileError || (profileData?.role !== 'admin' && profileData?.role !== 'staff')) {
+      console.error('User role check failed:', profileError || `Role: ${profileData?.role}`);
       return new Response(JSON.stringify({ error: 'Forbidden: Only administrators and staff can view dashboard overview' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    console.log(`User ${user.id} with role ${profileData?.role} is authorized.`);
 
     // --- Fetch Dashboard Data using Service Role Key (bypassing RLS) ---
 
     // Fetch Pending Invoices
+    console.log('Fetching pending invoices...');
     const { count: invoicesCount, error: invoicesError } = await supabaseAdminClient
       .from("invoices")
       .select("id", { count: "exact" })
       .eq("payment_status", "pending");
-    if (invoicesError) throw invoicesError;
+    if (invoicesError) { console.error('Error fetching invoices:', invoicesError); throw invoicesError; }
 
     // Fetch Today's Schedules
+    console.log('Fetching today schedules...');
     const today = format(new Date(), "yyyy-MM-dd");
     const { count: schedulesCount, error: schedulesError } = await supabaseAdminClient
       .from("schedules")
       .select("id", { count: "exact" })
       .eq("schedule_date", today);
-    if (schedulesError) throw schedulesError;
+    if (schedulesError) { console.error('Error fetching schedules:', schedulesError); throw schedulesError; }
 
     // Fetch Low Stock Items
+    console.log('Fetching low stock items...');
     const { data: productsData, error: productsError } = await supabaseAdminClient
       .from("products")
       .select(`
@@ -94,7 +101,7 @@ serve(async (req) => {
             quantity
           )
         `);
-    if (productsError) throw productsError;
+    if (productsError) { console.error('Error fetching products:', productsError); throw productsError; }
 
     let lowStockCount = 0;
     if (productsData) {
@@ -108,49 +115,56 @@ serve(async (req) => {
     }
 
     // Fetch Pending Purchase Requests
+    console.log('Fetching pending purchase requests...');
     const { count: purchaseRequestsCount, error: purchaseRequestsError } = await supabaseAdminClient
       .from("purchase_requests")
       .select("id", { count: "exact" })
       .eq("status", "pending");
-    if (purchaseRequestsError) throw purchaseRequestsError;
+    if (purchaseRequestsError) { console.error('Error fetching purchase requests:', purchaseRequestsError); throw purchaseRequestsError; }
 
     // Fetch Latest Activities
+    console.log('Fetching recent invoices...');
     const { data: recentInvoices, error: recentInvoicesError } = await supabaseAdminClient
       .from("invoices")
       .select("id, invoice_number, customer_name, created_at")
       .order("created_at", { ascending: false })
       .limit(5);
-    if (recentInvoicesError) throw recentInvoicesError;
+    if (recentInvoicesError) { console.error('Error fetching recent invoices:', recentInvoicesError); throw recentInvoicesError; }
 
+    console.log('Fetching recent schedules...');
     const { data: recentSchedules, error: recentSchedulesError } = await supabaseAdminClient
       .from("schedules")
       .select("id, customer_name, type, schedule_date, created_at")
       .order("created_at", { ascending: false })
       .limit(5);
-    if (recentSchedulesError) throw recentSchedulesError;
+    if (recentSchedulesError) { console.error('Error fetching recent schedules:', recentSchedulesError); throw recentSchedulesError; }
 
+    console.log('Fetching recent stock ledger data...');
     const { data: recentStockLedgerData, error: recentStockLedgerError } = await supabaseAdminClient
       .from("stock_ledger")
       .select("id, event_type, quantity, notes, created_at, from_warehouse_category, to_warehouse_category, products(nama_barang)")
       .order("created_at", { ascending: false })
       .limit(5);
-    if (recentStockLedgerError) throw recentStockLedgerError;
+    if (recentStockLedgerError) { console.error('Error fetching recent stock ledger:', recentStockLedgerError); throw recentStockLedgerError; }
 
+    console.log('Fetching recent purchase requests data...');
     const { data: recentPurchaseRequestsData, error: recentPurchaseRequestsError } = await supabaseAdminClient
       .from("purchase_requests")
       .select("id, item_name, quantity, status, created_at")
       .order("created_at", { ascending: false })
       .limit(5);
-    if (recentPurchaseRequestsError) throw recentPurchaseRequestsError;
+    if (recentPurchaseRequestsError) { console.error('Error fetching recent purchase requests:', recentPurchaseRequestsError); throw recentPurchaseRequestsError; }
 
     // Fetch warehouse categories for display names
+    console.log('Fetching warehouse categories...');
     const { data: warehouseCategories, error: categoriesError } = await supabaseAdminClient
       .from("warehouse_categories")
       .select("code, name");
-    if (categoriesError) throw categoriesError;
+    if (categoriesError) { console.error('Error fetching warehouse categories:', categoriesError); throw categoriesError; }
     const categoryMap = new Map(warehouseCategories.map(cat => [cat.code, cat.name]));
     const getCategoryDisplayName = (code: string) => categoryMap.get(code) || code;
 
+    console.log('Processing all activities...');
     const allActivities = [];
     recentInvoices.forEach(inv => {
       allActivities.push({
@@ -204,6 +218,7 @@ serve(async (req) => {
     const latestActivities = allActivities.slice(0, 5);
 
     // Fetch data for monthly invoice chart
+    console.log('Fetching monthly invoice chart data...');
     const sixMonthsAgo = subMonths(new Date(), 5);
     const startDate = startOfMonth(sixMonthsAgo);
 
@@ -211,7 +226,7 @@ serve(async (req) => {
       .from("invoices")
       .select("created_at")
       .gte("created_at", format(startDate, "yyyy-MM-dd"));
-    if (chartInvoicesError) throw chartInvoicesError;
+    if (chartInvoicesError) { console.error('Error fetching chart invoices:', chartInvoicesError); throw chartInvoicesError; }
 
     const monthlyInvoiceCounts = {};
     for (let i = 0; i < 6; i++) {
@@ -232,11 +247,12 @@ serve(async (req) => {
       }));
 
     // Fetch data for monthly stock ledger chart
+    console.log('Fetching monthly stock ledger chart data...');
     const { data: allStockLedgerForChart, error: chartStockLedgerError } = await supabaseAdminClient
       .from("stock_ledger")
       .select("event_type, quantity, created_at")
       .gte("created_at", format(startDate, "yyyy-MM-dd"));
-    if (chartStockLedgerError) throw chartStockLedgerError;
+    if (chartStockLedgerError) { console.error('Error fetching chart stock ledger:', chartStockLedgerError); throw chartStockLedgerError; }
 
     const monthlyStockAggregates = {};
     for (let i = 0; i < 6; i++) {
