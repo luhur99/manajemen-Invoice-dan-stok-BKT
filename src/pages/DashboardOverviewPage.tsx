@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ReceiptText, CalendarDays, Package, ShoppingCart, Terminal } from "lucide-react"; // Import Terminal icon
+import { ReceiptText, CalendarDays, Package, ShoppingCart, Terminal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
-import { format, parseISO, subMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   ChartContainer,
   ChartTooltip,
@@ -13,19 +12,18 @@ import {
   ChartConfig,
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
-import { Product, WarehouseCategory as WarehouseCategoryType, StockEventType, Technician } from "@/types/data"; // Updated imports
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query"; // Import useQuery
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
-import { Button } from "@/components/ui/button"; // Import Button component
-import { Loader2 } from "lucide-react"; // Import Loader2 icon
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
+import { useQuery } from "@tanstack/react-query";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { useSession } from "@/components/SessionContextProvider";
 
 // Define a type for combined activities
 interface LatestActivity {
   id: string;
-  type: 'invoice' | 'schedule' | 'stock_ledger' | 'purchase_request'; // Updated type
+  type: 'invoice' | 'schedule' | 'stock_ledger' | 'purchase_request';
   description: string;
   date: string; // ISO date string
 }
@@ -47,59 +45,39 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 const DashboardOverviewPage = () => {
-  const { session } = useSession(); // Get session
-  const [pendingInvoices, setPendingInvoices] = useState(0);
-  const [todaySchedules, setTodaySchedules] = useState(0);
-  const [lowStockItems, setLowStockItems] = useState(0);
-  const [pendingPurchaseRequests, setPendingPurchaseRequests] = useState(0);
-  const [latestActivities, setLatestActivities] = useState<LatestActivity[]>([]);
-  const [monthlyInvoiceData, setMonthlyInvoiceData] = useState<{ month: string; invoices: number }[]>([]);
-  const [monthlyStockData, setMonthlyStockData] = useState<{ month: string; stock_in: number; stock_out: number }[]>([]);
-  const [loadingDashboardData, setLoadingDashboardData] = useState(true); // Renamed loading state
-  const [dashboardDataError, setDashboardDataError] = useState<string | null>(null);
+  const { session } = useSession();
 
   // Fetch dashboard data via Edge Function
-  const { data, isLoading: isFetchingDashboardData, error: fetchError, refetch: refetchDashboardData } = useQuery({
+  const { 
+    data, 
+    isLoading: isFetchingDashboardData, 
+    error: fetchError, 
+    refetch: refetchDashboardData 
+  } = useQuery({
     queryKey: ["dashboardOverview"],
     queryFn: async () => {
-      setLoadingDashboardData(true);
-      setDashboardDataError(null);
-      try {
-        const { data, error } = await supabase.functions.invoke('get-dashboard-overview');
-        if (error) {
-          throw error;
-        }
-        if (data && data.error) {
-          throw new Error(data.error);
-        }
-        return data;
-      } catch (err: any) {
-        setDashboardDataError(`Gagal memuat data dashboard: ${err.message}`);
-        // Suppress toast on initial load error to avoid spamming if it's just auth delay
-        console.error(`Dashboard load error: ${err.message}`); 
-        throw err;
-      } finally {
-        setLoadingDashboardData(false);
+      const { data, error } = await supabase.functions.invoke('get-dashboard-overview');
+      if (error) {
+        throw error;
       }
+      if (data && data.error) {
+        throw new Error(data.error);
+      }
+      return data;
     },
     enabled: !!session, // Only fetch when session is available!
+    retry: 1, // Limit retries to prevent endless loops on error
   });
 
-  useEffect(() => {
-    if (data) {
-      setPendingInvoices(data.pendingInvoices);
-      setTodaySchedules(data.todaySchedules);
-      setLowStockItems(data.lowStockItems);
-      setPendingPurchaseRequests(data.pendingPurchaseRequests);
-      setLatestActivities(data.latestActivities);
-      setMonthlyInvoiceData(data.monthlyInvoiceData);
-      setMonthlyStockData(data.monthlyStockData);
-    }
-  }, [data]);
+  // Extract data with default values
+  const pendingInvoices = data?.pendingInvoices || 0;
+  const todaySchedules = data?.todaySchedules || 0;
+  const lowStockItems = data?.lowStockItems || 0;
+  const pendingPurchaseRequests = data?.pendingPurchaseRequests || 0;
+  const latestActivities: LatestActivity[] = data?.latestActivities || [];
+  const monthlyInvoiceData = data?.monthlyInvoiceData || [];
+  const monthlyStockData = data?.monthlyStockData || [];
 
-  // Combined loading state
-  const overallLoading = (isFetchingDashboardData || loadingDashboardData) && !!session;
-  
   // Show loading state while checking session
   if (!session) {
      return (
@@ -115,7 +93,7 @@ const DashboardOverviewPage = () => {
     );
   }
 
-  if (overallLoading) {
+  if (isFetchingDashboardData) {
     return (
       <Card className="border shadow-sm">
         <CardHeader>
@@ -129,19 +107,17 @@ const DashboardOverviewPage = () => {
     );
   }
 
-  const overallError = dashboardDataError || fetchError;
-
-  if (overallError) {
+  if (fetchError) {
     return (
       <div className="space-y-6">
         <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Gagal Memuat Dashboard</AlertTitle>
           <AlertDescription>
-            {overallError instanceof Error ? overallError.message : overallError}
+            {fetchError instanceof Error ? fetchError.message : "Terjadi kesalahan saat memuat data."}
             <div className="mt-2">
-              <Button onClick={() => refetchDashboardData()} disabled={overallLoading}>
-                {overallLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Coba Lagi"}
+              <Button onClick={() => refetchDashboardData()} disabled={isFetchingDashboardData}>
+                {isFetchingDashboardData ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Coba Lagi"}
               </Button>
             </div>
           </AlertDescription>
@@ -164,11 +140,7 @@ const DashboardOverviewPage = () => {
             <ReceiptText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ) : (
-              <div className="text-2xl font-bold">{pendingInvoices}</div>
-            )}
+            <div className="text-2xl font-bold">{pendingInvoices}</div>
             <p className="text-xs text-muted-foreground">
               {pendingInvoices > 0 ? `${pendingInvoices} invoice menunggu pembayaran` : "Belum ada invoice pending"}
             </p>
@@ -180,11 +152,7 @@ const DashboardOverviewPage = () => {
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ) : (
-              <div className="text-2xl font-bold">{todaySchedules}</div>
-            )}
+            <div className="text-2xl font-bold">{todaySchedules}</div>
             <p className="text-xs text-muted-foreground">
               {todaySchedules > 0 ? `${todaySchedules} jadwal hari ini` : "Tidak ada jadwal hari ini"}
             </p>
@@ -196,11 +164,7 @@ const DashboardOverviewPage = () => {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ) : (
-              <div className="text-2xl font-bold">{lowStockItems}</div>
-            )}
+            <div className="text-2xl font-bold">{lowStockItems}</div>
             <p className="text-xs text-muted-foreground">
               {lowStockItems > 0 ? `${lowStockItems} item stok rendah` : "Semua stok aman"}
             </p>
@@ -217,11 +181,7 @@ const DashboardOverviewPage = () => {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="h-6 w-12 animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ) : (
-              <div className="text-2xl font-bold">{pendingPurchaseRequests}</div>
-            )}
+            <div className="text-2xl font-bold">{pendingPurchaseRequests}</div>
             <p className="text-xs text-muted-foreground">
               {pendingPurchaseRequests > 0 ? `${pendingPurchaseRequests} pengajuan menunggu persetujuan` : "Tidak ada pengajuan pembelian pending"}
             </p>
@@ -241,30 +201,26 @@ const DashboardOverviewPage = () => {
             <CardDescription>Jumlah invoice yang dibuat selama 6 bulan terakhir.</CardDescription>
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="h-[300px] w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ) : (
-              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-                <BarChart accessibilityLayer data={monthlyInvoiceData}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    tickFormatter={(value) => value.slice(0, 3)}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
-                </BarChart>
-              </ChartContainer>
-            )}
+            <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+              <BarChart accessibilityLayer data={monthlyInvoiceData}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  tickFormatter={(value) => value.slice(0, 3)}
+                />
+                <YAxis
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
+              </BarChart>
+            </ChartContainer>
           </CardContent>
         </Card>
 
@@ -275,32 +231,28 @@ const DashboardOverviewPage = () => {
             <CardDescription>Total stok masuk dan keluar selama 6 bulan terakhir.</CardDescription>
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="h-[300px] w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-            ) : (
-              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-                <BarChart accessibilityLayer data={monthlyStockData}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="month"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    tickFormatter={(value) => value.slice(0, 3)}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Legend />
-                  <Bar dataKey="stock_in" fill="var(--color-stock_in)" radius={4} />
-                  <Bar dataKey="stock_out" fill="var(--color-stock_out)" radius={4} />
-                </BarChart>
-              </ChartContainer>
-            )}
+            <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+              <BarChart accessibilityLayer data={monthlyStockData}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  tickFormatter={(value) => value.slice(0, 3)}
+                />
+                <YAxis
+                  tickLine={false}
+                  tickMargin={10}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Legend />
+                <Bar dataKey="stock_in" fill="var(--color-stock_in)" radius={4} />
+                <Bar dataKey="stock_out" fill="var(--color-stock_out)" radius={4} />
+              </BarChart>
+            </ChartContainer>
           </CardContent>
         </Card>
 
@@ -310,13 +262,7 @@ const DashboardOverviewPage = () => {
             <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
           </CardHeader>
           <CardContent>
-            {overallLoading ? (
-              <div className="space-y-2">
-                <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-                <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-                <div className="h-4 w-full animate-pulse bg-gray-200 dark:bg-gray-700 rounded"></div>
-              </div>
-            ) : latestActivities.length > 0 ? (
+            {latestActivities.length > 0 ? (
               <ul className="space-y-2">
                 {latestActivities.map((activity) => (
                   <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
