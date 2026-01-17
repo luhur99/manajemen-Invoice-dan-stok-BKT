@@ -64,22 +64,13 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     setLoading(true);
     setSelectedDaySchedules([]); // Clear schedules for selected day when month changes
     try {
-      const user = await supabase.auth.getUser();
-      const userId = user.data.user?.id;
-
-      if (!userId) {
-        showError("Pengguna tidak terautentikasi.");
-        setLoading(false);
-        return;
-      }
-
       const startOfMonthDate = format(startOfMonth(monthDate), "yyyy-MM-dd");
       const endOfMonthDate = format(endOfMonth(monthDate), "yyyy-MM-dd");
 
+      // Removed .eq("user_id", userId) to allow fetching all schedules allowed by RLS policies
       const { data, error } = await supabase
         .from("schedules")
         .select("*")
-        .eq("user_id", userId)
         .gte("schedule_date", startOfMonthDate)
         .lte("schedule_date", endOfMonthDate)
         .order("schedule_date", { ascending: true })
