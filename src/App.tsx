@@ -20,6 +20,7 @@ import SchedulingRequestPage from "./pages/SchedulingRequestPage";
 import CustomerManagementPage from "./pages/CustomerManagementPage";
 import TechnicianManagementPage from "./pages/TechnicianManagementPage"; // Import the new page
 import NotFound from "./pages/NotFound";
+import UserManagementPage from "./pages/UserManagementPage"; // Import the new UserManagementPage
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
 
@@ -49,6 +50,7 @@ const App = () => (
             <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} />
             <Route path="/customers" element={<MainLayout><CustomerManagementPage /></MainLayout>} />
             <Route path="/technicians" element={<MainLayout><TechnicianManagementPage /></MainLayout>} /> {/* New route */}
+            <Route path="/users" element={<MainLayout><UserManagementPage /></MainLayout>} /> {/* New route for User Management */}
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
           </Routes>
