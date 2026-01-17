@@ -26,7 +26,7 @@ serve(async (req) => {
       }
     );
 
-    // Create a Supabase client with the user's JWT for RLS checks
+    // Get the Authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized: Missing Authorization header' }), {
@@ -35,28 +35,25 @@ serve(async (req) => {
       });
     }
 
-    const userSupabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: authHeader },
-        },
-      }
-    );
+    // Extract the token
+    const token = authHeader.replace('Bearer ', '');
+    
+    // Verify user using Admin client + token explicitly
+    // This avoids issues with client-side session handling in Edge Runtime
+    console.log('Verifying user token...');
+    const { data: { user }, error: userError } = await supabaseAdminClient.auth.getUser(token);
 
-    // Verify if the requesting user is an admin or staff
-    console.log('Verifying user role...');
-    const { data: { user }, error: userError } = await userSupabaseClient.auth.getUser();
     if (userError || !user) {
       console.error('User authentication failed:', userError);
-      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user session' }), {
+      return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user token' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const { data: profileData, error: profileError } = await userSupabaseClient
+    // Check user role directly from profiles table using Admin Client
+    // We can do this safely because we just verified the user's identity via getUser(token)
+    const { data: profileData, error: profileError } = await supabaseAdminClient
       .from('profiles')
       .select('role')
       .eq('id', user.id)
