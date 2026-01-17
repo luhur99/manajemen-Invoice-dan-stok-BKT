@@ -27,9 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product as ProductType, WarehouseCategory as WarehouseCategoryType, WarehouseInventory, StockEventType } from "@/types/data"; // Updated imports
+import { Product as ProductType, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data";
 import { Loader2 } from "lucide-react";
-import { format } from "date-fns"; // Added import for format
 
 const formSchema = z.object({
   from_category: z.string({
@@ -39,7 +38,7 @@ const formSchema = z.object({
     required_error: "Kategori tujuan harus dipilih.",
   }).min(1, "Kategori tujuan harus dipilih."),
   quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
-  notes: z.string().optional(), // Changed from reason to notes
+  notes: z.string().optional(),
 });
 
 interface StockMovementFormProps {
@@ -85,7 +84,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
       from_category: "",
       to_category: "",
       quantity: 0,
-      notes: "", // Changed from reason to notes
+      notes: "",
     },
   });
 
@@ -114,28 +113,20 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
     (inv) => inv.warehouse_category === selectedFromCategory
   )?.quantity || 0;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       fetchWarehouseCategories();
       form.reset({
         from_category: "",
         to_category: "",
         quantity: 0,
-        notes: "", // Changed from reason to notes
+        notes: "",
       });
       refetchInventories();
     }
   }, [isOpen, form, refetchInventories, fetchWarehouseCategories]);
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
-
     if (values.quantity > currentFromCategoryQuantity) {
       form.setError("quantity", {
         type: "manual",
@@ -145,52 +136,19 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
     }
 
     try {
-      // Update 'from' inventory
-      const { error: fromUpdateError } = await supabase
-        .from("warehouse_inventories")
-        .update({ quantity: currentFromCategoryQuantity - values.quantity, updated_at: new Date().toISOString() })
-        .eq("product_id", product.id)
-        .eq("warehouse_category", values.from_category);
-
-      if (fromUpdateError) throw fromUpdateError;
-
-      // Update or insert 'to' inventory
-      const existingToInventory = productInventories?.find(inv => inv.warehouse_category === values.to_category);
-      if (existingToInventory) {
-        const { error: toUpdateError } = await supabase
-          .from("warehouse_inventories")
-          .update({ quantity: existingToInventory.quantity + values.quantity, updated_at: new Date().toISOString() })
-          .eq("id", existingToInventory.id);
-        if (toUpdateError) throw toUpdateError;
-      } else {
-        const { error: toInsertError } = await supabase
-          .from("warehouse_inventories")
-          .insert({
-            user_id: userId,
-            product_id: product.id,
-            warehouse_category: values.to_category,
-            quantity: values.quantity,
-          });
-        if (toInsertError) throw toInsertError;
-      }
-
-      // Insert into stock_ledger table as a 'transfer' event
-      const { error: ledgerError } = await supabase
-        .from("stock_ledger") // Changed table name
-        .insert({
-          user_id: userId,
+      // Use Edge Function for atomic transaction
+      const { data, error } = await supabase.functions.invoke('move-stock', {
+        body: JSON.stringify({
           product_id: product.id,
-          event_type: StockEventType.TRANSFER, // Set event type
+          from_category: values.from_category,
+          to_category: values.to_category,
           quantity: values.quantity,
-          from_warehouse_category: values.from_category,
-          to_warehouse_category: values.to_category,
-          notes: values.notes, // Changed from reason to notes
-          event_date: format(new Date(), "yyyy-MM-dd"),
-        });
+          reason: values.notes // Map notes to reason for the function
+        }),
+      });
 
-      if (ledgerError) {
-        throw ledgerError;
-      }
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
 
       showSuccess("Stok berhasil dipindahkan!");
       onSuccess();
@@ -308,7 +266,7 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
 
             <FormField
               control={form.control}
-              name="notes" // Changed from reason to notes
+              name="notes"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Alasan (Opsional)</FormLabel>

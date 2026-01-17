@@ -4,7 +4,7 @@ import React from "react";
 import { NavLink } from "react-router-dom";
 import { useSession } from "./SessionContextProvider"; // Import useSession
 import { cn } from "@/lib/utils";
-import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo, User, HardHat } from "lucide-react"; // Import HardHat icon for Technician Management
+import { Package, CalendarDays, ReceiptText, LayoutDashboard, LogOut, UserCircle, History, ArrowRightLeft, ShoppingCart, Users, Warehouse, Boxes, ListTodo, User, HardHat, Calendar } from "lucide-react"; // Import Calendar icon
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,11 @@ const navItems = [
     title: "Manajemen Jadwal",
     href: "/schedules",
     icon: CalendarDays,
+  },
+  {
+    title: "Kalender Teknisi", // New item
+    href: "/technician-calendar",
+    icon: Calendar,
   },
   {
     title: "Permintaan Jadwal Teknis",
@@ -66,9 +71,9 @@ const navItems = [
     icon: User,
   },
   {
-    title: "Manajemen Teknisi", // New nav item
+    title: "Manajemen Teknisi",
     href: "/technicians",
-    icon: HardHat, // Using HardHat icon
+    icon: HardHat,
   },
   {
     title: "Kategori Gudang",
@@ -81,10 +86,10 @@ const navItems = [
     icon: UserCircle,
   },
   {
-    title: "Manajemen Pengguna", // New nav item
+    title: "Manajemen Pengguna",
     href: "/users",
-    icon: Users, // Using Users icon
-    adminOnly: true, // Mark as admin-only
+    icon: Users,
+    adminOnly: true,
   },
 ];
 
@@ -108,14 +113,14 @@ const SidebarNav = () => {
   return (
     <nav className="flex flex-col space-y-1 p-4 bg-sidebar dark:bg-sidebar-background text-sidebar-foreground border-r border-sidebar-border h-full">
       <h2 className="text-xl font-bold mb-4 text-sidebar-primary-foreground">Budi Karya Teknologi</h2>
-      <div className="flex-1">
+      <div className="flex-1 overflow-y-auto"> {/* Added overflow-y-auto for scrollable menu if items exceed height */}
         {navItems.map((item) => (
           <NavLink
             key={item.href}
             to={item.href}
             className={({ isActive }) =>
               cn(
-                item.adminOnly && !isAdmin ? "hidden" : "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                (item as any).adminOnly && !isAdmin ? "hidden" : "flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 isActive
                   ? "bg-sidebar-primary text-sidebar-primary-foreground"
                   : "text-sidebar-foreground"
@@ -130,7 +135,7 @@ const SidebarNav = () => {
       <Button
         variant="ghost"
         onClick={handleLogout}
-        className="flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground justify-start"
+        className="flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground justify-start mt-auto"
       >
         <LogOut className="h-5 w-5" />
         Logout
