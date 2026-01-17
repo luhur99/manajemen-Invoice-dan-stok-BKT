@@ -1,4 +1,3 @@
-/// <reference lib="deno.ns" />
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
 
@@ -93,20 +92,17 @@ serve(async (req) => {
       });
     }
 
-    // Insert profile data into public.profiles table
-    const { error: insertProfileError } = await supabaseAdminClient
+    // Update the role in the profiles table.
+    // The profile itself is created automatically by the 'handle_new_user' trigger
+    // when a new user is created in auth.users.
+    const { error: updateProfileError } = await supabaseAdminClient
       .from('profiles')
-      .insert({
-        id: newUser.user?.id,
-        first_name: first_name || null,
-        last_name: last_name || null,
-        role: role,
-      });
+      .update({ role: role })
+      .eq('id', newUser.user?.id);
 
-    if (insertProfileError) {
-      // If profile insertion fails, consider rolling back user creation (optional, more complex)
-      console.error('Error inserting profile:', insertProfileError);
-      return new Response(JSON.stringify({ error: `User created, but failed to create profile: ${insertProfileError.message}` }), {
+    if (updateProfileError) {
+      console.error('Error updating profile role:', updateProfileError);
+      return new Response(JSON.stringify({ error: `User created, but failed to update profile role: ${updateProfileError.message}` }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
