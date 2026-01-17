@@ -20,16 +20,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
-import { format } from "date-fns";
+import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data";
 
-// Schema validasi menggunakan Zod
 const formSchema = z.object({
   warehouse_category: z.string({
     required_error: "Kategori Gudang wajib dipilih",
   }).min(1, "Kategori Gudang wajib dipilih"),
   new_quantity: z.coerce.number().min(0, "Kuantitas baru tidak boleh negatif"),
-  notes: z.string().min(1, "Alasan penyesuaian wajib diisi"), // Changed from reason to notes
+  notes: z.string().min(1, "Alasan penyesuaian wajib diisi"),
 });
 
 interface StockAdjustmentFormProps {
@@ -92,9 +90,9 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      warehouse_category: "", // Default empty string
+      warehouse_category: "",
       new_quantity: 0,
-      notes: "", // Changed from reason to notes
+      notes: "",
     },
   });
 
@@ -102,19 +100,18 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     if (isOpen) {
       fetchWarehouseCategories();
       fetchInventories().then(() => {
-        // Set default category and quantity after categories and inventories are loaded
         if (warehouseCategories.length > 0) {
           const defaultCategoryCode = product.inventories?.[0]?.warehouse_category || warehouseCategories[0].code;
           const initialQuantity = currentInventories.find(inv => inv.warehouse_category === defaultCategoryCode)?.quantity || 0;
           form.reset({
             warehouse_category: defaultCategoryCode,
             new_quantity: initialQuantity,
-            notes: "", // Changed from reason to notes
+            notes: "",
           });
         }
       });
     }
-  }, [isOpen, product, form, fetchInventories, fetchWarehouseCategories, warehouseCategories.length, currentInventories.length]);
+  }, [isOpen, product, form, fetchInventories, fetchWarehouseCategories]);
 
   const selectedCategory = form.watch("warehouse_category");
   const currentQuantityForSelectedCategory = currentInventories.find(
@@ -122,61 +119,19 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
   )?.quantity || 0;
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
-
     try {
-      const oldQuantity = currentQuantityForSelectedCategory;
-      const newQuantity = values.new_quantity;
-      const difference = newQuantity - oldQuantity;
-
-      if (difference === 0) {
-        showSuccess("Tidak ada perubahan stok yang dilakukan.");
-        onOpenChange(false);
-        onSuccess();
-        return;
-      }
-
-      // Update or insert into warehouse_inventories
-      const { error: upsertInventoryError } = await supabase
-        .from("warehouse_inventories")
-        .upsert(
-          {
-            product_id: product.id,
-            warehouse_category: values.warehouse_category,
-            quantity: newQuantity,
-            user_id: userId,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "product_id, warehouse_category" }
-        );
-
-      if (upsertInventoryError) {
-        throw upsertInventoryError;
-      }
-
-      // Insert into stock_ledger table with 'adjustment' type
-      const { error: ledgerError } = await supabase
-        .from("stock_ledger") // Changed table name
-        .insert({
-          user_id: userId,
+      // Atomic adjustment via Edge Function
+      const { data, error } = await supabase.functions.invoke('adjust-stock', {
+        body: JSON.stringify({
           product_id: product.id,
-          event_type: StockEventType.ADJUSTMENT, // Set event type
-          quantity: Math.abs(difference),
-          from_warehouse_category: difference < 0 ? values.warehouse_category : null, // If quantity decreased, it's 'from'
-          to_warehouse_category: difference > 0 ? values.warehouse_category : null,   // If quantity increased, it's 'to'
-          notes: `Penyesuaian stok di kategori ${getCategoryDisplayName(values.warehouse_category)} dari ${oldQuantity} menjadi ${newQuantity}. Catatan: ${values.notes}`, // Changed from reason to notes
-          event_date: format(new Date(), "yyyy-MM-dd"),
-        });
+          warehouse_category: values.warehouse_category,
+          new_quantity: values.new_quantity,
+          notes: values.notes,
+        }),
+      });
 
-      if (ledgerError) {
-        throw ledgerError;
-      }
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
 
       showSuccess("Stok berhasil disesuaikan!");
       onOpenChange(false);
@@ -245,7 +200,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="notes" // Changed from reason to notes
+              name="notes"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Alasan Penyesuaian</FormLabel>

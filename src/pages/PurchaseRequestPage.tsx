@@ -282,10 +282,7 @@ const PurchaseRequestPage = () => {
     mutationFn: async (formData: z.infer<typeof purchaseRequestSchema>) => {
       if (!selectedRequest || !selectedRequest.id) throw new Error("Permintaan tidak valid.");
 
-      // Use selectedRequest.document_url for the check
-      if (!selectedRequest.document_url) {
-        throw new Error("Tidak dapat menutup permintaan. Resi/dokumen PO/Inv belum diunggah.");
-      }
+      // Check client-side validation logic that doesn't need DB call
       if (!formData.received_quantity || formData.received_quantity <= 0) {
         throw new Error("Tidak dapat menutup permintaan. Kuantitas diterima harus lebih besar dari 0.");
       }
@@ -293,82 +290,33 @@ const PurchaseRequestPage = () => {
         throw new Error("Tidak dapat menutup permintaan. Kategori gudang target belum ditentukan.");
       }
 
-      // 1. Update purchase request status to 'closed' and other received details
-      const { error: updateRequestError } = await supabase
-        .from("purchase_requests")
-        .update({
-          status: PurchaseRequestStatus.CLOSED,
-          received_at: new Date().toISOString(),
+      // Invoke atomic Edge Function
+      const { data, error } = await supabase.functions.invoke('close-purchase-request', {
+        body: JSON.stringify({
+          request_id: selectedRequest.id,
           received_quantity: formData.received_quantity,
           returned_quantity: formData.returned_quantity,
           damaged_quantity: formData.damaged_quantity,
           target_warehouse_category: formData.target_warehouse_category,
           received_notes: formData.received_notes,
-        })
-        .eq("id", selectedRequest.id);
-
-      if (updateRequestError) throw new Error(`Gagal menutup permintaan pembelian: ${updateRequestError.message}`);
-
-      // 2. Add entry to stock_ledger for 'IN' event
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated for stock update.");
-
-      const { error: stockLedgerError } = await supabase.from("stock_ledger").insert({
-        user_id: user.id,
-        product_id: selectedRequest.product_id,
-        event_type: StockEventType.IN,
-        quantity: formData.received_quantity,
-        to_warehouse_category: formData.target_warehouse_category,
-        notes: `Penerimaan dari permintaan pembelian #${selectedRequest.pr_number || selectedRequest.item_code}. ${formData.received_notes || ''}`, // Included pr_number
-        event_date: new Date().toISOString().split('T')[0],
+        }),
       });
 
-      if (stockLedgerError) {
-        await supabase.from("purchase_requests").update({ status: selectedRequest.status, received_at: selectedRequest.received_at }).eq("id", selectedRequest.id);
-        throw new Error(`Gagal memperbarui ledger stok: ${stockLedgerError.message}`);
-      }
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
 
-      // 3. Update or insert into warehouse_inventories
-      const { data: existingInventory, error: inventoryFetchError } = await supabase
-        .from("warehouse_inventories")
-        .select("id, quantity")
-        .eq("product_id", selectedRequest.product_id)
-        .eq("warehouse_category", formData.target_warehouse_category)
-        .single();
-
-      if (inventoryFetchError && inventoryFetchError.code !== 'PGRST116') {
-        throw new Error(`Gagal memeriksa inventaris gudang: ${inventoryFetchError.message}`);
-      }
-
-      if (existingInventory) {
-        const { error: updateInventoryError } = await supabase
-          .from("warehouse_inventories")
-          .update({ quantity: existingInventory.quantity + formData.received_quantity })
-          .eq("id", existingInventory.id);
-        if (updateInventoryError) throw new Error(`Gagal memperbarui inventaris gudang: ${updateInventoryError.message}`);
-      } else {
-        const { error: insertInventoryError } = await supabase
-          .from("warehouse_inventories")
-          .insert({
-            user_id: user.id,
-            product_id: selectedRequest.product_id,
-            warehouse_category: formData.target_warehouse_category,
-            quantity: formData.received_quantity,
-          });
-        if (insertInventoryError) throw new Error(`Gagal menambahkan ke inventaris gudang: ${insertInventoryError.message}`);
-      }
-      return formData;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-      queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
-      queryClient.invalidateQueries({ queryKey: ["warehouse_inventories"] });
+      queryClient.invalidateQueries({ queryKey: ["stock_ledger"] }); // Invalidate stock ledger cache
+      queryClient.invalidateQueries({ queryKey: ["warehouse_inventories"] }); // Invalidate inventory cache
       showSuccess("Permintaan pembelian berhasil ditutup dan stok diperbarui!");
       setIsCloseRequestDialogOpen(false);
       setSelectedRequest(null);
       form.reset();
     },
-    onError: (err) => {
+    onError: (err: any) => {
       showError(`Gagal menutup permintaan pembelian: ${err.message}`);
     },
   });

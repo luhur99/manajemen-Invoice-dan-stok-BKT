@@ -19,23 +19,22 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { Loader2, PlusCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
-import { useQuery } from "@tanstack/react-query";
+import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk wajib dipilih"),
-  event_type: z.nativeEnum(StockEventType, { // Changed to event_type
+  event_type: z.nativeEnum(StockEventType, {
     required_error: "Tipe Peristiwa wajib dipilih",
   }),
   quantity: z.coerce.number().min(1, "Kuantitas harus lebih dari 0"),
-  warehouse_category: z.string({ // Changed to string
+  warehouse_category: z.string({
     required_error: "Kategori Gudang wajib dipilih",
   }).min(1, "Kategori Gudang wajib dipilih"),
   notes: z.string().optional(),
-  event_date: z.string().min(1, "Tanggal Peristiwa wajib diisi"), // Changed to event_date
+  event_date: z.string().min(1, "Tanggal Peristiwa wajib diisi"),
 });
 
 interface AddStockTransactionFormProps {
@@ -44,7 +43,7 @@ interface AddStockTransactionFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   initialProductId?: string;
-  initialEventType?: StockEventType; // Changed type to StockEventType
+  initialEventType?: StockEventType;
 }
 
 const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
@@ -62,9 +61,9 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       product_id: initialProductId || "",
-      event_type: initialEventType || StockEventType.OUT, // Ensured type is StockEventType
+      event_type: initialEventType || StockEventType.OUT,
       quantity: 1,
-      warehouse_category: "", // Default empty string
+      warehouse_category: "",
       notes: "",
       event_date: format(new Date(), "yyyy-MM-dd"),
     },
@@ -83,7 +82,6 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         console.error("Error fetching warehouse categories:", error);
       } else {
         setWarehouseCategories(data as WarehouseCategoryType[]);
-        // Set default value if categories are loaded and form is open
         if (data.length > 0 && isOpen && !form.getValues("warehouse_category")) {
           form.setValue("warehouse_category", data[0].code);
         }
@@ -95,97 +93,31 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       fetchWarehouseCategories();
       form.reset({
         product_id: initialProductId || "",
-        event_type: initialEventType || StockEventType.OUT, // Ensured type is StockEventType
+        event_type: initialEventType || StockEventType.OUT,
         quantity: 1,
-        warehouse_category: "", // Reset to empty string
+        warehouse_category: "",
         notes: "",
         event_date: format(new Date(), "yyyy-MM-dd"),
       });
     }
   }, [isOpen, initialProductId, initialEventType, form]);
 
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
-
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
-
     try {
-      const { data: existingInventory, error: fetchError } = await supabase
-        .from("warehouse_inventories")
-        .select("id, quantity")
-        .eq("product_id", values.product_id)
-        .eq("warehouse_category", values.warehouse_category)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      let newQuantity = existingInventory ? existingInventory.quantity : 0;
-
-      if (values.event_type === StockEventType.OUT) { // Changed to event_type
-        if (newQuantity < values.quantity) {
-          showError(`Kuantitas stok tidak mencukupi di kategori '${getCategoryDisplayName(values.warehouse_category)}'. Tersedia: ${newQuantity}, Diminta: ${values.quantity}.`);
-          return;
-        }
-        newQuantity -= values.quantity;
-      } else if (values.event_type === StockEventType.IN || values.event_type === StockEventType.INITIAL) { // Changed to event_type
-        newQuantity += values.quantity;
-      }
-
-      if (existingInventory) {
-        const { error: updateError } = await supabase
-          .from("warehouse_inventories")
-          .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-          .eq("id", existingInventory.id);
-
-        if (updateError) {
-          throw updateError;
-        }
-      } else if (values.event_type === StockEventType.IN || values.event_type === StockEventType.INITIAL) { // Changed to event_type
-        const { error: insertError } = await supabase
-          .from("warehouse_inventories")
-          .insert({
-            user_id: userId,
-            product_id: values.product_id,
-            warehouse_category: values.warehouse_category,
-            quantity: newQuantity,
-          });
-
-        if (insertError) {
-          throw insertError;
-        }
-      } else {
-        showError("Tidak ada inventaris yang ditemukan untuk produk dan kategori ini.");
-        return;
-      }
-
-      // Insert into stock_ledger table
-      const { error: ledgerError } = await supabase
-        .from("stock_ledger") // Changed table name
-        .insert({
-          user_id: userId,
+      // Use the new Edge Function for atomic transaction
+      const { data, error } = await supabase.functions.invoke('create-stock-transaction', {
+        body: JSON.stringify({
           product_id: values.product_id,
-          event_type: values.event_type, // Changed to event_type
+          event_type: values.event_type,
           quantity: values.quantity,
-          from_warehouse_category: values.event_type === StockEventType.OUT ? values.warehouse_category : null, // Set from/to based on event type
-          to_warehouse_category: values.event_type === StockEventType.IN || values.event_type === StockEventType.INITIAL ? values.warehouse_category : null,
+          warehouse_category: values.warehouse_category,
           notes: values.notes,
-          event_date: values.event_date, // Changed to event_date
-        });
+          event_date: values.event_date,
+        }),
+      });
 
-      if (ledgerError) {
-        throw ledgerError;
-      }
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
 
       showSuccess("Transaksi stok berhasil ditambahkan!");
       form.reset();
@@ -199,9 +131,6 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="hidden">Tambah Transaksi Stok</Button>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tambah Transaksi Stok</DialogTitle>
@@ -235,18 +164,18 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="event_type" // Changed to event_type
+              name="event_type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipe Peristiwa</FormLabel> {/* Changed label */}
+                  <FormLabel>Tipe Peristiwa</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialEventType}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Pilih tipe peristiwa" /> {/* Changed placeholder */}
+                        <SelectValue placeholder="Pilih tipe peristiwa" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={StockEventType.IN}>Stok Masuk</SelectItem> {/* Changed to IN */}
+                      <SelectItem value={StockEventType.IN}>Stok Masuk</SelectItem>
                       <SelectItem value={StockEventType.OUT}>Stok Keluar</SelectItem>
                       <SelectItem value={StockEventType.INITIAL}>Stok Awal</SelectItem>
                     </SelectContent>
@@ -294,10 +223,10 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
             />
             <FormField
               control={form.control}
-              name="event_date" // Changed to event_date
+              name="event_date"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tanggal Peristiwa</FormLabel> {/* Changed label */}
+                  <FormLabel>Tanggal Peristiwa</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
