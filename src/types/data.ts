@@ -392,3 +392,18 @@ export interface Technician {
 export interface TechnicianWithDetails extends Technician {
   no?: number;
 }
+
+// New interface for User with Profile details
+export interface UserWithProfile {
+  id: string;
+  email: string;
+  created_at: string;
+  last_sign_in_at?: string;
+  first_name?: string;
+  last_name?: string;
+  role: string; // 'admin', 'staff', 'user'
+  avatar_url?: string;
+  phone_number?: string;
+  updated_at?: string;
+  no?: number; // For display in table
+}
