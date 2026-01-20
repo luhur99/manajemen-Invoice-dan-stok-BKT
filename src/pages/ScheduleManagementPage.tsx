@@ -94,6 +94,28 @@ const ScheduleManagementPage = () => {
     },
   });
 
+  const deleteScheduleMutation = useMutation({
+    mutationFn: async (scheduleId: string) => {
+      const { error } = await supabase
+        .from("schedules")
+        .delete()
+        .eq("id", scheduleId);
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      showSuccess("Jadwal berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      setSelectedSchedule(null);
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
+    },
+    onError: (err: any) => {
+      showError(`Gagal menghapus jadwal: ${err.message}`);
+      console.error("Error deleting schedule:", err);
+    },
+  });
+
   const handleEditClick = (schedule: ScheduleWithDetails) => {
     setSelectedSchedule(schedule);
     setIsEditModalOpen(true);
@@ -134,23 +156,9 @@ const ScheduleManagementPage = () => {
     setIsCreateInvoiceModalOpen(true);
   };
 
-  const handleDeleteSchedule = async () => {
-    if (!selectedSchedule) return;
-
-    try {
-      const { error } = await supabase
-        .from("schedules")
-        .delete()
-        .eq("id", selectedSchedule.id);
-
-      if (error) throw error;
-
-      showSuccess("Jadwal berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      fetchSchedules();
-    } catch (err: any) {
-      showError(`Gagal menghapus jadwal: ${err.message}`);
-      console.error("Error deleting schedule:", err);
+  const handleConfirmDelete = () => {
+    if (selectedSchedule) {
+      deleteScheduleMutation.mutate(selectedSchedule.id);
     }
   };
 
@@ -353,8 +361,10 @@ const ScheduleManagementPage = () => {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteSchedule}>Hapus</Button>
+            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)} disabled={deleteScheduleMutation.isPending}>Batal</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteScheduleMutation.isPending}>
+              {deleteScheduleMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
