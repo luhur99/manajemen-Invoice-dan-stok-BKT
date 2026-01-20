@@ -24,6 +24,8 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -63,6 +65,9 @@ interface AddSalesDetailFormProps {
 }
 
 const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+  const { session } = useSession();
+  const queryClient = useQueryClient(); // Initialize queryClient
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -93,16 +98,14 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
+  const addSalesDetailMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
 
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    try {
       const { error } = await supabase
         .from("sales_details")
         .insert({
@@ -138,15 +141,22 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
       if (error) {
         throw error;
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Detil penjualan berhasil ditambahkan!");
       form.reset();
       onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["salesDetails"] }); // Invalidate and refetch sales details
       onSuccess(); // Trigger refresh of sales data
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       showError(`Gagal menambahkan detil penjualan: ${error.message}`);
       console.error("Error adding sales detail:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addSalesDetailMutation.mutate(values);
   };
 
   return (
@@ -541,8 +551,8 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
               )}
             />
             <div className="md:col-span-full">
-              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full mt-6" disabled={addSalesDetailMutation.isPending}>
+                {addSalesDetailMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Detil Penjualan"
