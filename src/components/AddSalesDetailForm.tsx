@@ -1,31 +1,30 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, FormProvider } from "react-hook-form"; // Import FormProvider
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Form } from "@/components/ui/form"; // Only Form component from ui/form
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/components/SessionContextProvider";
+import { format } from "date-fns";
+
+// Import the new modular sections
+import BasicInfoSection from "./AddSalesDetailForm/BasicInfoSection";
+import CustomerInfoSection from "./AddSalesDetailForm/CustomerInfoSection";
+import ProductInfoSection from "./AddSalesDetailForm/ProductInfoSection";
+import OtherDetailsSection from "./AddSalesDetailForm/OtherDetailsSection";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -66,7 +65,7 @@ interface AddSalesDetailFormProps {
 
 const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
-  const queryClient = useQueryClient(); // Initialize queryClient
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -77,6 +76,7 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
       invoice_number: "",
       new_old: undefined,
       perusahaan: "",
+      tanggal: new Date(), // Set default date to today
       hari: "",
       jam: "",
       customer: "",
@@ -146,8 +146,8 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
       showSuccess("Detil penjualan berhasil ditambahkan!");
       form.reset();
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["salesDetails"] }); // Invalidate and refetch sales details
-      onSuccess(); // Trigger refresh of sales data
+      queryClient.invalidateQueries({ queryKey: ["salesDetails"] });
+      onSuccess();
     },
     onError: (error: any) => {
       showError(`Gagal menambahkan detil penjualan: ${error.message}`);
@@ -166,390 +166,13 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
           <DialogTitle>Tambah Detil Penjualan Baru</DialogTitle>
           <DialogDescription>Isi detail untuk menambahkan catatan penjualan baru.</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
+        <FormProvider {...form}> {/* Use FormProvider to pass form context */}
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <FormField
-              control={form.control}
-              name="no"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>No</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="kirim_install"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kirim/Install</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih tipe" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Kirim">Kirim</SelectItem>
-                      <SelectItem value="Install">Install</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="no_transaksi"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>No Transaksi</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="invoice_number"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nomor Invoice</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="new_old"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>New/Old</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih status" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="New">New</SelectItem>
-                      <SelectItem value="Old">Old</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="perusahaan"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Perusahaan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="tanggal"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Tanggal</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pilih tanggal</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="hari"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hari (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="jam"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Jam (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., 09:00" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="customer"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Customer</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="alamat_install"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Alamat Install (Opsional)</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="no_hp"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>No HP (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Type (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="qty_unit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Qty Unit</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="stock"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stock</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="harga"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Harga</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="web"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>WEB (Opsional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih status WEB" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Ya">Ya</SelectItem>
-                      <SelectItem value="Tidak">Tidak</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="qty_web"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Qty Web</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="kartu"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kartu (Opsional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih status Kartu" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Ada">Ada</SelectItem>
-                      <SelectItem value="Tidak">Tidak</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="qty_kartu"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Qty Kartu</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="paket"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Paket (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="pulsa"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Pulsa</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="teknisi"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Teknisi (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="payment"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Payment (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="catatan"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Catatan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <BasicInfoSection />
+            <CustomerInfoSection />
+            <ProductInfoSection />
+            <OtherDetailsSection />
+            
             <div className="md:col-span-full">
               <Button type="submit" className="w-full mt-6" disabled={addSalesDetailMutation.isPending}>
                 {addSalesDetailMutation.isPending ? (
@@ -560,7 +183,7 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
               </Button>
             </div>
           </form>
-        </Form>
+        </FormProvider>
       </DialogContent>
     </Dialog>
   );
