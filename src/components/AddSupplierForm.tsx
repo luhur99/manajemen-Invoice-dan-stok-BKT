@@ -20,6 +20,7 @@ import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -37,6 +38,7 @@ interface AddSupplierFormProps {
 
 const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
   const { session } = useSession();
+  const queryClient = useQueryClient(); // Initialize queryClient
   const [isOpen, setIsOpen] = React.useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -50,15 +52,14 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const userId = session?.user?.id;
+  // Define the mutation for adding a supplier
+  const addSupplierMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
-
-    try {
       const { error } = await supabase
         .from("suppliers")
         .insert({
@@ -74,15 +75,22 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
       if (error) {
         throw error;
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Pemasok berhasil ditambahkan!");
       form.reset();
       setIsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] }); // Invalidate and refetch suppliers
       onSuccess();
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       showError(`Gagal menambahkan pemasok: ${error.message}`);
       console.error("Error adding supplier:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addSupplierMutation.mutate(values);
   };
 
   return (
@@ -178,8 +186,8 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
               )}
             />
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full mt-6" disabled={addSupplierMutation.isPending}>
+                {addSupplierMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Tambah Pemasok"
