@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -15,12 +15,11 @@ import EditCustomerForm from "@/components/EditCustomerForm";
 import ViewCustomerDetailsDialog from "@/components/ViewCustomerDetailsDialog";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const CustomerManagementPage = () => {
-  const [customers, setCustomers] = useState<CustomerWithDetails[]>([]);
+  const queryClient = useQueryClient();
   const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithDetails[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
@@ -32,41 +31,47 @@ const CustomerManagementPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const fetchCustomers = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
+  const { data: customers = [], isLoading, error, refetch: fetchCustomers } = useQuery<CustomerWithDetails[], Error>({
+    queryKey: ["customers"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
         .select("*")
         .order("customer_name", { ascending: true });
 
       if (error) {
+        showError("Gagal memuat data pelanggan.");
         throw error;
       }
 
-      const customersWithNo: CustomerWithDetails[] = data.map((cust, index) => ({
+      return data.map((cust, index) => ({
         ...cust,
         no: index + 1,
       }));
+    },
+  });
 
-      setCustomers(customersWithNo);
-      setFilteredCustomers(customersWithNo);
-      setCurrentPage(1);
-    } catch (err: any) {
-      setError(`Gagal memuat data pelanggan: ${err.message}`);
-      console.error("Error fetching customers:", err);
-      showError("Gagal memuat data pelanggan.");
-      setCustomers([]);
-      setFilteredCustomers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const { error } = await supabase
+        .from("customers")
+        .delete()
+        .eq("id", customerId);
 
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+      if (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      showSuccess("Pelanggan berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["customers"] }); // Invalidate and refetch
+    },
+    onError: (err: any) => {
+      showError(`Gagal menghapus pelanggan: ${err.message}`);
+      console.error("Error deleting customer:", err);
+    },
+  });
 
   useEffect(() => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
@@ -81,25 +86,9 @@ const CustomerManagementPage = () => {
     setCurrentPage(1);
   }, [searchTerm, customers]);
 
-  const handleDeleteCustomer = async () => {
-    if (!selectedCustomer) return;
-
-    try {
-      const { error } = await supabase
-        .from("customers")
-        .delete()
-        .eq("id", selectedCustomer.id);
-
-      if (error) {
-        throw error;
-      }
-
-      showSuccess("Pelanggan berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      fetchCustomers(); // Refresh the list
-    } catch (err: any) {
-      showError(`Gagal menghapus pelanggan: ${err.message}`);
-      console.error("Error deleting customer:", err);
+  const handleDeleteCustomer = () => {
+    if (selectedCustomer) {
+      deleteCustomerMutation.mutate(selectedCustomer.id);
     }
   };
 
@@ -127,7 +116,7 @@ const CustomerManagementPage = () => {
     setCurrentPage(page);
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="border shadow-sm">
         <CardHeader>
@@ -153,7 +142,7 @@ const CustomerManagementPage = () => {
         <CardDescription>Kelola semua informasi pelanggan Anda di sini.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error}</p>}
+        {error && <p className="text-red-500 dark:text-red-400 mb-4">{error.message}</p>}
         <Input
           type="text"
           placeholder="Cari berdasarkan nama, perusahaan, alamat, atau telepon..."
@@ -244,7 +233,9 @@ const CustomerManagementPage = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteCustomer}>Hapus</Button>
+            <Button variant="destructive" onClick={handleDeleteCustomer} disabled={deleteCustomerMutation.isPending}>
+              {deleteCustomerMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
