@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PlusCircle, Edit, Trash2, Eye, FileText } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
@@ -49,6 +49,7 @@ const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
 };
 
 const InvoiceManagementPage = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [startDate, setStartDate] = React.useState<string>(""); // Date filter
   const [endDate, setEndDate] = React.useState<string>("");     // Date filter
@@ -87,6 +88,26 @@ const InvoiceManagementPage = () => {
     },
   });
 
+  const deleteInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { error } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("id", invoiceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Invoice berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    },
+    onError: (err: any) => {
+      showError(`Gagal menghapus invoice: ${err.message}`);
+      console.error("Error deleting invoice:", err);
+    },
+  });
+
   const handleEditClick = (invoice: InvoiceWithDetails) => {
     setSelectedInvoice(invoice);
     setIsEditModalOpen(true);
@@ -112,23 +133,9 @@ const InvoiceManagementPage = () => {
     setIsViewDocumentOpen(true);
   };
 
-  const handleDeleteInvoice = async () => {
-    if (!selectedInvoice) return;
-
-    try {
-      const { error } = await supabase
-        .from("invoices")
-        .delete()
-        .eq("id", selectedInvoice.id);
-
-      if (error) throw error;
-
-      showSuccess("Invoice berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      fetchInvoices();
-    } catch (err: any) {
-      showError(`Gagal menghapus invoice: ${err.message}`);
-      console.error("Error deleting invoice:", err);
+  const handleDeleteInvoice = () => {
+    if (selectedInvoice) {
+      deleteInvoiceMutation.mutate(selectedInvoice.id);
     }
   };
 
@@ -343,7 +350,9 @@ const InvoiceManagementPage = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteInvoice}>Hapus</Button>
+            <Button variant="destructive" onClick={handleDeleteInvoice} disabled={deleteInvoiceMutation.isPending}>
+              {deleteInvoiceMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
