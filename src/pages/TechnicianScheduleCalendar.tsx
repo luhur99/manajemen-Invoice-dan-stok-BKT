@@ -18,25 +18,18 @@ interface TechnicianScheduleCalendarProps {
 
 const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = () => {
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedDaySchedules, setSelectedDaySchedules] = useState<Schedule[]>([]);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
-  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
-    queryKey: ["warehouseCategories"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_categories")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (error) {
-        showError("Gagal memuat kategori gudang.");
-        throw error;
-      }
-      return data;
-    },
-  });
+  // Define a palette of colors for technicians
+  const colorPalette = useMemo(() => [
+    { bgClass: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100", hsl: 'hsl(217.2 91.2% 59.8%)' }, // Blue
+    { bgClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100", hsl: 'hsl(142.1 76.2% 36.3%)' }, // Green
+    { bgClass: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100", hsl: 'hsl(27 87% 53%)' },   // Orange
+    { bgClass: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100", hsl: 'hsl(262.1 83.3% 57.8%)' }, // Purple
+    { bgClass: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100", hsl: 'hsl(340.5 72.6% 55.5%)' }, // Pink
+    { bgClass: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100", hsl: 'hsl(230 69% 61%)' }, // Indigo
+    { bgClass: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-100", hsl: 'hsl(174 72% 48%)' }, // Teal
+  ], []);
 
   const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
     queryKey: ["technicians"],
@@ -53,39 +46,23 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     },
   });
 
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories?.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
-  // Define a palette of colors for technicians
-  const colorPalette = useMemo(() => [
-    { bgClass: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100", hsl: 'hsl(217.2 91.2% 59.8%)' }, // Blue
-    { bgClass: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100", hsl: 'hsl(142.1 76.2% 36.3%)' }, // Green
-    { bgClass: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100", hsl: 'hsl(27 87% 53%)' },   // Orange
-    { bgClass: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100", hsl: 'hsl(262.1 83.3% 57.8%)' }, // Purple
-    { bgClass: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-100", hsl: 'hsl(340.5 72.6% 55.5%)' }, // Pink
-    { bgClass: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100", hsl: 'hsl(230 69% 61%)' }, // Indigo
-    { bgClass: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-100", hsl: 'hsl(174 72% 48%)' }, // Teal
-  ], []);
-
   // Dynamically assign colors to technicians
   const technicianColorMap = useMemo(() => {
     const map: Record<string, { bgClass: string; hsl: string }> = {
       "Belum Ditugaskan": { bgClass: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200", hsl: 'hsl(210 40% 96.1%)' },
     };
     technicians?.forEach((tech, index) => {
-      map[tech.name] = colorPalette[index % colorPalette.length];
+      const color = colorPalette[index % colorPalette.length];
+      map[tech.name] = color;
     });
     return map;
   }, [technicians, colorPalette]);
 
-  // Define colors for different technicians in the schedule list
   const getTechnicianBgClass = useCallback((technicianName: string | null | undefined) => {
     return technicianColorMap[technicianName || "Belum Ditugaskan"]?.bgClass || technicianColorMap["Belum Ditugaskan"].bgClass;
   }, [technicianColorMap]);
 
-  // Define colors for calendar day markers (using HSL for consistency with shadcn/ui)
+  // Define colors for calendar day markers
   const calendarModifierStyles: Record<string, React.CSSProperties> = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
     technicians?.forEach((tech) => {
@@ -95,14 +72,28 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     return styles;
   }, [technicians, technicianColorMap]);
 
-  const fetchSchedulesForMonth = useCallback(async (monthDate: Date) => {
-    setLoading(true);
-    setSelectedDaySchedules([]); // Clear schedules for selected day when month changes
-    try {
-      const startOfMonthDate = format(startOfMonth(monthDate), "yyyy-MM-dd");
-      const endOfMonthDate = format(endOfMonth(monthDate), "yyyy-MM-dd");
+  const { isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
 
-      // Removed .eq("user_id", userId) to allow fetching all schedules allowed by RLS policies
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+  });
+
+  const { data: schedules = [], isLoading: loadingSchedules } = useQuery<Schedule[], Error>({
+    queryKey: ["schedules", format(currentMonth, "yyyy-MM")],
+    queryFn: async () => {
+      const startOfMonthDate = format(startOfMonth(currentMonth), "yyyy-MM-dd");
+      const endOfMonthDate = format(endOfMonth(currentMonth), "yyyy-MM-dd");
+
       const { data, error } = await supabase
         .from("schedules")
         .select("*")
@@ -114,32 +105,16 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
       if (error) {
         throw error;
       }
-      setSchedules(data as Schedule[]);
-    } catch (err: any) {
-      showError(`Gagal memuat jadwal: ${err.message}`);
-      console.error("Error fetching schedules for month:", err);
-      setSchedules([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return data as Schedule[];
+    },
+  });
 
-  useEffect(() => {
-    if (date) {
-      fetchSchedulesForMonth(date);
-    }
-  }, [date, fetchSchedulesForMonth]);
-
-  // Update selectedDaySchedules when schedules or selected date changes
-  useEffect(() => {
-    if (date) {
-      const normalizedSelectedDate = startOfDay(date); // Normalize selected date
-      const daySchedules = schedules.filter(s => isSameDay(startOfDay(parseISO(s.schedule_date)), normalizedSelectedDate));
-      setSelectedDaySchedules(daySchedules);
-    }
+  const selectedDaySchedules = useMemo(() => {
+    if (!date) return [];
+    const normalizedSelectedDate = startOfDay(date);
+    return schedules.filter(s => isSameDay(startOfDay(parseISO(s.schedule_date)), normalizedSelectedDate));
   }, [date, schedules]);
 
-  // Create modifiers for each technician for the calendar
   const technicianDayModifiers = useMemo(() => {
     const modifiers: Record<string, Date[]> = {};
     technicians?.forEach(tech => {
@@ -147,45 +122,40 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     });
 
     schedules.forEach(s => {
-      const scheduleDate = startOfDay(parseISO(s.schedule_date)); // Normalize to start of day
+      const scheduleDate = startOfDay(parseISO(s.schedule_date));
       const technicianKey = s.technician_name?.toLowerCase().replace(/\s/g, '_');
       if (technicianKey && modifiers[technicianKey]) {
         modifiers[technicianKey].push(scheduleDate);
       }
     });
 
-    // Filter out duplicate dates within each technician's array
     for (const key in modifiers) {
-      modifiers[key] = Array.from(new Set(modifiers[key].map(d => d.getTime()))) // Compare by timestamp
-        .map(timestamp => new Date(timestamp)); // Convert back to Date
+      modifiers[key] = Array.from(new Set(modifiers[key].map(d => d.getTime())))
+        .map(timestamp => new Date(timestamp));
     }
 
     return modifiers;
   }, [schedules, technicians]);
 
-  // Combine all modifiers for the Calendar component
   const allModifiers = {
     ...technicianDayModifiers,
-    selected: date, // Keep the selected date modifier
+    selected: date ? [date] : [],
   };
 
-  const handleDaySelect = (selectedDay: Date | undefined) => {
-    setDate(selectedDay);
-  };
-
-  // Group schedules by technician for display
-  const groupedSchedules = selectedDaySchedules.reduce((acc, schedule) => {
-    const technician = schedule.technician_name || "Belum Ditugaskan";
-    if (!acc[technician]) {
-      acc[technician] = [];
-    }
-    acc[technician].push(schedule);
-    return acc;
-  }, {} as Record<string, Schedule[]>);
+  const groupedSchedules = useMemo(() => {
+    return selectedDaySchedules.reduce((acc, schedule) => {
+      const technician = schedule.technician_name || "Belum Ditugaskan";
+      if (!acc[technician]) {
+        acc[technician] = [];
+      }
+      acc[technician].push(schedule);
+      return acc;
+    }, {} as Record<string, Schedule[]>);
+  }, [selectedDaySchedules]);
 
   const numberOfDistinctTechniciansToday = Object.keys(groupedSchedules).filter(techName => techName !== "Belum Ditugaskan").length;
 
-  if (loadingCategories || loading || loadingTechnicians) {
+  if (loadingCategories || loadingSchedules || loadingTechnicians) {
     return (
       <Card className="border shadow-sm">
         <CardHeader>
@@ -226,19 +196,20 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
           <Calendar
             mode="single"
             selected={date}
-            onSelect={handleDaySelect}
+            onSelect={setDate}
             className="rounded-md border shadow"
             modifiers={allModifiers}
             modifiersStyles={calendarModifierStyles}
             locale={id}
-            onMonthChange={(newMonth) => setDate(newMonth)}
+            month={currentMonth}
+            onMonthChange={setCurrentMonth}
           />
         </div>
         <div className="flex-1 lg:max-h-[400px] overflow-y-auto p-4 border rounded-md bg-gray-50 dark:bg-gray-700">
           <h3 className="text-lg font-semibold mb-4">
             Jadwal untuk {date ? format(date, "dd MMMM yyyy", { locale: id }) : "Pilih tanggal"}
           </h3>
-          {loading ? (
+          {loadingSchedules ? (
             <div className="flex justify-center items-center h-24">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
@@ -247,7 +218,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
           ) : (
             <div className="space-y-4">
               {numberOfDistinctTechniciansToday > 1 && (
-                <Alert variant="default" className="mb-4"> {/* Changed variant to "default" */}
+                <Alert variant="default" className="mb-4">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Perhatian!</AlertTitle>
                   <AlertDescription>
