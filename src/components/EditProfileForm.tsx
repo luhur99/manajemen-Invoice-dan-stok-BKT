@@ -19,6 +19,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Profile } from "@/types/data";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
 
 const formSchema = z.object({
   first_name: z.string().optional(),
@@ -35,6 +36,7 @@ interface EditProfileFormProps {
 }
 
 const EditProfileForm: React.FC<EditProfileFormProps> = ({ profile, isOpen, onOpenChange, onSuccess }) => {
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,8 +58,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ profile, isOpen, onOp
     }
   }, [isOpen, profile, form]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+  const updateProfileMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -72,14 +74,21 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ profile, isOpen, onOp
       if (error) {
         throw error;
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Profil berhasil diperbarui!");
       onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["userProfile", profile.id] }); // Invalidate specific user profile
       onSuccess();
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       showError(`Gagal memperbarui profil: ${error.message}`);
       console.error("Error updating profile:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    updateProfileMutation.mutate(values);
   };
 
   return (
@@ -142,8 +151,8 @@ const EditProfileForm: React.FC<EditProfileFormProps> = ({ profile, isOpen, onOp
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? (
+            <Button type="submit" className="w-full" disabled={updateProfileMutation.isPending}>
+              {updateProfileMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Simpan Perubahan"

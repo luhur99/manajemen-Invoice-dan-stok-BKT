@@ -56,7 +56,7 @@ const WarehouseCategoryPage: React.FC = () => {
     },
   });
 
-  const { data: categories = [], isLoading, error } = useQuery<WarehouseCategoryWithNo[], Error>({
+  const { data: categories = [], isLoading, error, refetch: fetchCategories } = useQuery<WarehouseCategoryWithNo[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
       const { data, error } = await supabase

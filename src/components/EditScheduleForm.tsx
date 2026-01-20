@@ -32,7 +32,7 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Schedule, ScheduleType, ScheduleStatus, Technician } from "@/types/data";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 import TechnicianCombobox from "./TechnicianCombobox"; // Import TechnicianCombobox
 
 const formSchema = z.object({
@@ -57,6 +57,7 @@ interface EditScheduleFormProps {
 }
 
 const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, onOpenChange, onSuccess }) => {
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -89,6 +90,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       }
       return data;
     },
+    enabled: isOpen, // Only fetch when the dialog is open
   });
 
   React.useEffect(() => {
@@ -121,8 +123,9 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+  // Mutation for updating a schedule
+  const updateScheduleMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
       const { error } = await supabase
         .from("schedules")
         .update({
@@ -137,18 +140,26 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
           notes: values.notes,
           phone_number: values.phone_number,
           courier_service: values.courier_service,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", schedule.id);
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       showSuccess("Jadwal berhasil diperbarui!");
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["schedules"] }); // Invalidate schedules to refetch
+    },
+    onError: (err: any) => {
       showError(`Gagal memperbarui jadwal: ${err.message}`);
       console.error("Error updating schedule:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    updateScheduleMutation.mutate(values);
   };
 
   return (
@@ -363,8 +374,8 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
               )}
             />
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={updateScheduleMutation.isPending}>
+                {updateScheduleMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Perubahan"

@@ -41,6 +41,8 @@ import {
   InvoiceDocumentStatus,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 const formSchema = z.object({
   // invoice_number: Removed from client-side schema as it's generated on server
@@ -77,6 +79,8 @@ interface AddInvoiceFormProps {
 }
 
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess, initialSchedule }) => {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -94,15 +98,10 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     name: "items",
   });
 
-  const [products, setProducts] = React.useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = React.useState(true);
-
-  // Watch the 'type' field to conditionally render 'courier_service'
-  const watchedInvoiceType = form.watch("type");
-
-  React.useEffect(() => {
-    const fetchProducts = async () => {
-      setLoadingProducts(true);
+  // Fetch products using useQuery
+  const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
+    queryKey: ["products"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
         .select(`
@@ -124,27 +123,27 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
       if (error) {
         showError("Gagal memuat daftar produk.");
-        console.error("Error fetching products:", error);
-      } else {
-        setProducts(data.map(item => ({
-          id: item.id,
-          user_id: item.user_id,
-          created_at: item.created_at,
-          kode_barang: item.kode_barang,
-          nama_barang: item.nama_barang,
-          harga_jual: item.harga_jual,
-          harga_beli: item.harga_beli,
-          satuan: item.satuan,
-          safe_stock_limit: item.safe_stock_limit,
-          supplier_id: item.supplier_id,
-          inventories: item.warehouse_inventories as WarehouseInventory[],
-        })));
+        throw error;
       }
-      setLoadingProducts(false);
-    };
+      return data.map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        kode_barang: item.kode_barang,
+        nama_barang: item.nama_barang,
+        harga_jual: item.harga_jual,
+        harga_beli: item.harga_beli,
+        satuan: item.satuan,
+        safe_stock_limit: item.safe_stock_limit,
+        supplier_id: item.supplier_id,
+        inventories: item.warehouse_inventories as WarehouseInventory[],
+      }));
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
-    fetchProducts();
-  }, []);
+  // Watch the 'type' field to conditionally render 'courier_service'
+  const watchedInvoiceType = form.watch("type");
 
   // Effect to handle initial schedule data
   React.useEffect(() => {
@@ -183,7 +182,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
   }, [fields, calculateTotalAmount]);
 
   const handleProductSelect = (index: number, productId: string | undefined) => {
-    const selectedProduct = products.find(p => p.id === productId);
+    const selectedProduct = products?.find(p => p.id === productId);
     if (selectedProduct) {
       update(index, {
         ...fields[index],
@@ -225,8 +224,9 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     });
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+  // Mutation for adding an invoice
+  const addInvoiceMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
       // Use Edge Function for secure, atomic invoice creation
       const { data, error } = await supabase.functions.invoke('create-invoice', {
         body: JSON.stringify({
@@ -250,14 +250,23 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
 
+      return data;
+    },
+    onSuccess: () => {
       showSuccess("Invoice berhasil ditambahkan!");
       onSuccess();
       onOpenChange(false);
       form.reset();
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate invoices to refetch
+    },
+    onError: (err: any) => {
       showError(`Gagal menambahkan invoice: ${err.message}`);
       console.error("Error adding invoice:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addInvoiceMutation.mutate(values);
   };
 
   return (
@@ -452,7 +461,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Pilih metode pembayaran" />
@@ -507,7 +516,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   <FormItem>
                     <FormLabel>Produk</FormLabel>
                     <StockItemCombobox
-                      products={products}
+                      products={products || []}
                       selectedProductId={item.selected_product_id}
                       onSelectProduct={(productId) => handleProductSelect(index, productId)}
                       disabled={loadingProducts}
@@ -581,8 +590,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
             </div>
 
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={addInvoiceMutation.isPending}>
+                {addInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"

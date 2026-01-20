@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
 import { CustomerTypeEnum } from "@/types/data";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -40,6 +41,7 @@ interface AddCustomerFormProps {
 
 const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
   const { session } = useSession();
+  const queryClient = useQueryClient(); // Initialize queryClient
   const [isOpen, setIsOpen] = React.useState(false);
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,15 +54,15 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const userId = session?.user?.id;
+  // Define the mutation for adding a customer
+  const addCustomerMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
 
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    try {
       const { error } = await supabase
         .from("customers")
         .insert({
@@ -75,15 +77,22 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
       if (error) {
         throw error;
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Pelanggan berhasil ditambahkan!");
       form.reset();
       setIsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["customers"] }); // Invalidate and refetch customers
       onSuccess();
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       showError(`Gagal menambahkan pelanggan: ${error.message}`);
       console.error("Error adding customer:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addCustomerMutation.mutate(values);
   };
 
   return (
@@ -177,8 +186,8 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
               )}
             />
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full mt-6" disabled={addCustomerMutation.isPending}>
+                {addCustomerMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Tambah Pelanggan"

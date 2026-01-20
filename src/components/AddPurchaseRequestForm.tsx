@@ -27,8 +27,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data"; // Import the interface
+import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk harus dipilih."),
@@ -40,7 +42,7 @@ const formSchema = z.object({
   suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
   total_price: z.number().min(0, "Total harga tidak boleh negatif."),
   supplier_id: z.string().min(1, "Supplier harus dipilih."),
-  target_warehouse_category: z.string({ // Changed to string
+  target_warehouse_category: z.string({
     required_error: "Kategori gudang tujuan harus dipilih.",
   }).min(1, "Kategori gudang tujuan harus dipilih."),
   notes: z.string().optional(),
@@ -53,6 +55,9 @@ interface AddPurchaseRequestFormProps {
 }
 
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -65,45 +70,16 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
       suggested_selling_price: 0,
       total_price: 0,
       supplier_id: "",
-      target_warehouse_category: "", // Default empty string
+      target_warehouse_category: "",
       notes: "",
     },
   });
 
-  const [products, setProducts] = React.useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = React.useState(true);
-  const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
-  const [loadingSuppliers, setLoadingSuppliers] = React.useState(true);
-  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-
-  const fetchWarehouseCategories = useCallback(async () => {
-    setLoadingCategories(true);
-    const { data, error } = await supabase
-      .from("warehouse_categories")
-      .select("*")
-      .order("name", { ascending: true });
-
-    if (error) {
-      showError("Gagal memuat kategori gudang.");
-      console.error("Error fetching warehouse categories:", error);
-    } else {
-      setWarehouseCategories(data as WarehouseCategoryType[]);
-      // Set default value if categories are loaded and form is open
-      if (data.length > 0 && isOpen && !form.getValues("target_warehouse_category")) {
-        form.setValue("target_warehouse_category", data[0].code);
-      }
-    }
-    setLoadingCategories(false);
-  }, [isOpen, form]);
-
-  React.useEffect(() => {
-    const fetchInitialData = async () => {
-      setLoadingProducts(true);
-      setLoadingSuppliers(true);
-
-      // Fetch products
-      const { data: productsData, error: productsError } = await supabase
+  // Fetch products using useQuery
+  const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("products")
         .select(`
           id,
@@ -121,54 +97,93 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
             quantity
           )
         `);
-
-      if (productsError) {
+      if (error) {
         showError("Gagal memuat daftar produk.");
-        console.error("Error fetching products:", productsError);
-      } else {
-        setProducts(productsData.map(item => ({
-          id: item.id,
-          user_id: item.user_id,
-          created_at: item.created_at,
-          kode_barang: item.kode_barang,
-          nama_barang: item.nama_barang,
-          harga_jual: item.harga_jual,
-          harga_beli: item.harga_beli,
-          satuan: item.satuan,
-          safe_stock_limit: item.safe_stock_limit,
-          supplier_id: item.supplier_id,
-          inventories: item.warehouse_inventories as WarehouseInventory[],
-        })));
+        throw error;
       }
-      setLoadingProducts(false);
+      return data.map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        kode_barang: item.kode_barang,
+        nama_barang: item.nama_barang,
+        harga_jual: item.harga_jual,
+        harga_beli: item.harga_beli,
+        satuan: item.satuan,
+        safe_stock_limit: item.safe_stock_limit,
+        supplier_id: item.supplier_id,
+        inventories: item.warehouse_inventories as WarehouseInventory[],
+      }));
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
-      // Fetch suppliers
-      const { data: suppliersData, error: suppliersError } = await supabase
+  // Fetch suppliers using useQuery
+  const { data: suppliers, isLoading: loadingSuppliers } = useQuery<Supplier[], Error>({
+    queryKey: ["suppliers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("suppliers")
-        .select("*");
-
-      if (suppliersError) {
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
         showError("Gagal memuat daftar supplier.");
-        console.error("Error fetching suppliers:", suppliersError);
-      } else {
-        setSuppliers(suppliersData);
+        throw error;
       }
-      setLoadingSuppliers(false);
-    };
+      return data;
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
-    if (isOpen) {
-      fetchInitialData();
-      fetchWarehouseCategories();
-      form.reset();
+  // Fetch warehouse categories using useQuery
+  const { data: warehouseCategories, isLoading: loadingCategories } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
+
+  // Set default target_warehouse_category when categories load and dialog is open
+  useEffect(() => {
+    if (isOpen && warehouseCategories && warehouseCategories.length > 0 && !form.getValues("target_warehouse_category")) {
+      form.setValue("target_warehouse_category", warehouseCategories[0].code);
     }
-  }, [isOpen, form, fetchWarehouseCategories]);
+  }, [isOpen, warehouseCategories, form]);
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        product_id: "",
+        item_name: "",
+        item_code: "",
+        satuan: "",
+        quantity: 1,
+        unit_price: 0,
+        suggested_selling_price: 0,
+        total_price: 0,
+        supplier_id: "",
+        target_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
+        notes: "",
+      });
+    }
+  }, [isOpen, form, warehouseCategories]);
 
   const selectedProductId = form.watch("product_id");
   const quantity = form.watch("quantity");
   const unitPrice = form.watch("unit_price");
 
-  React.useEffect(() => {
-    const product = products.find(p => p.id === selectedProductId);
+  useEffect(() => {
+    const product = products?.find(p => p.id === selectedProductId);
     if (product) {
       form.setValue("item_name", product.nama_barang);
       form.setValue("item_code", product.kode_barang);
@@ -186,25 +201,20 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     }
   }, [selectedProductId, products, form]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     form.setValue("total_price", quantity * unitPrice);
   }, [quantity, unitPrice, form]);
 
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
+  // Mutation for adding a purchase request
+  const addPurchaseRequestMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) {
-      showError("Anda harus login untuk membuat permintaan pembelian.");
-      return;
-    }
-
-    try {
       const { error } = await supabase.from("purchase_requests").insert({
-        user_id: user.data.user.id,
+        user_id: userId,
         product_id: values.product_id,
         item_name: values.item_name,
         item_code: values.item_code,
@@ -220,15 +230,22 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
       });
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       showSuccess("Permintaan pembelian berhasil ditambahkan!");
-      onSuccess();
-      onOpenChange(false);
       form.reset();
-    } catch (err: any) {
+      onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] }); // Invalidate to refetch list
+      onSuccess(); // Call parent's onSuccess
+    },
+    onError: (err: any) => {
       showError(`Gagal menambahkan permintaan pembelian: ${err.message}`);
       console.error("Error adding purchase request:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addPurchaseRequestMutation.mutate(values);
   };
 
   return (
@@ -250,7 +267,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                   <FormLabel>Produk</FormLabel>
                   <FormControl>
                     <StockItemCombobox
-                      products={products}
+                      products={products || []}
                       selectedProductId={field.value}
                       onSelectProduct={field.onChange}
                       disabled={loadingProducts}
@@ -386,12 +403,12 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                         <SelectItem value="loading" disabled>
                           <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
                         </SelectItem>
-                      ) : suppliers.length === 0 ? (
+                      ) : suppliers?.length === 0 ? (
                         <SelectItem value="no-suppliers" disabled>
                           Tidak ada supplier tersedia
                         </SelectItem>
                       ) : (
-                        suppliers.map((supplier) => (
+                        suppliers?.map((supplier) => (
                           <SelectItem key={supplier.id} value={supplier.id}>
                             {supplier.name}
                           </SelectItem>
@@ -416,7 +433,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {warehouseCategories.map((category) => (
+                      {warehouseCategories?.map((category) => (
                         <SelectItem key={category.id} value={category.code}>
                           {category.name}
                         </SelectItem>
@@ -441,8 +458,8 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
               )}
             />
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={addPurchaseRequestMutation.isPending}>
+                {addPurchaseRequestMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Kirim Permintaan"

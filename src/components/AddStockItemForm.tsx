@@ -20,7 +20,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
-import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
+import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -38,13 +40,13 @@ const formSchema = z.object({
 
 interface AddStockItemFormProps {
   onSuccess: () => void;
-  isOpen: boolean; // Added isOpen prop
-  onOpenChange: (open: boolean) => void; // Added onOpenChange prop
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, onOpenChange }) => {
-  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const { session } = useSession();
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -56,51 +58,63 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
       harga_jual: 0,
       initial_stock_quantity: 0,
       safe_stock_limit: 0,
-      initial_warehouse_category: "", // Default empty string
+      initial_warehouse_category: "",
     },
   });
 
-  useEffect(() => {
-    const fetchWarehouseCategories = async () => {
-      setLoadingCategories(true);
+  // Fetch warehouse categories using useQuery
+  const { data: warehouseCategories, isLoading: loadingCategories } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
         .select("*")
         .order("name", { ascending: true });
-
       if (error) {
         showError("Gagal memuat kategori gudang.");
-        console.error("Error fetching warehouse categories:", error);
-      } else {
-        setWarehouseCategories(data as WarehouseCategoryType[]);
-        // Set default value if categories are loaded and form is open
-        if (data.length > 0 && isOpen && !form.getValues("initial_warehouse_category")) {
-          form.setValue("initial_warehouse_category", data[0].code);
-        }
+        throw error;
       }
-      setLoadingCategories(false);
-    };
+      return data;
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
-    if (isOpen) {
-      fetchWarehouseCategories();
+  // Set default initial_warehouse_category when categories load and dialog is open
+  useEffect(() => {
+    if (isOpen && warehouseCategories && warehouseCategories.length > 0 && !form.getValues("initial_warehouse_category")) {
+      form.setValue("initial_warehouse_category", warehouseCategories[0].code);
     }
-  }, [isOpen, form]);
+  }, [isOpen, warehouseCategories, form]);
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        kode_barang: "",
+        nama_barang: "",
+        satuan: "",
+        harga_beli: 0,
+        harga_jual: 0,
+        initial_stock_quantity: 0,
+        safe_stock_limit: 0,
+        initial_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
+      });
+    }
+  }, [isOpen, form, warehouseCategories]);
 
   const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories.find(cat => cat.code === code);
+    const category = warehouseCategories?.find(cat => cat.code === code);
     return category ? category.name : code;
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    const userId = user.data.user?.id;
+  // Mutation for adding a stock item
+  const addStockItemMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
-
-    try {
       // 1. Insert into products (product metadata)
       const { data: productData, error: productError } = await supabase
         .from("products")
@@ -135,36 +149,45 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
 
         if (inventoryError) {
           console.error("Error creating initial warehouse inventory:", inventoryError);
-          showError(`Gagal membuat inventaris awal: ${inventoryError.message}`);
-          return;
+          throw new Error(`Gagal membuat inventaris awal: ${inventoryError.message}`);
         }
 
         // 3. Record initial stock transaction in stock_ledger
         const { error: ledgerError } = await supabase
-          .from("stock_ledger") // Changed table name
+          .from("stock_ledger")
           .insert({
             user_id: userId,
             product_id: newProductId,
-            event_type: StockEventType.INITIAL, // Set event type
+            event_type: StockEventType.INITIAL,
             quantity: values.initial_stock_quantity,
-            to_warehouse_category: values.initial_warehouse_category, // Initial stock goes to a category
+            to_warehouse_category: values.initial_warehouse_category,
             notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplayName(values.initial_warehouse_category)}`,
             event_date: format(new Date(), "yyyy-MM-dd"),
           });
 
         if (ledgerError) {
           console.error("Error recording initial stock ledger entry:", ledgerError);
+          // Don't throw here, as inventory was already created. Log and continue.
         }
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Produk berhasil ditambahkan!");
       form.reset();
       onOpenChange(false);
-      onSuccess();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product list
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
+      queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] }); // Invalidate stock history
+      onSuccess(); // Call parent's onSuccess
+    },
+    onError: (error: any) => {
       showError(`Gagal menambahkan produk: ${error.message}`);
       console.error("Error adding product:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addStockItemMutation.mutate(values);
   };
 
   return (
@@ -272,7 +295,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {warehouseCategories.map((category) => (
+                      {warehouseCategories?.map((category) => (
                         <SelectItem key={category.id} value={category.code}>
                           {category.name}
                         </SelectItem>
@@ -297,8 +320,8 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
               )}
             />
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full" disabled={addStockItemMutation.isPending}>
+                {addStockItemMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Tambah Produk"

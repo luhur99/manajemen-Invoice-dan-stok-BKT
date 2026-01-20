@@ -33,7 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, Technician } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 import CustomerCombobox from "./CustomerCombobox";
 import TechnicianCombobox from "./TechnicianCombobox"; // Import TechnicianCombobox
 
@@ -116,6 +116,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   initialData,
 }) => {
   const { session } = useSession();
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -174,7 +175,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
       return data as Invoice[];
     },
-    enabled: watchedRequestType === SchedulingRequestType.SERVICE_UNBILL,
+    enabled: isOpen && watchedRequestType === SchedulingRequestType.SERVICE_UNBILL, // Only fetch when the dialog is open and type is SERVICE_UNBILL
   });
 
   const { data: customers, isLoading: loadingCustomers, error: customersError } = useQuery<Customer[], Error>({
@@ -190,6 +191,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
       return data;
     },
+    enabled: isOpen, // Only fetch when the dialog is open
   });
 
   const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
@@ -205,6 +207,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
       return data;
     },
+    enabled: isOpen, // Only fetch when the dialog is open
   });
 
   useEffect(() => {
@@ -290,14 +293,14 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const userId = session?.user?.id;
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
+  // Mutation for adding/editing a scheduling request
+  const saveSchedulingRequestMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    try {
       const dataToSubmit = {
         sr_number: values.sr_number?.trim() || null,
         customer_id: values.customer_id || null,
@@ -328,7 +331,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           .eq("id", initialData.id);
 
         if (error) throw error;
-        showSuccess("Permintaan jadwal berhasil diperbarui!");
       } else {
         const { error } = await supabase
           .from("scheduling_requests")
@@ -338,17 +340,40 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           });
 
         if (error) throw error;
-        showSuccess("Permintaan jadwal berhasil ditambahkan!");
       }
-
+    },
+    onSuccess: () => {
+      showSuccess(initialData ? "Permintaan jadwal berhasil diperbarui!" : "Permintaan jadwal berhasil ditambahkan!");
       onSuccess();
       onOpenChange(false);
       form.reset();
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["schedulingRequests"] }); // Invalidate and refetch scheduling requests
+    },
+    onError: (err: any) => {
       showError(`Gagal menyimpan permintaan jadwal: ${err.message}`);
       console.error("Error saving scheduling request:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    saveSchedulingRequestMutation.mutate(values);
   };
+
+  if (loadingInvoices || loadingCustomers || loadingTechnicians) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{initialData ? "Edit Permintaan Jadwal" : "Tambah Permintaan Jadwal Baru"}</DialogTitle>
+            <DialogDescription>Memuat data...</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -697,8 +722,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
               )}
             />
             <DialogFooter className="md:col-span-2">
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={saveSchedulingRequestMutation.isPending}>
+                {saveSchedulingRequestMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   initialData ? "Simpan Perubahan" : "Kirim Permintaan"

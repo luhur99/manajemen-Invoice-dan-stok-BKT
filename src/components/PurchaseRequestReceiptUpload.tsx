@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
+import { PurchaseRequestStatus } from "@/types/data"; // Import PurchaseRequestStatus
 
 interface PurchaseRequestReceiptUploadProps {
   purchaseRequestId: string;
@@ -31,13 +33,16 @@ const PurchaseRequestReceiptUpload: React.FC<PurchaseRequestReceiptUploadProps> 
   onOpenChange,
   onSuccess,
 }) => {
+  const queryClient = useQueryClient();
   const [file, setFile] = React.useState<File | null>(null);
-  const [loading, setLoading] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(currentDocumentUrl || null);
 
   React.useEffect(() => {
     setPreviewUrl(currentDocumentUrl || null);
-  }, [currentDocumentUrl]);
+    if (!isOpen) {
+      setFile(null); // Clear selected file when dialog closes
+    }
+  }, [currentDocumentUrl, isOpen]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -50,21 +55,16 @@ const PurchaseRequestReceiptUpload: React.FC<PurchaseRequestReceiptUploadProps> 
     }
   };
 
-  const handleUpload = async () => {
-    if (!file) {
-      showError("Pilih file untuk diunggah.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const fileExt = file.name.split(".").pop();
+  // Mutation for uploading a document
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async (fileToUpload: File) => {
+      const fileExt = fileToUpload.name.split(".").pop();
       const fileName = `${purchaseRequestId}-${Math.random()}.${fileExt}`;
       const filePath = `purchase_receipts/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from("documents") // Assuming 'documents' is the bucket for all documents
-        .upload(filePath, file);
+        .from("documents")
+        .upload(filePath, fileToUpload);
 
       if (uploadError) throw uploadError;
 
@@ -76,31 +76,35 @@ const PurchaseRequestReceiptUpload: React.FC<PurchaseRequestReceiptUploadProps> 
 
       const { error: updateError } = await supabase
         .from("purchase_requests")
-        .update({ document_url: publicUrl })
+        .update({ 
+          document_url: publicUrl, 
+          status: PurchaseRequestStatus.WAITING_FOR_RECEIVED, // Set status to WAITING_FOR_RECEIVED after upload
+          updated_at: new Date().toISOString() 
+        })
         .eq("id", purchaseRequestId);
 
       if (updateError) throw updateError;
-
+    },
+    onSuccess: () => {
       showSuccess("Dokumen resi berhasil diunggah!");
       onSuccess();
       onOpenChange(false);
       setFile(null);
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] }); // Invalidate purchase requests to refetch
+    },
+    onError: (error: any) => {
       showError(`Gagal mengunggah dokumen: ${error.message}`);
       console.error("Error uploading purchase receipt document:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  const handleDeleteDocument = async () => {
-    if (!currentDocumentUrl) return;
+  // Mutation for deleting a document
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentDocumentUrl) throw new Error("Tidak ada dokumen untuk dihapus.");
 
-    setLoading(true);
-    try {
-      // Extract file path from public URL
       const urlParts = currentDocumentUrl.split('/');
-      const bucketNameIndex = urlParts.indexOf('documents'); // Assuming 'documents' is the bucket name
+      const bucketNameIndex = urlParts.indexOf('documents');
       const filePath = urlParts.slice(bucketNameIndex + 1).join('/');
 
       const { error: deleteError } = await supabase.storage
@@ -111,23 +115,42 @@ const PurchaseRequestReceiptUpload: React.FC<PurchaseRequestReceiptUploadProps> 
 
       const { error: updateError } = await supabase
         .from("purchase_requests")
-        .update({ document_url: null })
+        .update({ 
+          document_url: null, 
+          status: PurchaseRequestStatus.APPROVED, // Revert status to APPROVED after deleting document
+          updated_at: new Date().toISOString() 
+        })
         .eq("id", purchaseRequestId);
 
       if (updateError) throw updateError;
-
+    },
+    onSuccess: () => {
       showSuccess("Dokumen resi berhasil dihapus!");
       onSuccess();
       onOpenChange(false);
       setFile(null);
       setPreviewUrl(null);
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] }); // Invalidate purchase requests to refetch
+    },
+    onError: (error: any) => {
       showError(`Gagal menghapus dokumen: ${error.message}`);
       console.error("Error deleting purchase receipt document:", error);
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  const handleUpload = () => {
+    if (file) {
+      uploadDocumentMutation.mutate(file);
+    } else {
+      showError("Pilih file untuk diunggah.");
     }
   };
+
+  const handleDeleteDocument = () => {
+    deleteDocumentMutation.mutate();
+  };
+
+  const isPending = uploadDocumentMutation.isPending || deleteDocumentMutation.isPending;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -146,7 +169,7 @@ const PurchaseRequestReceiptUpload: React.FC<PurchaseRequestReceiptUploadProps> 
           {previewUrl && (
             <div className="mt-2">
               <p className="text-sm text-muted-foreground">Dokumen saat ini:</p>
-              {previewUrl.match(/\.(jpeg|jpg|gif|png|pdf)$/i) != null ? ( // Added PDF to preview check
+              {previewUrl.match(/\.(jpeg|jpg|gif|png|pdf)$/i) != null ? (
                 <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline mt-2 block">
                   Lihat Dokumen
                 </a>
@@ -163,17 +186,17 @@ const PurchaseRequestReceiptUpload: React.FC<PurchaseRequestReceiptUploadProps> 
             <Button
               variant="destructive"
               onClick={handleDeleteDocument}
-              disabled={loading}
+              disabled={isPending}
               className="mr-auto"
             >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus Dokumen"}
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus Dokumen"}
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Batal
           </Button>
-          <Button onClick={handleUpload} disabled={loading || !file}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Unggah"}
+          <Button onClick={handleUpload} disabled={isPending || !file}>
+            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Unggah"}
           </Button>
         </DialogFooter>
       </DialogContent>

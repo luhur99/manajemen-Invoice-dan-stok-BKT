@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
 import { Technician, TechnicianType } from "@/types/data";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -68,6 +69,7 @@ interface AddEditTechnicianFormProps {
 
 const AddEditTechnicianForm: React.FC<AddEditTechnicianFormProps> = ({ isOpen, onOpenChange, onSuccess, initialData }) => {
   const { session } = useSession();
+  const queryClient = useQueryClient(); // Initialize queryClient
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -106,15 +108,15 @@ const AddEditTechnicianForm: React.FC<AddEditTechnicianFormProps> = ({ isOpen, o
 
   const watchedType = form.watch("type");
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const userId = session?.user?.id;
+  // Define the mutation for adding/editing a technician
+  const saveTechnicianMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
 
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    try {
       const dataToSubmit = {
         name: values.name.trim(),
         phone_number: values.phone_number?.trim() || null,
@@ -136,7 +138,6 @@ const AddEditTechnicianForm: React.FC<AddEditTechnicianFormProps> = ({ isOpen, o
         if (error) {
           throw error;
         }
-        showSuccess("Detail teknisi berhasil diperbarui!");
       } else {
         const { error } = await supabase
           .from("technicians")
@@ -148,16 +149,23 @@ const AddEditTechnicianForm: React.FC<AddEditTechnicianFormProps> = ({ isOpen, o
         if (error) {
           throw error;
         }
-        showSuccess("Teknisi berhasil ditambahkan!");
       }
-
+    },
+    onSuccess: () => {
+      showSuccess(initialData ? "Detail teknisi berhasil diperbarui!" : "Teknisi berhasil ditambahkan!");
       onOpenChange(false);
       onSuccess();
       form.reset();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["technicians"] }); // Invalidate and refetch technicians
+    },
+    onError: (error: any) => {
       showError(`Gagal menyimpan teknisi: ${error.message}`);
       console.error("Error saving technician:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    saveTechnicianMutation.mutate(values);
   };
 
   return (
@@ -267,8 +275,8 @@ const AddEditTechnicianForm: React.FC<AddEditTechnicianFormProps> = ({ isOpen, o
             )}
 
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full mt-6" disabled={saveTechnicianMutation.isPending}>
+                {saveTechnicianMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   initialData ? "Simpan Perubahan" : "Tambah Teknisi"

@@ -21,6 +21,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const formSchema = z.object({
   warehouse_category: z.string({
@@ -43,49 +44,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
   onOpenChange,
   onSuccess,
 }) => {
-  const [currentInventories, setCurrentInventories] = useState<WarehouseInventory[]>([]);
-  const [loadingInventories, setLoadingInventories] = useState(true);
-  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-
-  const fetchWarehouseCategories = useCallback(async () => {
-    setLoadingCategories(true);
-    const { data, error } = await supabase
-      .from("warehouse_categories")
-      .select("*")
-      .order("name", { ascending: true });
-
-    if (error) {
-      showError("Gagal memuat kategori gudang.");
-      console.error("Error fetching warehouse categories:", error);
-    } else {
-      setWarehouseCategories(data as WarehouseCategoryType[]);
-    }
-    setLoadingCategories(false);
-  }, []);
-
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
-  const fetchInventories = useCallback(async () => {
-    if (!product?.id) return;
-    setLoadingInventories(true);
-    const { data, error } = await supabase
-      .from("warehouse_inventories")
-      .select("*")
-      .eq("product_id", product.id);
-
-    if (error) {
-      showError("Gagal memuat inventaris item.");
-      console.error("Error fetching warehouse inventories:", error);
-      setCurrentInventories([]);
-    } else {
-      setCurrentInventories(data as WarehouseInventory[]);
-    }
-    setLoadingInventories(false);
-  }, [product?.id]);
+  const queryClient = useQueryClient();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -96,30 +55,70 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     },
   });
 
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("*")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data;
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
+
+  const { data: currentInventories, isLoading: loadingInventories, error: inventoriesError, refetch: refetchInventories } = useQuery<WarehouseInventory[], Error>({
+    queryKey: ["productInventories", product.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_inventories")
+        .select("*")
+        .eq("product_id", product.id);
+
+      if (error) {
+        showError("Gagal memuat inventaris item.");
+        throw error;
+      }
+      return data;
+    },
+    enabled: isOpen && !!product.id, // Only fetch if dialog is open and product ID is available
+  });
+
   useEffect(() => {
     if (isOpen) {
-      fetchWarehouseCategories();
-      fetchInventories().then(() => {
-        if (warehouseCategories.length > 0) {
-          const defaultCategoryCode = product.inventories?.[0]?.warehouse_category || warehouseCategories[0].code;
-          const initialQuantity = currentInventories.find(inv => inv.warehouse_category === defaultCategoryCode)?.quantity || 0;
-          form.reset({
-            warehouse_category: defaultCategoryCode,
-            new_quantity: initialQuantity,
-            notes: "",
-          });
-        }
+      form.reset({
+        warehouse_category: "",
+        new_quantity: 0,
+        notes: "",
       });
+      // Set default category and quantity after categories and inventories are loaded
+      if (warehouseCategories && currentInventories) {
+        const defaultCategoryCode = product.inventories?.[0]?.warehouse_category || warehouseCategories[0]?.code || "";
+        const initialQuantity = currentInventories.find(inv => inv.warehouse_category === defaultCategoryCode)?.quantity || 0;
+        form.setValue("warehouse_category", defaultCategoryCode);
+        form.setValue("new_quantity", initialQuantity);
+      }
+      refetchInventories(); // Ensure latest inventories are fetched
     }
-  }, [isOpen, product, form, fetchInventories, fetchWarehouseCategories]);
+  }, [isOpen, product, form, warehouseCategories, currentInventories, refetchInventories]);
 
   const selectedCategory = form.watch("warehouse_category");
-  const currentQuantityForSelectedCategory = currentInventories.find(
+  const currentQuantityForSelectedCategory = currentInventories?.find(
     (inv) => inv.warehouse_category === selectedCategory
   )?.quantity || 0;
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+  const adjustStockMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
       // Atomic adjustment via Edge Function
       const { data, error } = await supabase.functions.invoke('adjust-stock', {
         body: JSON.stringify({
@@ -133,13 +132,24 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
 
+      return data;
+    },
+    onSuccess: () => {
       showSuccess("Stok berhasil disesuaikan!");
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
+      queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] }); // Invalidate stock history
+      queryClient.invalidateQueries({ queryKey: ["productInventories", product.id] }); // Invalidate specific product inventories
+    },
+    onError: (error: any) => {
       showError(`Gagal menyesuaikan stok: ${error.message}`);
       console.error("Error adjusting stock:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    adjustStockMutation.mutate(values);
   };
 
   return (
@@ -159,18 +169,18 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
                   <FormLabel>Kategori Gudang</FormLabel>
                   <Select onValueChange={(value) => {
                     field.onChange(value);
-                    const quantityForNewCategory = currentInventories.find(inv => inv.warehouse_category === value)?.quantity || 0;
+                    const quantityForNewCategory = currentInventories?.find(inv => inv.warehouse_category === value)?.quantity || 0;
                     form.setValue("new_quantity", quantityForNewCategory);
-                  }} value={field.value} disabled={loadingInventories || loadingCategories}>
+                  }} value={field.value} disabled={loadingInventories || loadingCategories || adjustStockMutation.isPending}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang"} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {warehouseCategories.map((category) => (
+                      {warehouseCategories?.map((category) => (
                         <SelectItem key={category.id} value={category.code}>
-                          {category.name} (Stok: {currentInventories.find(inv => inv.warehouse_category === category.code)?.quantity || 0})
+                          {category.name} (Stok: {currentInventories?.find(inv => inv.warehouse_category === category.code)?.quantity || 0})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -192,7 +202,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
                 <FormItem>
                   <FormLabel>Kuantitas Baru</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} disabled={adjustStockMutation.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -205,14 +215,14 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
                 <FormItem>
                   <FormLabel>Alasan Penyesuaian</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Misalnya: Koreksi inventaris fisik, kerusakan, dll." {...field} />
+                    <Textarea placeholder="Misalnya: Koreksi inventaris fisik, kerusakan, dll." {...field} disabled={adjustStockMutation.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? (
+            <Button type="submit" className="w-full" disabled={adjustStockMutation.isPending}>
+              {adjustStockMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 "Simpan Penyesuaian"

@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
 import { InvoiceDocumentStatus } from "@/types/data"; // Import new enum
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
 
 interface InvoiceUploadProps {
   invoiceId: string;
@@ -32,13 +33,16 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
   onOpenChange,
   onSuccess,
 }) => {
+  const queryClient = useQueryClient();
   const [file, setFile] = React.useState<File | null>(null);
-  const [loading, setLoading] = React.useState(false);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(currentDocumentUrl || null);
 
   React.useEffect(() => {
     setPreviewUrl(currentDocumentUrl || null);
-  }, [currentDocumentUrl]);
+    if (!isOpen) {
+      setFile(null); // Clear selected file when dialog closes
+    }
+  }, [currentDocumentUrl, isOpen]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
@@ -51,21 +55,16 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
     }
   };
 
-  const handleUpload = async () => {
-    if (!file) {
-      showError("Pilih file untuk diunggah.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const fileExt = file.name.split(".").pop();
+  // Mutation for uploading a document
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async (fileToUpload: File) => {
+      const fileExt = fileToUpload.name.split(".").pop();
       const fileName = `${invoiceId}-${Math.random()}.${fileExt}`;
       const filePath = `invoice_documents/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("documents")
-        .upload(filePath, file);
+        .upload(filePath, fileToUpload);
 
       if (uploadError) throw uploadError;
 
@@ -77,28 +76,29 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
 
       const { error: updateError } = await supabase
         .from("invoices")
-        .update({ document_url: publicUrl, invoice_status: InvoiceDocumentStatus.COMPLETED }) // Update status here
+        .update({ document_url: publicUrl, invoice_status: InvoiceDocumentStatus.COMPLETED, updated_at: new Date().toISOString() }) // Update status here
         .eq("id", invoiceId);
 
       if (updateError) throw updateError;
-
+    },
+    onSuccess: () => {
       showSuccess("Dokumen invoice berhasil diunggah!");
       onSuccess();
       onOpenChange(false);
       setFile(null);
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate invoices to refetch
+    },
+    onError: (error: any) => {
       showError(`Gagal mengunggah dokumen: ${error.message}`);
       console.error("Error uploading invoice document:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+  });
 
-  const handleDeleteDocument = async () => {
-    if (!currentDocumentUrl) return;
+  // Mutation for deleting a document
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentDocumentUrl) throw new Error("Tidak ada dokumen untuk dihapus.");
 
-    setLoading(true);
-    try {
       // Extract file path from public URL
       const urlParts = currentDocumentUrl.split('/');
       const bucketNameIndex = urlParts.indexOf('documents'); // Assuming 'documents' is the bucket name
@@ -112,23 +112,38 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
 
       const { error: updateError } = await supabase
         .from("invoices")
-        .update({ document_url: null, invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV }) // Revert status here
+        .update({ document_url: null, invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV, updated_at: new Date().toISOString() }) // Revert status here
         .eq("id", invoiceId);
 
       if (updateError) throw updateError;
-
+    },
+    onSuccess: () => {
       showSuccess("Dokumen invoice berhasil dihapus!");
       onSuccess();
       onOpenChange(false);
       setFile(null);
       setPreviewUrl(null);
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate invoices to refetch
+    },
+    onError: (error: any) => {
       showError(`Gagal menghapus dokumen: ${error.message}`);
       console.error("Error deleting invoice document:", error);
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  const handleUpload = () => {
+    if (file) {
+      uploadDocumentMutation.mutate(file);
+    } else {
+      showError("Pilih file untuk diunggah.");
     }
   };
+
+  const handleDeleteDocument = () => {
+    deleteDocumentMutation.mutate();
+  };
+
+  const isPending = uploadDocumentMutation.isPending || deleteDocumentMutation.isPending;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -162,17 +177,17 @@ const InvoiceUpload: React.FC<InvoiceUploadProps> = ({
             <Button
               variant="destructive"
               onClick={handleDeleteDocument}
-              disabled={loading}
+              disabled={isPending}
               className="mr-auto"
             >
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus Dokumen"}
+              {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus Dokumen"}
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             Batal
           </Button>
-          <Button onClick={handleUpload} disabled={loading || !file}>
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Unggah"}
+          <Button onClick={handleUpload} disabled={isPending || !file}>
+            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Unggah"}
           </Button>
         </DialogFooter>
       </DialogContent>

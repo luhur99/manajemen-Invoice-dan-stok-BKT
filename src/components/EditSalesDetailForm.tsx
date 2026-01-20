@@ -31,7 +31,9 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SalesDetail } from "@/types/data"; // Corrected import
+import { SalesDetail } from "@/types/data";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 const formSchema = z.object({
   no: z.number().int().positive("Nomor harus lebih dari 0."),
@@ -69,6 +71,9 @@ interface EditSalesDetailFormProps {
 }
 
 const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, isOpen, onOpenChange, onSuccess }) => {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -132,8 +137,14 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
     }
   }, [isOpen, salesDetail, form]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+  // Mutation for updating a sales detail
+  const updateSalesDetailMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
+
       const { error } = await supabase
         .from("sales_details")
         .update({
@@ -162,18 +173,26 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
           teknisi: values.teknisi,
           payment: values.payment,
           catatan: values.catatan,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", salesDetail.id);
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       showSuccess("Detail penjualan berhasil diperbarui!");
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["salesDetails"] }); // Invalidate to refetch list
+    },
+    onError: (err: any) => {
       showError(`Gagal memperbarui detail penjualan: ${err.message}`);
       console.error("Error updating sales detail:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    updateSalesDetailMutation.mutate(values);
   };
 
   return (
@@ -540,8 +559,8 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
               />
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={updateSalesDetailMutation.isPending}>
+                {updateSalesDetailMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Perubahan"

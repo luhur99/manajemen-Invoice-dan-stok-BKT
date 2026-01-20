@@ -37,10 +37,12 @@ import {
   InvoiceItem,
   InvoicePaymentStatus,
   InvoiceType,
-  CustomerTypeEnum, // Corrected import
+  CustomerTypeEnum,
   WarehouseInventory,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 const formSchema = z.object({
   invoice_number: z.string().min(1, "Nomor Invoice harus diisi."),
@@ -51,7 +53,7 @@ const formSchema = z.object({
   total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
-  customer_type: z.nativeEnum(CustomerTypeEnum).optional(), // Corrected enum usage
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
@@ -77,6 +79,9 @@ interface EditInvoiceFormProps {
 }
 
 const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOpenChange, onSuccess }) => {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -85,14 +90,14 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       due_date: invoice.due_date ? new Date(invoice.due_date) : undefined,
       customer_name: invoice.customer_name,
       company_name: invoice.company_name || "",
-      payment_status: invoice.payment_status as InvoicePaymentStatus, // Cast to enum
-      type: invoice.type as InvoiceType | undefined, // Cast to enum
-      customer_type: invoice.customer_type as CustomerTypeEnum | undefined, // Cast to enum
+      payment_status: invoice.payment_status as InvoicePaymentStatus,
+      type: invoice.type as InvoiceType | undefined,
+      customer_type: invoice.customer_type as CustomerTypeEnum | undefined,
       payment_method: invoice.payment_method || "",
       notes: invoice.notes || "",
       courier_service: invoice.courier_service || "",
       total_amount: invoice.total_amount,
-      items: [], // Will be populated in useEffect
+      items: [],
     },
   });
 
@@ -101,15 +106,13 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     name: "items",
   });
 
-  const [products, setProducts] = React.useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = React.useState(true);
   const [initialItems, setInitialItems] = React.useState<InvoiceItem[]>([]);
 
-  React.useEffect(() => {
-    const fetchProductsAndItems = async () => {
-      setLoadingProducts(true);
-      // Fetch products
-      const { data: productsData, error: productsError } = await supabase
+  // Fetch products using useQuery
+  const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
+    queryKey: ["products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("products")
         .select(`
           id,
@@ -127,57 +130,62 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
             quantity
           )
         `);
-
-      if (productsError) {
+      if (error) {
         showError("Gagal memuat daftar produk.");
-        console.error("Error fetching products:", productsError);
-      } else {
-        setProducts(productsData.map(item => ({
-          id: item.id,
-          user_id: item.user_id,
-          created_at: item.created_at,
-          kode_barang: item.kode_barang,
-          nama_barang: item.nama_barang,
-          harga_jual: item.harga_jual,
-          harga_beli: item.harga_beli,
-          satuan: item.satuan,
-          safe_stock_limit: item.safe_stock_limit,
-          supplier_id: item.supplier_id,
-          inventories: item.warehouse_inventories as WarehouseInventory[],
-        })));
+        throw error;
       }
+      return data.map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        kode_barang: item.kode_barang,
+        nama_barang: item.nama_barang,
+        harga_jual: item.harga_jual,
+        harga_beli: item.harga_beli,
+        satuan: item.satuan,
+        safe_stock_limit: item.safe_stock_limit,
+        supplier_id: item.supplier_id,
+        inventories: item.warehouse_inventories as WarehouseInventory[],
+      }));
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
-      // Fetch invoice items
-      const { data: itemsData, error: itemsError } = await supabase
+  // Fetch invoice items using useQuery
+  const { data: invoiceItems, isLoading: loadingInvoiceItems } = useQuery<InvoiceItem[], Error>({
+    queryKey: ["invoiceItems", invoice.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
         .from("invoice_items")
         .select("*")
         .eq("invoice_id", invoice.id);
-
-      if (itemsError) {
+      if (error) {
         showError("Gagal memuat item invoice.");
-        console.error("Error fetching invoice items:", itemsError);
-      } else {
-        const items = itemsData.map(item => ({
-          id: item.id,
-          selected_product_id: item.product_id || "",
-          item_name: item.item_name,
-          item_code: item.item_code || "", // Ensure item_code is included
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          subtotal: item.subtotal,
-          unit_type: item.unit_type,
-          created_at: item.created_at, // Ensure created_at is included
-        }));
-        form.setValue("items", items);
-        setInitialItems(items);
+        throw error;
       }
-      setLoadingProducts(false);
-    };
+      return data;
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
-    if (isOpen) {
-      fetchProductsAndItems();
+  // Populate form with invoice items when they load
+  useEffect(() => {
+    if (isOpen && invoiceItems) {
+      const items = invoiceItems.map(item => ({
+        id: item.id,
+        selected_product_id: item.product_id || "",
+        item_name: item.item_name,
+        item_code: item.item_code || "",
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal,
+        unit_type: item.unit_type,
+        created_at: item.created_at,
+      }));
+      form.setValue("items", items);
+      setInitialItems(items);
     }
-  }, [isOpen, invoice.id, form]);
+  }, [isOpen, invoiceItems, form]);
 
   const calculateTotalAmount = React.useCallback(() => {
     const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
@@ -189,7 +197,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   }, [fields, calculateTotalAmount]);
 
   const handleProductSelect = (index: number, productId: string | undefined) => {
-    const selectedProduct = products.find(p => p.id === productId);
+    const selectedProduct = products?.find(p => p.id === productId);
     if (selectedProduct) {
       update(index, {
         ...fields[index],
@@ -198,7 +206,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         item_code: selectedProduct.kode_barang,
         unit_price: selectedProduct.harga_jual,
         unit_type: selectedProduct.satuan,
-        subtotal: selectedProduct.harga_jual * fields[index].quantity,
+        quantity: fields[index].quantity || 1, // Ensure quantity is at least 1
+        subtotal: selectedProduct.harga_jual * (fields[index].quantity || 1),
       });
     } else {
       update(index, {
@@ -231,20 +240,20 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     });
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) {
-      showError("Anda harus login untuk memperbarui invoice.");
-      return;
-    }
+  // Mutation for updating an invoice
+  const updateInvoiceMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Anda harus login untuk memperbarui invoice.");
+      }
 
-    try {
       const { error: invoiceError } = await supabase
         .from("invoices")
         .update({
           invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"), // Explicitly cast to Date
-          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null, // Explicitly cast to Date
+          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"),
+          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -254,6 +263,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           payment_method: values.payment_method,
           notes: values.notes,
           courier_service: values.courier_service,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", invoice.id);
 
@@ -261,7 +271,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
       // Handle invoice items: delete removed, update existing, insert new
       const itemsToDelete = initialItems.filter(
-        (initialItem) => !(values.items as typeof formSchema._type['items']).some((currentItem) => currentItem.id === initialItem.id) // Explicitly cast to correct type
+        (initialItem) => !(values.items as typeof formSchema._type['items']).some((currentItem) => currentItem.id === initialItem.id)
       );
       if (itemsToDelete.length > 0) {
         const { error: deleteError } = await supabase
@@ -271,10 +281,10 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         if (deleteError) throw deleteError;
       }
 
-      for (const item of (values.items as typeof formSchema._type['items'])) { // Explicitly cast to correct type
+      for (const item of (values.items as typeof formSchema._type['items'])) {
         const commonItemData = {
           invoice_id: invoice.id,
-          user_id: user.data.user?.id,
+          user_id: userId,
           product_id: item.selected_product_id,
           item_name: item.item_name,
           item_code: item.item_code,
@@ -299,15 +309,41 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           if (insertItemError) throw insertItemError;
         }
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Invoice berhasil diperbarui!");
-      onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate to refetch list
+      queryClient.invalidateQueries({ queryKey: ["invoiceItems", invoice.id] }); // Invalidate specific invoice items
+      onSuccess(); // Call parent's onSuccess
+    },
+    onError: (err: any) => {
       showError(`Gagal memperbarui invoice: ${err.message}`);
       console.error("Error updating invoice:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    updateInvoiceMutation.mutate(values);
   };
+
+  const watchedInvoiceType = form.watch("type");
+
+  if (loadingProducts || loadingInvoiceItems) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Invoice</DialogTitle>
+            <DialogDescription>Memuat detail invoice...</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -497,7 +533,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => ( // Explicitly cast type
+                        {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => (
                           <SelectItem key={type} value={type}>
                             {type.charAt(0).toUpperCase() + type.slice(1)}
                           </SelectItem>
@@ -557,7 +593,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                   <FormItem>
                     <FormLabel>Produk</FormLabel>
                     <StockItemCombobox
-                      products={products}
+                      products={products || []}
                       selectedProductId={item.selected_product_id}
                       onSelectProduct={(productId) => handleProductSelect(index, productId)}
                       disabled={loadingProducts}
@@ -631,8 +667,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
             </div>
 
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
+                {updateInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"

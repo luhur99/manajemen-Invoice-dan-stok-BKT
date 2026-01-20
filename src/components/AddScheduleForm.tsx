@@ -33,8 +33,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { ScheduleType, ScheduleStatus, Technician } from "@/types/data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 import TechnicianCombobox from "./TechnicianCombobox";
+import { useSession } from "@/components/SessionContextProvider"; // Import useSession
 
 const formSchema = z.object({
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
@@ -57,6 +58,8 @@ interface AddScheduleFormProps {
 }
 
 const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -90,6 +93,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
       }
       return data;
     },
+    enabled: isOpen, // Only fetch when the dialog is open
   });
 
   React.useEffect(() => {
@@ -111,16 +115,16 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) {
-      showError("Anda harus login untuk membuat jadwal.");
-      return;
-    }
+  // Mutation for adding a schedule
+  const addScheduleMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new Error("Anda harus login untuk membuat jadwal.");
+      }
 
-    try {
       const { error } = await supabase.from("schedules").insert({
-        user_id: user.data.user.id,
+        user_id: userId,
         schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
         schedule_time: values.schedule_time,
         type: values.type,
@@ -135,14 +139,22 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
       });
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
       showSuccess("Jadwal berhasil ditambahkan!");
       onSuccess();
       onOpenChange(false);
-    } catch (err: any) {
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: ["schedules"] }); // Invalidate schedules to refetch
+    },
+    onError: (err: any) => {
       showError(`Gagal menambahkan jadwal: ${err.message}`);
       console.error("Error adding schedule:", err);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addScheduleMutation.mutate(values);
   };
 
   return (
@@ -372,8 +384,8 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" disabled={addScheduleMutation.isPending}>
+                {addScheduleMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Jadwal"

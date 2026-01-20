@@ -22,6 +22,7 @@ import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -54,9 +55,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
   initialProductId,
   initialEventType,
 }) => {
-  const [warehouseCategories, setWarehouseCategories] = useState<WarehouseCategoryType[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
-
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -69,9 +68,9 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     },
   });
 
-  useEffect(() => {
-    const fetchWarehouseCategories = async () => {
-      setLoadingCategories(true);
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
         .select("*")
@@ -79,31 +78,28 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
 
       if (error) {
         showError("Gagal memuat kategori gudang.");
-        console.error("Error fetching warehouse categories:", error);
-      } else {
-        setWarehouseCategories(data as WarehouseCategoryType[]);
-        if (data.length > 0 && isOpen && !form.getValues("warehouse_category")) {
-          form.setValue("warehouse_category", data[0].code);
-        }
+        throw error;
       }
-      setLoadingCategories(false);
-    };
+      return data;
+    },
+    enabled: isOpen, // Only fetch when the dialog is open
+  });
 
+  useEffect(() => {
     if (isOpen) {
-      fetchWarehouseCategories();
       form.reset({
         product_id: initialProductId || "",
         event_type: initialEventType || StockEventType.OUT,
         quantity: 1,
-        warehouse_category: "",
+        warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
         notes: "",
         event_date: format(new Date(), "yyyy-MM-dd"),
       });
     }
-  }, [isOpen, initialProductId, initialEventType, form]);
+  }, [isOpen, initialProductId, initialEventType, form, warehouseCategories]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    try {
+  const addStockTransactionMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
       // Use the new Edge Function for atomic transaction
       const { data, error } = await supabase.functions.invoke('create-stock-transaction', {
         body: JSON.stringify({
@@ -119,14 +115,25 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
 
+      return data;
+    },
+    onSuccess: () => {
       showSuccess("Transaksi stok berhasil ditambahkan!");
       form.reset();
       onOpenChange(false);
       onSuccess();
-    } catch (error: any) {
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
+      queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] }); // Invalidate stock history
+      queryClient.invalidateQueries({ queryKey: ["productInventories", form.getValues("product_id")] }); // Invalidate specific product inventories
+    },
+    onError: (error: any) => {
       showError(`Gagal menambahkan transaksi stok: ${error.message}`);
       console.error("Error adding stock transaction:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    addStockTransactionMutation.mutate(values);
   };
 
   return (
@@ -144,7 +151,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Produk</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialProductId}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialProductId || addStockTransactionMutation.isPending}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih produk" />
@@ -168,7 +175,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipe Peristiwa</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialEventType}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialEventType || addStockTransactionMutation.isPending}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih tipe peristiwa" />
@@ -191,7 +198,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                 <FormItem>
                   <FormLabel>Kuantitas</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} disabled={addStockTransactionMutation.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -203,14 +210,14 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Kategori Gudang</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories || addStockTransactionMutation.isPending}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang"} />
                     </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {warehouseCategories.map((category) => (
+                      {warehouseCategories?.map((category) => (
                         <SelectItem key={category.id} value={category.code}>
                           {category.name}
                         </SelectItem>
@@ -228,7 +235,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                 <FormItem>
                   <FormLabel>Tanggal Peristiwa</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} />
+                    <Input type="date" {...field} disabled={addStockTransactionMutation.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -241,15 +248,15 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
                 <FormItem className="md:col-span-2">
                   <FormLabel>Catatan</FormLabel>
                   <FormControl>
-                    <Textarea {...field} />
+                    <Textarea {...field} disabled={addStockTransactionMutation.isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full" disabled={addStockTransactionMutation.isPending}>
+                {addStockTransactionMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Tambah Transaksi Stok"

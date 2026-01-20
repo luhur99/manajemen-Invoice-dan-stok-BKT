@@ -31,7 +31,7 @@ const TechnicianManagementPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  const { data: technicians = [], isLoading, error } = useQuery<TechnicianWithDetails[], Error>({
+  const { data: technicians = [], isLoading, error, refetch: fetchTechnicians } = useQuery<TechnicianWithDetails[], Error>({
     queryKey: ["technicians"],
     queryFn: async () => {
       const { data, error } = await supabase
