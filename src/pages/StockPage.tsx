@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PlusCircle, Edit, Trash2, Eye } from "lucide-react";
 import { showSuccess, showError } from "@/utils/toast";
 import AddStockItemForm from "@/components/AddStockItemForm";
@@ -19,6 +19,7 @@ interface ProductWithDetails extends ProductType {
 }
 
 const StockPage = () => {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for AddStockItemForm
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -53,6 +54,27 @@ const StockPage = () => {
     },
   });
 
+  const deleteProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const { error } = await supabase
+        .from("products")
+        .delete()
+        .eq("id", productId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Produk berhasil dihapus!");
+      setIsDeleteModalOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate and refetch
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Also invalidate stock management view
+    },
+    onError: (err: any) => {
+      showError(`Gagal menghapus produk: ${err.message}`);
+      console.error("Error deleting product:", err);
+    },
+  });
+
   const handleEditClick = (product: ProductWithDetails) => {
     setSelectedProduct(product);
     setIsEditModalOpen(true);
@@ -68,23 +90,9 @@ const StockPage = () => {
     setIsViewDetailsOpen(true);
   };
 
-  const handleDeleteProduct = async () => {
-    if (!selectedProduct) return;
-
-    try {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", selectedProduct.id);
-
-      if (error) throw error;
-
-      showSuccess("Produk berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      fetchProducts();
-    } catch (err: any) {
-      showError(`Gagal menghapus produk: ${err.message}`);
-      console.error("Error deleting product:", err);
+  const handleConfirmDelete = () => {
+    if (selectedProduct) {
+      deleteProductMutation.mutate(selectedProduct.id);
     }
   };
 
@@ -198,7 +206,9 @@ const StockPage = () => {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteProduct}>Hapus</Button>
+            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteProductMutation.isPending}>
+              {deleteProductMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
