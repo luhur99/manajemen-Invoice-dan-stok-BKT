@@ -14,7 +14,6 @@ import ViewSalesDetailDialog from "@/components/ViewSalesDetailDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { SalesDetail } from "@/types/data"; // Corrected import
-import InvoiceUpload from "@/components/InvoiceUpload"; // Assuming this is for sales invoices, not sales details
 
 const SalesDetailsPage = () => {
   const queryClient = useQueryClient();
