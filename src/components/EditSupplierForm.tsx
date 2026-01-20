@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Supplier } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -41,6 +42,7 @@ interface EditSupplierFormProps {
 
 const EditSupplierForm: React.FC<EditSupplierFormProps> = ({ supplier, isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
+  const queryClient = useQueryClient(); // Initialize queryClient
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -66,15 +68,15 @@ const EditSupplierForm: React.FC<EditSupplierFormProps> = ({ supplier, isOpen, o
     }
   }, [isOpen, supplier, form]);
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const userId = session?.user?.id;
+  // Define the mutation for updating a supplier
+  const updateSupplierMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      const userId = session?.user?.id;
 
-    if (!userId) {
-      showError("Pengguna tidak terautentikasi.");
-      return;
-    }
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
-    try {
       const { error } = await supabase
         .from("suppliers")
         .update({
@@ -91,14 +93,21 @@ const EditSupplierForm: React.FC<EditSupplierFormProps> = ({ supplier, isOpen, o
       if (error) {
         throw error;
       }
-
+    },
+    onSuccess: () => {
       showSuccess("Pemasok berhasil diperbarui!");
       onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] }); // Invalidate and refetch suppliers
       onSuccess();
-    } catch (error: any) {
+    },
+    onError: (error: any) => {
       showError(`Gagal memperbarui pemasok: ${error.message}`);
       console.error("Error updating supplier:", error);
-    }
+    },
+  });
+
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    updateSupplierMutation.mutate(values);
   };
 
   return (
@@ -189,8 +198,8 @@ const EditSupplierForm: React.FC<EditSupplierFormProps> = ({ supplier, isOpen, o
               )}
             />
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? (
+              <Button type="submit" className="w-full mt-6" disabled={updateSupplierMutation.isPending}>
+                {updateSupplierMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Perubahan"
