@@ -594,7 +594,7 @@ const PurchaseRequestPage = () => {
                       </Button>
                     </>
                   )}
-                  {request.status !== PurchaseRequestStatus.CLOSED && (
+                  {request.status !== PurchaseRequestStatus.CLOSED && request.status !== PurchaseRequestStatus.REJECTED && (
                     <>
                       <Button variant="ghost" size="icon" onClick={() => handleReceiptUploadClick(request)} title="Unggah PO/Inv">
                         <Receipt className="h-4 w-4 text-blue-600" />
