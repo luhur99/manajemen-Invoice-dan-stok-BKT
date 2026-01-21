@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Schedule, ScheduleType, ScheduleStatus, Technician } from "@/types/data";
+import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory } from "@/types/data"; // Import ScheduleProductCategory
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 import TechnicianCombobox from "./TechnicianCombobox"; // Import TechnicianCombobox
 
@@ -39,6 +39,7 @@ const formSchema = z.object({
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
   schedule_time: z.string().optional(),
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
+  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(), // New field
   customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
   address: z.string().optional(),
   technician_name: z.string().optional().nullable(), // Keep technician_name as text for now
@@ -64,6 +65,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       schedule_date: new Date(schedule.schedule_date),
       schedule_time: schedule.schedule_time || "",
       type: schedule.type as ScheduleType, // Cast to enum
+      product_category: schedule.product_category || undefined, // Set initial product category
       customer_name: schedule.customer_name,
       address: schedule.address || "",
       technician_name: schedule.technician_name || null, // Set initial technician name
@@ -99,6 +101,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         schedule_date: new Date(schedule.schedule_date),
         schedule_time: schedule.schedule_time || "",
         type: schedule.type as ScheduleType,
+        product_category: schedule.product_category || undefined, // Reset product category
         customer_name: schedule.customer_name,
         address: schedule.address || "",
         technician_name: schedule.technician_name || null,
@@ -132,6 +135,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
           schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
           schedule_time: values.schedule_time,
           type: values.type,
+          product_category: values.product_category, // Include new field
           customer_name: values.customer_name,
           address: values.address,
           technician_name: values.technician_name,
@@ -211,6 +215,31 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                 </FormItem>
               )}
             />
+            {/* New: Product Category Field */}
+            <FormField
+              control={form.control}
+              name="product_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Produk (Opsional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori produk" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(ScheduleProductCategory).map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="schedule_time"
@@ -230,7 +259,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipe Jadwal</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih tipe jadwal" />

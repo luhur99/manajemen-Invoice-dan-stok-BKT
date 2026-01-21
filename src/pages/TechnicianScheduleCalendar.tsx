@@ -7,8 +7,8 @@ import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } fro
 import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician } from "@/types/data"; // Import Technician interface
-import { Loader2, CalendarDays, User, Clock, MapPin, Info, AlertTriangle } from "lucide-react"; // Added AlertTriangle
+import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician, ScheduleProductCategory } from "@/types/data"; // Import Technician and ScheduleProductCategory
+import { Loader2, CalendarDays, User, Clock, MapPin, Info, AlertTriangle, Package } from "lucide-react"; // Added Package
 import { useQuery } from "@tanstack/react-query"; // Import useQuery
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components
 
@@ -242,6 +242,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
                       <li key={schedule.id} className={`p-3 rounded-md shadow-sm text-sm ${getTechnicianBgClass(schedule.technician_name)}`}>
                         <p className="flex items-center"><Clock className="h-4 w-4 mr-2 text-current" /> {schedule.schedule_time || "Waktu tidak ditentukan"}</p>
                         <p className="flex items-center"><Info className="h-4 w-4 mr-2 text-current" /> {schedule.type.charAt(0).toUpperCase() + schedule.type.slice(1)} untuk {schedule.customer_name}</p>
+                        {schedule.product_category && <p className="flex items-center"><Package className="h-4 w-4 mr-2 text-current" /> Kategori Produk: {schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>} {/* Display product category */}
                         {schedule.address && <p className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-current" /> {schedule.address}</p>}
                         {schedule.notes && <p className="text-xs text-current mt-1">Catatan: {schedule.notes}</p>}
                       </li>

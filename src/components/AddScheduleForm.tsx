@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { ScheduleType, ScheduleStatus, Technician } from "@/types/data";
+import { ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory } from "@/types/data"; // Import ScheduleProductCategory
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 import TechnicianCombobox from "./TechnicianCombobox";
@@ -41,6 +41,7 @@ const formSchema = z.object({
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
   schedule_time: z.string().optional(),
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
+  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(), // New field
   customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
   address: z.string().optional(),
   technician_name: z.string().optional().nullable(),
@@ -66,6 +67,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
       schedule_date: new Date(),
       schedule_time: "",
       type: ScheduleType.INSTALASI,
+      product_category: undefined, // Default to undefined
       customer_name: "",
       address: "",
       technician_name: null,
@@ -128,6 +130,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
         schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
         schedule_time: values.schedule_time,
         type: values.type,
+        product_category: values.product_category, // Include new field
         customer_name: values.customer_name,
         address: values.address,
         technician_name: values.technician_name,
@@ -210,6 +213,31 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
                           />
                         </PopoverContent>
                       </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {/* New: Product Category Field */}
+                <FormField
+                  control={form.control}
+                  name="product_category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kategori Produk (Opsional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih kategori produk" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(ScheduleProductCategory).map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

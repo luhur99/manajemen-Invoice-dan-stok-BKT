@@ -169,6 +169,7 @@ const ScheduleManagementPage = () => {
       item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.type.toLowerCase().includes(lowerCaseSearchTerm) ||
+      item.product_category?.toLowerCase().includes(lowerCaseSearchTerm) || // Include product_category in search
       item.status.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
       item.courier_service?.toLowerCase().includes(lowerCaseSearchTerm) ||
@@ -249,6 +250,7 @@ const ScheduleManagementPage = () => {
               <TableHead className="w-[50px]">No</TableHead>
               <TableHead>No. DO</TableHead>
               <TableHead>Tanggal</TableHead>
+              <TableHead>Kategori Produk</TableHead> {/* New TableHead */}
               <TableHead>Waktu</TableHead>
               <TableHead>Tipe</TableHead>
               <TableHead>Pelanggan</TableHead>
@@ -263,6 +265,7 @@ const ScheduleManagementPage = () => {
                 <TableCell>{schedule.no}</TableCell>
                 <TableCell>{schedule.do_number || "-"}</TableCell>
                 <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
+                <TableCell>{schedule.product_category ? schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</TableCell> {/* New TableCell */}
                 <TableCell>{schedule.schedule_time || "-"}</TableCell>
                 <TableCell>{schedule.type}</TableCell>
                 <TableCell>{schedule.customer_name}</TableCell>

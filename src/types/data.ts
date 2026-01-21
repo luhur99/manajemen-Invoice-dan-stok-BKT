@@ -74,8 +74,14 @@ export enum CustomerTypeEnum {
 export enum ScheduleType {
   INSTALASI = "instalasi",
   KIRIM = "kirim",
-  GPS_TRACKER = "gps_tracker", // New: GPS Tracker
-  DASHCAM = "dashcam", // New: Dashcam
+  // GPS_TRACKER = "gps_tracker", // Moved to ScheduleProductCategory
+  // DASHCAM = "dashcam", // Moved to ScheduleProductCategory
+}
+
+// New enum for Schedule Product Category
+export enum ScheduleProductCategory {
+  GPS_TRACKER = "gps_tracker",
+  DASHCAM = "dashcam",
 }
 
 export enum ScheduleStatus {
@@ -237,6 +243,7 @@ export interface Schedule {
   schedule_date: string;
   schedule_time?: string;
   type: ScheduleType;
+  product_category?: ScheduleProductCategory; // New field for product category
   customer_name: string;
   address?: string;
   technician_name?: string;
