@@ -270,7 +270,7 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
                         <SelectContent>
                           {Object.values(ScheduleType).map((type) => (
                             <SelectItem key={type} value={type}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                              {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                             </SelectItem>
                           ))}
                         </SelectContent>

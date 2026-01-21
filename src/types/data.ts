@@ -73,9 +73,9 @@ export enum CustomerTypeEnum {
 
 export enum ScheduleType {
   INSTALASI = "instalasi",
-  KIRIM = "kirim",
-  // GPS_TRACKER = "gps_tracker", // Moved to ScheduleProductCategory
-  // DASHCAM = "dashcam", // Moved to ScheduleProductCategory
+  SERVICE_BILL = "service_bill", // Updated
+  SERVICE_UNBILL = "service_unbill", // Updated
+  KIRIM = "kirim", // Updated
 }
 
 // New enum for Schedule Product Category
