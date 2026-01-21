@@ -24,17 +24,21 @@ const StockMovementHistoryPage = () => {
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
+      console.log("StockMovementHistoryPage: Fetching warehouse categories...");
       const { data, error } = await supabase
         .from("warehouse_categories")
         .select("*")
         .order("name", { ascending: true });
 
       if (error) {
+        console.error("StockMovementHistoryPage: Supabase error fetching warehouse categories:", error);
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
+      console.log("StockMovementHistoryPage: Warehouse categories data received:", data);
       return data;
     },
+    retry: 0, // Disable retries to surface errors faster
   });
 
   const getCategoryDisplayName = (code: string) => {
@@ -45,6 +49,7 @@ const StockMovementHistoryPage = () => {
   const { data: movements, isLoading, error, refetch: fetchMovements } = useQuery<StockLedgerWithProduct[], Error>({ // Updated type and query key
     queryKey: ["stockMovements"],
     queryFn: async () => {
+      console.log("StockMovementHistoryPage: Fetching stock movements...");
       const { data, error } = await supabase
         .from("stock_ledger") // Changed table name
         .select(`
@@ -54,7 +59,11 @@ const StockMovementHistoryPage = () => {
         .eq("event_type", StockEventType.TRANSFER) // Filter for transfer events
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("StockMovementHistoryPage: Supabase error fetching stock movements:", error);
+        throw error;
+      }
+      console.log("StockMovementHistoryPage: Stock movements data received:", data);
 
       return data.map(m => ({
         ...m,
@@ -62,6 +71,7 @@ const StockMovementHistoryPage = () => {
         product_code: m.products?.kode_barang || "N/A",
       }));
     },
+    retry: 0, // Disable retries to surface errors faster
   });
 
   const handleViewNotes = (notes: string) => {
