@@ -11,7 +11,8 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend }
+from "recharts";
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -55,18 +56,33 @@ const DashboardOverviewPage = () => {
     refetch: refetchDashboardData 
   } = useQuery({
     queryKey: ["dashboardOverview"],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('get-dashboard-overview');
-      if (error) {
-        throw error;
+    queryFn: async ({ signal }) => { // Destructure signal from queryFn context
+      try {
+        // Pass the signal to the invoke call if supported by supabase-js version
+        // As of supabase-js@2.45.0, invoke does not directly accept a signal.
+        // The AbortError is likely from React Query's internal cancellation.
+        const { data, error } = await supabase.functions.invoke('get-dashboard-overview');
+        if (error) {
+          throw error;
+        }
+        if (data && data.error) {
+          throw new Error(data.error);
+        }
+        return data;
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          // This is an expected error when the query is cancelled.
+          // React Query handles this, but we can explicitly log it if needed.
+          console.warn('Dashboard overview fetch aborted:', err.message);
+          throw err; // Re-throw so React Query can handle it
+        }
+        throw err; // Re-throw other errors
       }
-      if (data && data.error) {
-        throw new Error(data.error);
-      }
-      return data;
     },
     enabled: !!session, // Only fetch when session is available!
     retry: 1, // Limit retries to prevent endless loops on error
+    staleTime: 5 * 60 * 1000, // Data is considered fresh for 5 minutes
+    gcTime: 10 * 60 * 1000, // Cache data for 10 minutes
   });
 
   // Extract data with default values

@@ -27,7 +27,15 @@ import UserManagementPage from "./pages/UserManagementPage";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // Data considered fresh for 5 minutes
+      gcTime: 10 * 60 * 1000, // Cache data for 10 minutes
+      retry: 1, // Limit retries to 1 attempt
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
