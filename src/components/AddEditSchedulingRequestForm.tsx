@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, Technician } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, Technician, ScheduleProductCategory } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 import CustomerCombobox from "./CustomerCombobox";
@@ -43,6 +43,7 @@ const formSchema = z.object({
   customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
   company_name: z.string().optional().nullable(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
+  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(), // New field
   vehicle_details: z.string().optional().nullable(),
   full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
   landmark: z.string().optional().nullable(),
@@ -125,6 +126,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       customer_name: "",
       company_name: null,
       type: SchedulingRequestType.INSTALLATION,
+      product_category: null, // Default to null
       vehicle_details: null,
       full_address: "",
       landmark: null,
@@ -216,6 +218,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         form.reset({
           ...initialData,
           requested_date: new Date(initialData.requested_date),
+          product_category: initialData.product_category || null, // Set initial product category
           vehicle_details: initialData.vehicle_details || null,
           sr_number: initialData.sr_number || null,
           invoice_id: initialData.invoice_id || null,
@@ -240,6 +243,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             customer_name: "",
             company_name: null,
             type: SchedulingRequestType.INSTALLATION,
+            product_category: null, // Default to null for new requests
             vehicle_details: null,
             full_address: "",
             landmark: null,
@@ -307,6 +311,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         customer_name: values.customer_name.trim(),
         company_name: values.company_name?.trim() || null,
         type: values.type,
+        product_category: values.product_category || null, // Include new field
         vehicle_details: values.vehicle_details?.trim() || null,
         full_address: values.full_address.trim(),
         landmark: values.landmark?.trim() || null,
@@ -462,6 +467,32 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                       {Object.values(SchedulingRequestType).map((type) => (
                         <SelectItem key={type} value={type}>
                           {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* New: Product Category Field */}
+            <FormField
+              control={form.control}
+              name="product_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Produk (Opsional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori produk" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(ScheduleProductCategory).map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                         </SelectItem>
                       ))}
                     </SelectContent>

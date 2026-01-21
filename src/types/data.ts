@@ -209,6 +209,7 @@ export interface SchedulingRequest {
   customer_name: string;
   company_name?: string;
   type: SchedulingRequestType;
+  product_category?: ScheduleProductCategory; // Added this line
   // Removed vehicle_units, vehicle_type, vehicle_year
   vehicle_details?: string; // New field for combined vehicle details
   full_address: string;

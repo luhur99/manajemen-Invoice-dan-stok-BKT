@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SchedulingRequest, SchedulingRequestStatus, SchedulingRequestType, CustomerTypeEnum } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestStatus, SchedulingRequestType, CustomerTypeEnum, ScheduleProductCategory } from "@/types/data";
 import { format } from "date-fns";
 
 interface ViewSchedulingRequestDetailsDialogProps {
@@ -34,6 +34,11 @@ const getStatusDisplay = (status: SchedulingRequestStatus) => {
 
 const getTypeDisplay = (type: SchedulingRequestType) => {
   return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
+const getProductCategoryDisplay = (category: ScheduleProductCategory | null | undefined) => {
+  if (!category) return "-";
+  return category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
 const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsDialogProps> = ({
@@ -74,6 +79,10 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Tipe Permintaan:</p>
             <p>{getTypeDisplay(request.type)}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <p className="font-medium">Kategori Produk:</p>
+            <p>{getProductCategoryDisplay(request.product_category)}</p>
           </div>
           {request.invoice_id && (
             <div className="grid grid-cols-2 gap-2">

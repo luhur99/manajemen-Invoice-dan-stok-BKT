@@ -13,7 +13,7 @@ import ViewSchedulingRequestDetailsDialog from "@/components/ViewSchedulingReque
 import CancelRequestDialog from "@/components/CancelRequestDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician } from "@/types/data";
+import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician, ScheduleProductCategory } from "@/types/data"; // Import ScheduleProductCategory
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import TechnicianCombobox from "@/components/TechnicianCombobox";
@@ -54,6 +54,11 @@ const getStatusDisplay = (status: SchedulingRequestStatus) => {
 
 const getTypeDisplay = (type: SchedulingRequestType) => {
   return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
+
+const getProductCategoryDisplay = (category: ScheduleProductCategory | null | undefined) => {
+  if (!category) return "-";
+  return category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
 const SchedulingRequestPage = () => {
@@ -97,6 +102,7 @@ const SchedulingRequestPage = () => {
         contact_person: req.contact_person || "",
         phone_number: req.phone_number || "",
         type: req.type || SchedulingRequestType.INSTALLATION,
+        product_category: req.product_category || undefined, // Include product_category
         status: req.status || SchedulingRequestStatus.PENDING,
         technician_name: req.technician_name || undefined,
       }));
@@ -173,12 +179,6 @@ const SchedulingRequestPage = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (selectedRequest) {
-      deleteRequestMutation.mutate(selectedRequest.id);
-    }
-  };
-
   const handleViewDetails = (request: SchedulingRequestWithDetails) => {
     setSelectedRequest(request);
     setIsViewDetailsOpen(true);
@@ -206,6 +206,12 @@ const SchedulingRequestPage = () => {
     }
   };
 
+  const handleConfirmDelete = () => {
+    if (selectedRequest) {
+      deleteRequestMutation.mutate(selectedRequest.id);
+    }
+  };
+
   const filteredRequests = requests?.filter((request) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     const customerName = request.customer_name_from_customers || request.customer_name;
@@ -217,6 +223,7 @@ const SchedulingRequestPage = () => {
       customerName.toLowerCase().includes(lowerCaseSearchTerm) ||
       companyName?.toLowerCase().includes(lowerCaseSearchTerm) ||
       getTypeDisplay(request.type).toLowerCase().includes(lowerCaseSearchTerm) ||
+      getProductCategoryDisplay(request.product_category).toLowerCase().includes(lowerCaseSearchTerm) || // Include product category in search
       getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
       request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
       phoneNumber.toLowerCase().includes(lowerCaseSearchTerm) ||
@@ -273,6 +280,7 @@ const SchedulingRequestPage = () => {
               <TableHead>Nomor SR</TableHead>
               <TableHead>Pelanggan</TableHead>
               <TableHead>Tipe</TableHead>
+              <TableHead>Kategori Produk</TableHead> {/* New TableHead */}
               <TableHead>Tanggal Diminta</TableHead>
               <TableHead>Nama Teknisi</TableHead>
               <TableHead>No. Invoice Terkait</TableHead>
@@ -288,6 +296,7 @@ const SchedulingRequestPage = () => {
                 <TableCell>{request.sr_number || "-"}</TableCell>
                 <TableCell>{request.customer_name_from_customers || request.customer_name}</TableCell>
                 <TableCell>{getTypeDisplay(request.type)}</TableCell>
+                <TableCell>{getProductCategoryDisplay(request.product_category)}</TableCell> {/* New TableCell */}
                 <TableCell>{format(new Date(request.requested_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{request.technician_name || "-"}</TableCell>
                 <TableCell>{request.invoice_number || "-"}</TableCell>
