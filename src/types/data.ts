@@ -74,6 +74,8 @@ export enum CustomerTypeEnum {
 export enum ScheduleType {
   INSTALASI = "instalasi",
   KIRIM = "kirim",
+  GPS_TRACKER = "gps_tracker", // New: GPS Tracker
+  DASHCAM = "dashcam", // New: Dashcam
 }
 
 export enum ScheduleStatus {
