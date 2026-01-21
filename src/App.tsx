@@ -26,6 +26,7 @@ import NotFound from "./pages/NotFound";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
+import ErrorBoundary from "./components/ErrorBoundary"; // Import ErrorBoundary
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,25 +52,25 @@ const App = () => (
             <Route path="/print/invoice/:id" element={<PrintInvoicePage />} />
             <Route path="/print/schedule/:id" element={<PrintSchedulePage />} />
 
-            {/* Main App Routes */}
-            <Route path="/" element={<MainLayout><DashboardOverviewPage /></MainLayout>} />
-            <Route path="/invoices" element={<MainLayout><InvoiceManagementPage /></MainLayout>} />
-            <Route path="/schedules" element={<MainLayout><ScheduleManagementPage /></MainLayout>} />
-            <Route path="/stock" element={<MainLayout><StockPage /></MainLayout>} />
-            <Route path="/stock-management" element={<MainLayout><StockManagementPage /></MainLayout>} />
-            <Route path="/sales-details" element={<MainLayout><SalesDetailsPage /></MainLayout>} />
-            <Route path="/profile" element={<MainLayout><ProfilePage /></MainLayout>} />
-            <Route path="/stock-history" element={<MainLayout><StockHistoryPage /></MainLayout>} />
-            <Route path="/stock-movement-history" element={<MainLayout><StockMovementHistoryPage /></MainLayout>} />
-            <Route path="/purchase-requests" element={<MainLayout><PurchaseRequestPage /></MainLayout>} />
-            <Route path="/suppliers" element={<MainLayout><SupplierManagementPage /></MainLayout>} />
-            <Route path="/warehouse-categories" element={<MainLayout><WarehouseCategoryPage /></MainLayout>} />
-            <Route path="/scheduling-requests" element={<MainLayout><SchedulingRequestPage /></MainLayout>} />
-            <Route path="/customers" element={<MainLayout><CustomerManagementPage /></MainLayout>} />
-            <Route path="/technicians" element={<MainLayout><TechnicianManagementPage /></MainLayout>} />
-            <Route path="/technician-calendar" element={<MainLayout><TechnicianScheduleCalendar /></MainLayout>} />
-            <Route path="/users" element={<MainLayout><UserManagementPage /></MainLayout>} />
-            <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
+            {/* Main App Routes wrapped with ErrorBoundary */}
+            <Route path="/" element={<ErrorBoundary><MainLayout><DashboardOverviewPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/invoices" element={<ErrorBoundary><MainLayout><InvoiceManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/schedules" element={<ErrorBoundary><MainLayout><ScheduleManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/stock" element={<ErrorBoundary><MainLayout><StockPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/stock-management" element={<ErrorBoundary><MainLayout><StockManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/sales-details" element={<ErrorBoundary><MainLayout><SalesDetailsPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/profile" element={<ErrorBoundary><MainLayout><ProfilePage /></MainLayout></ErrorBoundary>} />
+            <Route path="/stock-history" element={<ErrorBoundary><MainLayout><StockHistoryPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/stock-movement-history" element={<ErrorBoundary><MainLayout><StockMovementHistoryPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/purchase-requests" element={<ErrorBoundary><MainLayout><PurchaseRequestPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/suppliers" element={<ErrorBoundary><MainLayout><SupplierManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/warehouse-categories" element={<ErrorBoundary><MainLayout><WarehouseCategoryPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/scheduling-requests" element={<ErrorBoundary><MainLayout><SchedulingRequestPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/customers" element={<ErrorBoundary><MainLayout><CustomerManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/technicians" element={<ErrorBoundary><MainLayout><TechnicianManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/technician-calendar" element={<ErrorBoundary><MainLayout><TechnicianScheduleCalendar /></MainLayout></ErrorBoundary>} />
+            <Route path="/users" element={<ErrorBoundary><MainLayout><UserManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="*" element={<ErrorBoundary><MainLayout><NotFound /></MainLayout></ErrorBoundary>} />
           </Routes>
         </SessionContextProvider>
       </BrowserRouter>
