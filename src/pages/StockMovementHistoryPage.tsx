@@ -167,16 +167,12 @@ const StockMovementHistoryPage = () => {
               <TableHead>Dari Kategori</TableHead>
               <TableHead>Ke Kategori</TableHead>
               <TableHead className="text-right">Kuantitas</TableHead>
-              <TableHead>Catatan</TableHead> {/* Changed to button */}
+              <TableHead>Catatan</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredMovements?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground">
-                  Tidak ada riwayat perpindahan stok yang ditemukan.
-                </TableCell>
-              </TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Tidak ada riwayat perpindahan stok yang ditemukan.</TableCell></TableRow>
             ) : (
               filteredMovements?.map((movement) => (
                 <TableRow key={movement.id}>
@@ -186,15 +182,7 @@ const StockMovementHistoryPage = () => {
                   <TableCell>{movement.from_warehouse_category ? getCategoryDisplayName(movement.from_warehouse_category) : "-"}</TableCell>
                   <TableCell>{movement.to_warehouse_category ? getCategoryDisplayName(movement.to_warehouse_category) : "-"}</TableCell>
                   <TableCell className="text-right">{movement.quantity}</TableCell>
-                  <TableCell>
-                    {movement.notes ? (
-                      <Button variant="outline" size="sm" onClick={() => handleViewNotes(movement.notes!)} className="h-7 px-2">
-                        <Eye className="h-3 w-3 mr-1" /> Lihat
-                      </Button>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
+                  <TableCell>{movement.notes ? (<Button variant="outline" size="sm" onClick={() => handleViewNotes(movement.notes!)} className="h-7 px-2"><Eye className="h-3 w-3 mr-1" /> Lihat</Button>) : ("-")}</TableCell>
                 </TableRow>
               ))
             )}
