@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Edit, Trash, Receipt, Eye, Loader2, FileText, CheckCircle } from "lucide-react"; // Import CheckCircle icon
+import { Plus, Edit, Trash, Receipt, Eye, Loader2, FileText, CheckCircle, XCircle } from "lucide-react"; // Import XCircle icon
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -59,34 +59,34 @@ const purchaseRequestSchema = z.object({
 });
 
 const generatePrNumber = async (): Promise<string> => {
-  const today = format(new Date(), "yyMMdd"); // Changed to yyMMdd
-  const prefix = `PR${today}`; // Removed hyphen
+  const today = format(new Date(), "yyMMdd");
+  const prefix = `PR${today}`;
 
   // Fetch the count of PRs created today
   const { data, error } = await supabase
     .from("purchase_requests")
     .select("pr_number")
-    .like("pr_number", `${prefix}%`) // Updated like clause
+    .like("pr_number", `${prefix}%`)
     .order("pr_number", { ascending: false })
     .limit(1);
 
   if (error) {
     console.error("Error fetching latest PR number:", error);
     // Fallback to a less ideal but unique number
-    return `${prefix}${Date.now().toString().slice(-4)}`; // Fallback with new format
+    return `${prefix}${Date.now().toString().slice(-4)}`;
   }
 
   let sequence = 1;
   if (data && data.length > 0 && data[0].pr_number) {
     const latestPrNumber = data[0].pr_number;
     // Extract sequence from the end of the new format PRYYMMDDXXXX
-    const currentSequence = parseInt(latestPrNumber.substring(8), 10); // Get last 4 digits
+    const currentSequence = parseInt(latestPrNumber.substring(8), 10);
     if (!isNaN(currentSequence)) {
       sequence = currentSequence + 1;
     }
   }
 
-  return `${prefix}${String(sequence).padStart(4, '0')}`; // Removed hyphen
+  return `${prefix}${String(sequence).padStart(4, '0')}`;
 };
 
 const PurchaseRequestPage = () => {
@@ -150,7 +150,7 @@ const PurchaseRequestPage = () => {
   const form = useForm<z.infer<typeof purchaseRequestSchema>>({
     resolver: zodResolver(purchaseRequestSchema),
     defaultValues: {
-      pr_number: "", // Added default value
+      pr_number: "",
       item_name: "",
       item_code: "",
       quantity: 1,
@@ -261,7 +261,7 @@ const PurchaseRequestPage = () => {
     mutationFn: async (request: PurchaseRequest) => {
       const { data, error } = await supabase
         .from("purchase_requests")
-        .update({ status: PurchaseRequestStatus.APPROVED })
+        .update({ status: PurchaseRequestStatus.APPROVED, updated_at: new Date().toISOString() })
         .eq("id", request.id)
         .select()
         .single();
@@ -275,6 +275,28 @@ const PurchaseRequestPage = () => {
     },
     onError: (err) => {
       showError(`Gagal menyetujui permintaan pembelian: ${err.message}`);
+    },
+  });
+
+  // New mutation for rejecting a purchase request
+  const rejectPurchaseRequestMutation = useMutation({
+    mutationFn: async (request: PurchaseRequest) => {
+      const { data, error } = await supabase
+        .from("purchase_requests")
+        .update({ status: PurchaseRequestStatus.REJECTED, updated_at: new Date().toISOString() })
+        .eq("id", request.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
+      showSuccess("Permintaan pembelian berhasil ditolak!");
+      setSelectedRequest(null);
+    },
+    onError: (err) => {
+      showError(`Gagal menolak permintaan pembelian: ${err.message}`);
     },
   });
 
@@ -321,11 +343,11 @@ const PurchaseRequestPage = () => {
     },
   });
 
-  const handleAddRequest = async () => { // Made async to await generatePrNumber
+  const handleAddRequest = async () => {
     setSelectedRequest(null);
-    const newPrNumber = await generatePrNumber(); // Generate PR number
+    const newPrNumber = await generatePrNumber();
     reset({
-      pr_number: newPrNumber, // Set generated PR number
+      pr_number: newPrNumber,
       item_name: "",
       item_code: "",
       quantity: 1,
@@ -352,7 +374,7 @@ const PurchaseRequestPage = () => {
     setSelectedRequest(request);
     reset({
       ...request,
-      pr_number: request.pr_number || "", // Ensure pr_number is set for edit
+      pr_number: request.pr_number || "",
       quantity: request.quantity || 0,
       unit_price: request.unit_price || 0,
       suggested_selling_price: request.suggested_selling_price || 0,
@@ -376,6 +398,11 @@ const PurchaseRequestPage = () => {
   const handleApproveRequest = (request: PurchaseRequest) => {
     setSelectedRequest(request);
     approvePurchaseRequestMutation.mutate(request);
+  };
+
+  const handleRejectRequest = (request: PurchaseRequest) => { // New handler for reject
+    setSelectedRequest(request);
+    rejectPurchaseRequestMutation.mutate(request);
   };
 
   const handleReceiptUploadClick = (request: PurchaseRequest) => {
@@ -486,7 +513,7 @@ const PurchaseRequestPage = () => {
       case PurchaseRequestStatus.REJECTED:
         return "Rejected";
       case PurchaseRequestStatus.WAITING_FOR_RECEIVED:
-        return "Waiting for Received"; // Updated display text
+        return "Waiting for Received";
       case PurchaseRequestStatus.CLOSED:
         return "Closed";
       default:
@@ -503,7 +530,7 @@ const PurchaseRequestPage = () => {
       case PurchaseRequestStatus.REJECTED:
         return "bg-red-100 text-red-800";
       case PurchaseRequestStatus.WAITING_FOR_RECEIVED:
-        return "bg-purple-100 text-purple-800"; // Keep purple for this status
+        return "bg-purple-100 text-purple-800";
       case PurchaseRequestStatus.CLOSED:
         return "bg-green-100 text-green-800";
       default:
@@ -558,6 +585,9 @@ const PurchaseRequestPage = () => {
                     <>
                       <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui Permintaan">
                         <CheckCircle className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak Permintaan"> {/* New Reject Button */}
+                        <XCircle className="h-4 w-4 text-red-600" />
                       </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(request)} title="Hapus Permintaan">
                         <Trash className="h-4 w-4 text-red-600" />
