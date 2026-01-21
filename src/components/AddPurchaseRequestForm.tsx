@@ -29,8 +29,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
 import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/components/SessionContextProvider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
 
 const formSchema = z.object({
   product_id: z.string().min(1, "Produk harus dipilih."),
@@ -57,6 +58,7 @@ interface AddPurchaseRequestFormProps {
 const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
+  const [activeTab, setActiveTab] = useState("product_info"); // State to manage active tab
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -175,6 +177,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
         target_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
         notes: "",
       });
+      setActiveTab("product_info"); // Reset to first tab
     }
   }, [isOpen, form, warehouseCategories]);
 
@@ -259,204 +262,224 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-            <FormField
-              control={form.control}
-              name="product_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Produk</FormLabel>
-                  <FormControl>
-                    <StockItemCombobox
-                      products={products || []}
-                      selectedProductId={field.value}
-                      onSelectProduct={field.onChange}
-                      disabled={loadingProducts}
-                      placeholder="Pilih produk untuk permintaan pembelian"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="item_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nama Item</FormLabel>
-                  <FormControl>
-                    <Input {...field} readOnly className="bg-gray-100" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="item_code"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kode Item</FormLabel>
-                  <FormControl>
-                    <Input {...field} readOnly className="bg-gray-100" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="satuan"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Satuan</FormLabel>
-                  <FormControl>
-                    <Input {...field} readOnly className="bg-gray-100" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kuantitas</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                      min="1"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="unit_price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Harga Satuan (Beli)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                      min="0"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="suggested_selling_price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Harga Jual Disarankan</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                      min="0"
-                      readOnly
-                      className="bg-gray-100"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="total_price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Total Harga</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} readOnly className="bg-gray-100" />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="supplier_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Supplier</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingSuppliers}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih supplier" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {loadingSuppliers ? (
-                        <SelectItem value="loading" disabled>
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
-                        </SelectItem>
-                      ) : suppliers?.length === 0 ? (
-                        <SelectItem value="no-suppliers" disabled>
-                          Tidak ada supplier tersedia
-                        </SelectItem>
-                      ) : (
-                        suppliers?.map((supplier) => (
-                          <SelectItem key={supplier.id} value={supplier.id}>
-                            {supplier.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="target_warehouse_category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kategori Gudang Tujuan</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang tujuan"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {warehouseCategories?.map((category) => (
-                        <SelectItem key={category.id} value={category.code}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Catatan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Textarea {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="product_info">Produk</TabsTrigger>
+                <TabsTrigger value="quantity_price">Kuantitas & Harga</TabsTrigger>
+                <TabsTrigger value="supplier_warehouse">Supplier & Gudang</TabsTrigger>
+                <TabsTrigger value="notes">Catatan</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="product_info" className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="product_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Produk</FormLabel>
+                      <FormControl>
+                        <StockItemCombobox
+                          products={products || []}
+                          selectedProductId={field.value}
+                          onSelectProduct={field.onChange}
+                          disabled={loadingProducts}
+                          placeholder="Pilih produk untuk permintaan pembelian"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="item_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nama Item</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly className="bg-gray-100" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="item_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kode Item</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly className="bg-gray-100" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="satuan"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Satuan</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly className="bg-gray-100" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="quantity_price" className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kuantitas</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                          min="1"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="unit_price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Harga Satuan (Beli)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          min="0"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="suggested_selling_price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Harga Jual Disarankan</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          min="0"
+                          readOnly
+                          className="bg-gray-100"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="total_price"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Harga</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} readOnly className="bg-gray-100" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="supplier_warehouse" className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="supplier_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Supplier</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={loadingSuppliers}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih supplier" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {loadingSuppliers ? (
+                            <SelectItem value="loading" disabled>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
+                            </SelectItem>
+                          ) : suppliers?.length === 0 ? (
+                            <SelectItem value="no-suppliers" disabled>
+                              Tidak ada supplier tersedia
+                            </SelectItem>
+                          ) : (
+                            suppliers?.map((supplier) => (
+                              <SelectItem key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="target_warehouse_category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kategori Gudang Tujuan</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang tujuan"} />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {warehouseCategories?.map((category) => (
+                            <SelectItem key={category.id} value={category.code}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+
+              <TabsContent value="notes" className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Catatan (Opsional)</FormLabel>
+                      <FormControl>
+                        <Textarea {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </TabsContent>
+            </Tabs>
             <DialogFooter>
               <Button type="submit" disabled={addPurchaseRequestMutation.isPending}>
                 {addPurchaseRequestMutation.isPending ? (
