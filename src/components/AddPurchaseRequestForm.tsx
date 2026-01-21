@@ -32,8 +32,38 @@ import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import { format } from "date-fns"; // Import format from date-fns
+
+// Helper function to generate PR number
+const generatePrNumber = async (): Promise<string> => {
+  const today = format(new Date(), "yyMMdd");
+  const prefix = `PR${today}`;
+
+  const { data, error } = await supabase
+    .from("purchase_requests")
+    .select("pr_number")
+    .like("pr_number", `${prefix}%`)
+    .order("pr_number", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error("Error fetching latest PR number:", error);
+    return `${prefix}${Date.now().toString().slice(-4)}`;
+  }
+
+  let sequence = 1;
+  if (data && data.length > 0 && data[0].pr_number) {
+    const latestPrNumber = data[0].pr_number;
+    const currentSequence = parseInt(latestPrNumber.substring(8), 10);
+    if (!isNaN(currentSequence)) {
+      sequence = currentSequence + 1;
+    }
+  }
+  return `${prefix}${String(sequence).padStart(4, '0')}`;
+};
 
 const formSchema = z.object({
+  pr_number: z.string().optional().nullable(), // Added pr_number to schema
   product_id: z.string().min(1, "Produk harus dipilih."),
   item_name: z.string().min(1, "Nama item harus diisi."),
   item_code: z.string().min(1, "Kode item harus diisi."),
@@ -63,6 +93,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      pr_number: null, // Will be generated
       product_id: "",
       item_name: "",
       item_code: "",
@@ -161,21 +192,24 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     }
   }, [isOpen, warehouseCategories, form]);
 
-  // Reset form when dialog opens
+  // Reset form and generate PR number when dialog opens
   useEffect(() => {
     if (isOpen) {
-      form.reset({
-        product_id: "",
-        item_name: "",
-        item_code: "",
-        satuan: "",
-        quantity: 1,
-        unit_price: 0,
-        suggested_selling_price: 0,
-        total_price: 0,
-        supplier_id: "",
-        target_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
-        notes: "",
+      generatePrNumber().then(prNum => {
+        form.reset({
+          pr_number: prNum,
+          product_id: "",
+          item_name: "",
+          item_code: "",
+          satuan: "",
+          quantity: 1,
+          unit_price: 0,
+          suggested_selling_price: 0,
+          total_price: 0,
+          supplier_id: "",
+          target_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
+          notes: "",
+        });
       });
       setActiveTab("product_info"); // Reset to first tab
     }
@@ -218,6 +252,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
 
       const { error } = await supabase.from("purchase_requests").insert({
         user_id: userId,
+        pr_number: values.pr_number, // Include generated PR number
         product_id: values.product_id,
         item_name: values.item_name,
         item_code: values.item_code,
@@ -271,6 +306,19 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
               </TabsList>
 
               <TabsContent value="product_info" className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="pr_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nomor PR</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly className="bg-gray-100" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="product_id"

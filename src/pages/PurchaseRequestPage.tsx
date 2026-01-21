@@ -31,76 +31,36 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { showError, showSuccess } from "@/utils/toast";
 import { format } from "date-fns";
-import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategory as WarehouseCategoryType, Supplier, StockEventType } from "@/types/data";
+import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategory as WarehouseCategoryType, Supplier, StockEventType, PurchaseRequestWithDetails } from "@/types/data"; // Import PurchaseRequestWithDetails
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
+import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm"; // Import AddPurchaseRequestForm
+import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm"; // Import EditPurchaseRequestForm
+import PurchaseRequestReceiptUpload from "@/components/PurchaseRequestReceiptUpload"; // Import PurchaseRequestReceiptUpload
+import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog"; // Import ViewPurchaseRequestDetailsDialog
 
-const purchaseRequestSchema = z.object({
-  id: z.string().uuid().optional(), // Add id for update scenarios
-  pr_number: z.string().optional(), // Added pr_number to schema
-  item_name: z.string().min(1, "Nama item wajib diisi"),
-  item_code: z.string().min(1, "Kode item wajib diisi"),
-  quantity: z.number().min(1, "Kuantitas minimal 1"),
-  unit_price: z.number().min(0, "Harga satuan tidak boleh negatif"),
-  suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif"),
-  total_price: z.number().min(0, "Total harga tidak boleh negatif"),
-  notes: z.string().optional(),
-  status: z.nativeEnum(PurchaseRequestStatus).default(PurchaseRequestStatus.PENDING),
-  document_url: z.string().optional().nullable(),
-  received_quantity: z.number().optional().nullable(),
-  returned_quantity: z.number().optional().nullable(),
-  damaged_quantity: z.number().optional().nullable(),
-  target_warehouse_category: z.string().optional().nullable(),
+const closeRequestSchema = z.object({
+  received_quantity: z.number().min(0, "Kuantitas diterima tidak boleh negatif."),
+  returned_quantity: z.number().min(0, "Kuantitas dikembalikan tidak boleh negatif.").optional().nullable(),
+  damaged_quantity: z.number().min(0, "Kuantitas rusak tidak boleh negatif.").optional().nullable(),
+  target_warehouse_category: z.string().min(1, "Kategori gudang target wajib dipilih."),
   received_notes: z.string().optional().nullable(),
-  received_at: z.string().optional().nullable(),
-  product_id: z.string().uuid().optional().nullable(),
-  supplier_id: z.string().uuid().optional().nullable(),
-  satuan: z.string().optional().nullable(),
 });
-
-const generatePrNumber = async (): Promise<string> => {
-  const today = format(new Date(), "yyMMdd");
-  const prefix = `PR${today}`;
-
-  // Fetch the count of PRs created today
-  const { data, error } = await supabase
-    .from("purchase_requests")
-    .select("pr_number")
-    .like("pr_number", `${prefix}%`)
-    .order("pr_number", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    console.error("Error fetching latest PR number:", error);
-    // Fallback to a less ideal but unique number
-    return `${prefix}${Date.now().toString().slice(-4)}`;
-  }
-
-  let sequence = 1;
-  if (data && data.length > 0 && data[0].pr_number) {
-    const latestPrNumber = data[0].pr_number;
-    // Extract sequence from the end of the new format PRYYMMDDXXXX
-    const currentSequence = parseInt(latestPrNumber.substring(8), 10);
-    if (!isNaN(currentSequence)) {
-      sequence = currentSequence + 1;
-    }
-  }
-
-  return `${prefix}${String(sequence).padStart(4, '0')}`;
-};
 
 const PurchaseRequestPage = () => {
   const queryClient = useQueryClient();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for Add form
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // State for Edit form
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isViewReceiptDialogOpen, setIsViewReceiptDialogOpen] = useState(false);
   const [isCloseRequestDialogOpen, setIsCloseRequestDialogOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<PurchaseRequest | null>(null);
-  const [fileToUpload, setFileToUpload] = useState<File | null>(null);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false); // State for View Details Dialog
+  const [selectedRequest, setSelectedRequest] = useState<PurchaseRequestWithDetails | null>(null); // Use PurchaseRequestWithDetails
   const [currentReceiptUrl, setCurrentReceiptUrl] = useState<string | null>(null);
 
-  const { data: purchaseRequests, isLoading, isError, error, refetch } = useQuery<PurchaseRequest[], Error>({
+  const { data: purchaseRequests, isLoading, isError, error, refetch } = useQuery<PurchaseRequestWithDetails[], Error>({ // Changed type here
     queryKey: ["purchaseRequests"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -116,16 +76,7 @@ const PurchaseRequestPage = () => {
         ...req,
         product_name: req.products?.nama_barang || 'N/A',
         supplier_name: req.suppliers?.name || 'N/A',
-      })) as PurchaseRequest[];
-    },
-  });
-
-  const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
-    queryKey: ["products"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("products").select("*");
-      if (error) throw error;
-      return data;
+      })) as PurchaseRequestWithDetails[]; // Cast to PurchaseRequestWithDetails[]
     },
   });
 
@@ -138,108 +89,31 @@ const PurchaseRequestPage = () => {
     },
   });
 
-  const { data: suppliers, isLoading: loadingSuppliers } = useQuery<Supplier[], Error>({
-    queryKey: ["suppliers"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("suppliers").select("*");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const form = useForm<z.infer<typeof purchaseRequestSchema>>({
-    resolver: zodResolver(purchaseRequestSchema),
+  const closeRequestForm = useForm<z.infer<typeof closeRequestSchema>>({
+    resolver: zodResolver(closeRequestSchema),
     defaultValues: {
-      pr_number: "",
-      item_name: "",
-      item_code: "",
-      quantity: 1,
-      unit_price: 0,
-      suggested_selling_price: 0,
-      total_price: 0,
-      notes: "",
-      status: PurchaseRequestStatus.PENDING,
-      document_url: null,
       received_quantity: 0,
       returned_quantity: 0,
       damaged_quantity: 0,
-      target_warehouse_category: null,
-      received_notes: null,
-      received_at: null,
-      product_id: null,
-      supplier_id: null,
-      satuan: "",
+      target_warehouse_category: "",
+      received_notes: "",
     },
   });
 
-  const { reset, handleSubmit, register, setValue, watch, formState: { errors } } = form;
-  const watchedQuantity = watch("quantity");
-  const watchedUnitPrice = watch("unit_price");
-  const watchedProductId = watch("product_id");
+  const { reset: resetCloseForm, handleSubmit: handleCloseSubmit, register: registerCloseForm, setValue: setCloseValue, watch: watchCloseForm, formState: { errors: closeFormErrors } } = closeRequestForm;
+  const watchedTargetWarehouseCategory = watchCloseForm("target_warehouse_category");
 
   useEffect(() => {
-    setValue("total_price", watchedQuantity * watchedUnitPrice);
-  }, [watchedQuantity, watchedUnitPrice, setValue]);
-
-  useEffect(() => {
-    if (watchedProductId && products) {
-      const selectedProduct = products.find(p => p.id === watchedProductId);
-      if (selectedProduct) {
-        setValue("item_name", selectedProduct.nama_barang);
-        setValue("item_code", selectedProduct.kode_barang);
-        setValue("unit_price", selectedProduct.harga_beli || 0);
-        setValue("suggested_selling_price", selectedProduct.harga_jual || 0);
-        setValue("satuan", selectedProduct.satuan || "");
-        setValue("supplier_id", selectedProduct.supplier_id || null);
-      }
+    if (isCloseRequestDialogOpen && selectedRequest) {
+      resetCloseForm({
+        received_quantity: selectedRequest.received_quantity || selectedRequest.quantity,
+        returned_quantity: selectedRequest.returned_quantity || 0,
+        damaged_quantity: selectedRequest.damaged_quantity || 0,
+        target_warehouse_category: selectedRequest.target_warehouse_category || (warehouseCategories && warehouseCategories.length > 0 ? warehouseCategories[0].code : ""),
+        received_notes: selectedRequest.received_notes || "",
+      });
     }
-  }, [watchedProductId, products, setValue]);
-
-  const createPurchaseRequestMutation = useMutation({
-    mutationFn: async (newRequest: z.infer<typeof purchaseRequestSchema>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-      const { data, error } = await supabase
-        .from("purchase_requests")
-        .insert({ ...newRequest, user_id: user.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-      showSuccess("Permintaan pembelian berhasil dibuat!");
-      setIsDialogOpen(false);
-      reset();
-    },
-    onError: (err) => {
-      showError(`Gagal membuat permintaan pembelian: ${err.message}`);
-    },
-  });
-
-  const updatePurchaseRequestMutation = useMutation({
-    mutationFn: async (updatedRequest: PurchaseRequest) => {
-      const { data, error } = await supabase
-        .from("purchase_requests")
-        .update(updatedRequest)
-        .eq("id", updatedRequest.id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
-      showSuccess("Permintaan pembelian berhasil diperbarui!");
-      setIsDialogOpen(false);
-      setSelectedRequest(null);
-      reset();
-    },
-    onError: (err) => {
-      showError(`Gagal memperbarui permintaan pembelian: ${err.message}`);
-    },
-  });
+  }, [isCloseRequestDialogOpen, selectedRequest, resetCloseForm, warehouseCategories]);
 
   const deletePurchaseRequestMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -278,7 +152,6 @@ const PurchaseRequestPage = () => {
     },
   });
 
-  // New mutation for rejecting a purchase request
   const rejectPurchaseRequestMutation = useMutation({
     mutationFn: async (request: PurchaseRequest) => {
       const { data, error } = await supabase
@@ -301,16 +174,8 @@ const PurchaseRequestPage = () => {
   });
 
   const confirmCloseRequestMutation = useMutation({
-    mutationFn: async (formData: z.infer<typeof purchaseRequestSchema>) => {
+    mutationFn: async (formData: z.infer<typeof closeRequestSchema>) => {
       if (!selectedRequest || !selectedRequest.id) throw new Error("Permintaan tidak valid.");
-
-      // Check client-side validation logic that doesn't need DB call
-      if (!formData.received_quantity || formData.received_quantity <= 0) {
-        throw new Error("Tidak dapat menutup permintaan. Kuantitas diterima harus lebih besar dari 0.");
-      }
-      if (!formData.target_warehouse_category) {
-        throw new Error("Tidak dapat menutup permintaan. Kategori gudang target belum ditentukan.");
-      }
 
       // Invoke atomic Edge Function
       const { data, error } = await supabase.functions.invoke('close-purchase-request', {
@@ -336,55 +201,24 @@ const PurchaseRequestPage = () => {
       showSuccess("Permintaan pembelian berhasil ditutup dan stok diperbarui!");
       setIsCloseRequestDialogOpen(false);
       setSelectedRequest(null);
-      form.reset();
+      closeRequestForm.reset();
     },
     onError: (err: any) => {
       showError(`Gagal menutup permintaan pembelian: ${err.message}`);
     },
   });
 
-  const handleAddRequest = async () => {
-    setSelectedRequest(null);
-    const newPrNumber = await generatePrNumber();
-    reset({
-      pr_number: newPrNumber,
-      item_name: "",
-      item_code: "",
-      quantity: 1,
-      unit_price: 0,
-      suggested_selling_price: 0,
-      total_price: 0,
-      notes: "",
-      status: PurchaseRequestStatus.PENDING,
-      document_url: null,
-      received_quantity: 0,
-      returned_quantity: 0,
-      damaged_quantity: 0,
-      target_warehouse_category: null,
-      received_notes: null,
-      received_at: null,
-      product_id: null,
-      supplier_id: null,
-      satuan: "",
-    });
-    setIsDialogOpen(true);
+  const handleAddRequest = () => {
+    setSelectedRequest(null); // Ensure no request is selected for add form
+    setIsAddModalOpen(true);
   };
 
-  const handleEditRequest = (request: PurchaseRequest) => {
+  const handleEditRequest = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
     setSelectedRequest(request);
-    reset({
-      ...request,
-      pr_number: request.pr_number || "",
-      quantity: request.quantity || 0,
-      unit_price: request.unit_price || 0,
-      suggested_selling_price: request.suggested_selling_price || 0,
-      total_price: request.total_price || 0,
-      status: request.status || PurchaseRequestStatus.PENDING,
-    });
-    setIsDialogOpen(true);
+    setIsEditModalOpen(true);
   };
 
-  const handleDeleteRequest = (request: PurchaseRequest) => {
+  const handleDeleteRequest = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
     setSelectedRequest(request);
     setIsDeleteDialogOpen(true);
   };
@@ -395,72 +229,19 @@ const PurchaseRequestPage = () => {
     }
   };
 
-  const handleApproveRequest = (request: PurchaseRequest) => {
+  const handleApproveRequest = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
     setSelectedRequest(request);
     approvePurchaseRequestMutation.mutate(request);
   };
 
-  const handleRejectRequest = (request: PurchaseRequest) => { // New handler for reject
+  const handleRejectRequest = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
     setSelectedRequest(request);
     rejectPurchaseRequestMutation.mutate(request);
   };
 
-  const handleReceiptUploadClick = (request: PurchaseRequest) => {
+  const handleReceiptUploadClick = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
     setSelectedRequest(request);
-    setFileToUpload(null);
     setIsUploadDialogOpen(true);
-  };
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files.length > 0) {
-      setFileToUpload(event.target.files[0]);
-    } else {
-      setFileToUpload(null);
-    }
-  };
-
-  const handleFileUpload = async () => {
-    if (!selectedRequest || !fileToUpload) {
-      showError("Tidak ada file yang dipilih atau permintaan tidak valid.");
-      return;
-    }
-
-    const fileExtension = fileToUpload.name.split(".").pop();
-    const fileName = `${selectedRequest.id}-${Date.now()}.${fileExtension}`;
-    const filePath = `purchase_documents/${fileName}`;
-
-    const { data, error } = await supabase.storage
-      .from("documents")
-      .upload(filePath, fileToUpload, {
-        cacheControl: "3600",
-        upsert: false,
-      });
-
-    if (error) {
-      showError(`Gagal mengunggah file: ${error.message}`);
-      return;
-    }
-
-    const publicUrl = supabase.storage.from("documents").getPublicUrl(filePath).data.publicUrl;
-
-    const { error: updateError } = await supabase
-      .from("purchase_requests")
-      .update({ 
-        document_url: publicUrl, 
-        status: PurchaseRequestStatus.WAITING_FOR_RECEIVED // Set status to WAITING_FOR_RECEIVED after upload
-      }) 
-      .eq("id", selectedRequest.id);
-
-    if (updateError) {
-      showError(`Gagal memperbarui URL dokumen: ${updateError.message}`);
-      return;
-    }
-
-    showSuccess("File berhasil diunggah dan permintaan diperbarui!");
-    setIsUploadDialogOpen(false);
-    setSelectedRequest(null);
-    setFileToUpload(null);
-    refetch();
   };
 
   const handleViewReceipt = (url: string) => {
@@ -468,18 +249,27 @@ const PurchaseRequestPage = () => {
     setIsViewReceiptDialogOpen(true);
   };
 
-  const handleCloseRequest = (request: PurchaseRequest) => {
+  const handleCloseRequest = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
     setSelectedRequest(request);
-    form.reset({
-      ...request,
-      received_quantity: request.received_quantity || request.quantity, // Default to requested quantity
-      returned_quantity: request.returned_quantity || 0,
-      damaged_quantity: request.damaged_quantity || 0,
-      target_warehouse_category: request.target_warehouse_category || null,
-      received_notes: request.received_notes || "",
-    });
     setIsCloseRequestDialogOpen(true);
   };
+
+  const handleViewDetails = (request: PurchaseRequestWithDetails) => { // Use PurchaseRequestWithDetails
+    setSelectedRequest(request);
+    setIsViewDetailsOpen(true);
+  };
+
+  const filteredPurchaseRequests = purchaseRequests?.filter((request) => {
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    return (
+      request.pr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      request.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+      request.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
+      request.supplier_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
+      format(new Date(request.created_at), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
+    );
+  });
 
   if (isLoading) {
     return (
@@ -547,7 +337,14 @@ const PurchaseRequestPage = () => {
         </Button>
       </div>
 
-      <div className="overflow-x-auto">
+      <Input
+        placeholder="Cari permintaan pembelian..."
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        className="max-w-sm mb-4"
+      />
+
+      <div className="overflow-x-auto rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
@@ -563,7 +360,7 @@ const PurchaseRequestPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {purchaseRequests?.map((request) => (
+            {filteredPurchaseRequests?.map((request) => (
               <TableRow key={request.id}>
                 <TableCell>{request.pr_number || "-"}</TableCell>
                 <TableCell>{request.item_name}</TableCell>
@@ -578,18 +375,21 @@ const PurchaseRequestPage = () => {
                 </TableCell>
                 <TableCell>{format(new Date(request.created_at), "dd/MM/yyyy HH:mm")}</TableCell>
                 <TableCell className="flex space-x-2">
-                  <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request)} title="Edit Permintaan">
-                    <Edit className="h-4 w-4 text-gray-600" />
+                  <Button variant="ghost" size="icon" onClick={() => handleViewDetails(request)} title="Lihat Detail">
+                    <Eye className="h-4 w-4 text-gray-600" />
                   </Button>
                   {request.status === PurchaseRequestStatus.PENDING && (
                     <>
+                      <Button variant="ghost" size="icon" onClick={() => handleEditRequest(request)} title="Edit Permintaan">
+                        <Edit className="h-4 w-4 text-gray-600" />
+                      </Button>
                       <Button variant="ghost" size="icon" onClick={() => handleApproveRequest(request)} title="Setujui Permintaan">
                         <CheckCircle className="h-4 w-4 text-green-600" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak Permintaan"> {/* New Reject Button */}
+                      <Button variant="ghost" size="icon" onClick={() => handleRejectRequest(request)} title="Tolak Permintaan">
                         <XCircle className="h-4 w-4 text-red-600" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteRequest(request)} title="Hapus Permintaan">
+                      <Button variant="destructive" size="icon" onClick={() => handleDeleteRequest(request)} title="Hapus Permintaan">
                         <Trash className="h-4 w-4 text-red-600" />
                       </Button>
                     </>
@@ -618,163 +418,33 @@ const PurchaseRequestPage = () => {
         </Table>
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>{selectedRequest ? "Edit Permintaan Pembelian" : "Tambah Permintaan Pembelian Baru"}</DialogTitle>
-            <DialogDescription>
-              {selectedRequest ? "Perbarui detail permintaan pembelian." : "Isi detail untuk permintaan pembelian baru."}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit((data) => {
-            if (selectedRequest) {
-              updatePurchaseRequestMutation.mutate({ ...data, id: selectedRequest.id } as PurchaseRequest);
-            } else {
-              createPurchaseRequestMutation.mutate(data);
-            }
-          })} className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="pr_number" className="text-right">
-                No. PR
-              </Label>
-              <Input id="pr_number" {...register("pr_number")} className="col-span-3" readOnly />
-              {errors.pr_number && <p className="col-span-4 text-red-500 text-sm">{errors.pr_number.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="product_id" className="text-right">
-                Produk
-              </Label>
-              <Select
-                onValueChange={(value) => setValue("product_id", value)}
-                value={watch("product_id") || ""}
-                disabled={loadingProducts}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Pilih Produk" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products?.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.nama_barang} ({product.kode_barang})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.product_id && <p className="col-span-4 text-red-500 text-sm">{errors.product_id.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="item_name" className="text-right">
-                Nama Item
-              </Label>
-              <Input id="item_name" {...register("item_name")} className="col-span-3" readOnly={!!watch("product_id")} />
-              {errors.item_name && <p className="col-span-4 text-red-500 text-sm">{errors.item_name.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="item_code" className="text-right">
-                Kode Item
-              </Label>
-              <Input id="item_code" {...register("item_code")} className="col-span-3" readOnly={!!watch("product_id")} />
-              {errors.item_code && <p className="col-span-4 text-red-500 text-sm">{errors.item_code.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="quantity" className="text-right">
-                Kuantitas
-              </Label>
-              <Input id="quantity" type="number" {...register("quantity", { valueAsNumber: true })} className="col-span-3" />
-              {errors.quantity && <p className="col-span-4 text-red-500 text-sm">{errors.quantity.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="satuan" className="text-right">
-                Satuan
-              </Label>
-              <Input id="satuan" {...register("satuan")} className="col-span-3" readOnly={!!watch("product_id")} />
-              {errors.satuan && <p className="col-span-4 text-red-500 text-sm">{errors.satuan.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="unit_price" className="text-right">
-                Harga Satuan
-              </Label>
-              <Input id="unit_price" type="number" {...register("unit_price", { valueAsNumber: true })} className="col-span-3" />
-              {errors.unit_price && <p className="col-span-4 text-red-500 text-sm">{errors.unit_price.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="suggested_selling_price" className="text-right">
-                Harga Jual Disarankan
-              </Label>
-              <Input id="suggested_selling_price" type="number" {...register("suggested_selling_price", { valueAsNumber: true })} className="col-span-3" />
-              {errors.suggested_selling_price && <p className="col-span-4 text-red-500 text-sm">{errors.suggested_selling_price.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="total_price" className="text-right">
-                Total Harga
-              </Label>
-              <Input id="total_price" type="number" {...register("total_price", { valueAsNumber: true })} className="col-span-3" readOnly />
-              {errors.total_price && <p className="col-span-4 text-red-500 text-sm">{errors.total_price.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="supplier_id" className="text-right">
-                Supplier
-              </Label>
-              <Select
-                onValueChange={(value) => setValue("supplier_id", value)}
-                value={watch("supplier_id") || ""}
-                disabled={loadingSuppliers}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Pilih Supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers?.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.supplier_id && <p className="col-span-4 text-red-500 text-sm">{errors.supplier_id.message}</p>}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="notes" className="text-right">
-                Catatan
-              </Label>
-              <Textarea id="notes" {...register("notes")} className="col-span-3" />
-              {errors.notes && <p className="col-span-4 text-red-500 text-sm">{errors.notes.message}</p>}
-            </div>
-            {selectedRequest && (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="status" className="text-right">
-                    Status
-                  </Label>
-                  <Select
-                    onValueChange={(value: PurchaseRequestStatus) => setValue("status", value)}
-                    value={watch("status")}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Pilih Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(PurchaseRequestStatus).map((status) => (
-                        <SelectItem key={status} value={status}>
-                          {getStatusDisplay(status)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.status && <p className="col-span-4 text-red-500 text-sm">{errors.status.message}</p>}
-                </div>
-              </>
-            )}
-            <DialogFooter>
-              <Button type="submit" disabled={createPurchaseRequestMutation.isPending || updatePurchaseRequestMutation.isPending}>
-                {(createPurchaseRequestMutation.isPending || updatePurchaseRequestMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {selectedRequest ? "Simpan Perubahan" : "Buat Permintaan"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Add Purchase Request Form */}
+      <AddPurchaseRequestForm
+        isOpen={isAddModalOpen}
+        onOpenChange={setIsAddModalOpen}
+        onSuccess={refetch}
+      />
 
+      {/* Edit Purchase Request Form */}
+      {selectedRequest && (
+        <EditPurchaseRequestForm
+          purchaseRequest={selectedRequest}
+          isOpen={isEditModalOpen}
+          onOpenChange={setIsEditModalOpen}
+          onSuccess={refetch}
+        />
+      )}
+
+      {/* View Purchase Request Details Dialog */}
+      {selectedRequest && (
+        <ViewPurchaseRequestDetailsDialog
+          isOpen={isViewDetailsOpen}
+          onClose={() => setIsViewDetailsOpen(false)}
+          request={selectedRequest}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -793,28 +463,18 @@ const PurchaseRequestPage = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Unggah PO/Inv</DialogTitle>
-            <DialogDescription>
-              Unggah dokumen PO/Inv untuk permintaan pembelian "{selectedRequest?.item_name}".
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <Input type="file" onChange={handleFileChange} />
-            {fileToUpload && <p className="text-sm text-muted-foreground">File terpilih: {fileToUpload.name}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleFileUpload} disabled={!fileToUpload}>
-              {createPurchaseRequestMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Unggah
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Upload PO/Inv Dialog */}
+      {selectedRequest && (
+        <PurchaseRequestReceiptUpload
+          purchaseRequestId={selectedRequest.id}
+          currentDocumentUrl={selectedRequest.document_url}
+          isOpen={isUploadDialogOpen}
+          onOpenChange={setIsUploadDialogOpen}
+          onSuccess={refetch}
+        />
+      )}
 
+      {/* View Receipt Dialog */}
       <Dialog open={isViewReceiptDialogOpen} onOpenChange={setIsViewReceiptDialogOpen}>
         <DialogContent className="sm:max-w-[800px] h-[90vh]">
           <DialogHeader>
@@ -836,7 +496,7 @@ const PurchaseRequestPage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* New Dialog for Closing Purchase Request */}
+      {/* Close Purchase Request Dialog */}
       <Dialog open={isCloseRequestDialogOpen} onOpenChange={setIsCloseRequestDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -845,7 +505,7 @@ const PurchaseRequestPage = () => {
               Konfirmasi detail penerimaan untuk permintaan "{selectedRequest?.item_name}".
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit((data) => confirmCloseRequestMutation.mutate(data))} className="grid gap-4 py-4">
+          <form onSubmit={handleCloseSubmit((data) => confirmCloseRequestMutation.mutate(data))} className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="pr_number_display" className="text-right">
                 No. PR
@@ -862,30 +522,30 @@ const PurchaseRequestPage = () => {
               <Label htmlFor="received_quantity" className="text-right">
                 Kuantitas Diterima
               </Label>
-              <Input id="received_quantity" type="number" {...register("received_quantity", { valueAsNumber: true })} className="col-span-3" />
-              {errors.received_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.received_quantity.message}</p>}
+              <Input id="received_quantity" type="number" {...registerCloseForm("received_quantity", { valueAsNumber: true })} className="col-span-3" />
+              {closeFormErrors.received_quantity && <p className="col-span-4 text-red-500 text-sm">{closeFormErrors.received_quantity.message}</p>}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="returned_quantity" className="text-right">
                 Kuantitas Dikembalikan
               </Label>
-              <Input id="returned_quantity" type="number" {...register("returned_quantity", { valueAsNumber: true })} className="col-span-3" />
-              {errors.returned_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.returned_quantity.message}</p>}
+              <Input id="returned_quantity" type="number" {...registerCloseForm("returned_quantity", { valueAsNumber: true })} className="col-span-3" />
+              {closeFormErrors.returned_quantity && <p className="col-span-4 text-red-500 text-sm">{closeFormErrors.returned_quantity.message}</p>}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="damaged_quantity" className="text-right">
                 Kuantitas Rusak
               </Label>
-              <Input id="damaged_quantity" type="number" {...register("damaged_quantity", { valueAsNumber: true })} className="col-span-3" />
-              {errors.damaged_quantity && <p className="col-span-4 text-red-500 text-sm">{errors.damaged_quantity.message}</p>}
+              <Input id="damaged_quantity" type="number" {...registerCloseForm("damaged_quantity", { valueAsNumber: true })} className="col-span-3" />
+              {closeFormErrors.damaged_quantity && <p className="col-span-4 text-red-500 text-sm">{closeFormErrors.damaged_quantity.message}</p>}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="target_warehouse_category" className="text-right">
                 Gudang Target
               </Label>
               <Select
-                onValueChange={(value) => setValue("target_warehouse_category", value)}
-                value={watch("target_warehouse_category") || ""}
+                onValueChange={(value) => setCloseValue("target_warehouse_category", value)}
+                value={watchedTargetWarehouseCategory || ""}
                 disabled={loadingCategories}
               >
                 <SelectTrigger className="col-span-3">
@@ -899,14 +559,14 @@ const PurchaseRequestPage = () => {
                   ))}
                 </SelectContent>
               </Select>
-              {errors.target_warehouse_category && <p className="col-span-4 text-red-500 text-sm">{errors.target_warehouse_category.message}</p>}
+              {closeFormErrors.target_warehouse_category && <p className="col-span-4 text-red-500 text-sm">{closeFormErrors.target_warehouse_category.message}</p>}
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="received_notes" className="text-right">
                 Catatan Penerimaan
               </Label>
-              <Textarea id="received_notes" {...register("received_notes")} className="col-span-3" />
-              {errors.received_notes && <p className="col-span-4 text-red-500 text-sm">{errors.received_notes.message}</p>}
+              <Textarea id="received_notes" {...registerCloseForm("received_notes")} className="col-span-3" />
+              {closeFormErrors.received_notes && <p className="col-span-4 text-red-500 text-sm">{closeFormErrors.received_notes.message}</p>}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsCloseRequestDialogOpen(false)}>Batal</Button>
