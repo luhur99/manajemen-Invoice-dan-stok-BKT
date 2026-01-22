@@ -180,7 +180,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         showError("Gagal memuat daftar pelanggan.");
         throw error;
       }
-      return data;
+      return data as Customer[];
     },
     enabled: isOpen,
   });
@@ -196,7 +196,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         showError("Gagal memuat daftar teknisi.");
         throw error;
       }
-      return data;
+      return data as Technician[];
     },
     enabled: isOpen,
   });
@@ -295,6 +295,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       }
 
       const dataToSubmit = {
+        user_id: userId,
         sr_number: values.sr_number?.trim() || null,
         customer_id: values.customer_id || null,
         customer_name: values.customer_name.trim(),

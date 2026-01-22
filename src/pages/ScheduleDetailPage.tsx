@@ -23,7 +23,26 @@ const ScheduleDetailPage = () => {
       const { data, error } = await supabase
         .from("schedules")
         .select(`
-          *,
+          id,
+          user_id,
+          schedule_date,
+          schedule_time,
+          type,
+          customer_name,
+          address,
+          technician_name,
+          invoice_id,
+          status,
+          notes,
+          created_at,
+          phone_number,
+          courier_service,
+          document_url,
+          scheduling_request_id,
+          do_number,
+          updated_at,
+          product_category,
+          customer_id,
           customers (customer_name, company_name, phone_number, address, customer_type),
           invoices (invoice_number)
         `)

@@ -23,7 +23,7 @@ const PrintInvoicePage = () => {
         // Fetch Invoice details
         const { data: invoiceData, error: invoiceError } = await supabase
           .from("invoices")
-          .select("*")
+          .select("*") // Select all columns for Invoice
           .eq("id", id)
           .single();
 
@@ -33,7 +33,7 @@ const PrintInvoicePage = () => {
         // Fetch Invoice Items
         const { data: itemsData, error: itemsError } = await supabase
           .from("invoice_items")
-          .select("*")
+          .select("*") // Select all columns for InvoiceItem
           .eq("invoice_id", id);
 
         if (itemsError) throw itemsError;

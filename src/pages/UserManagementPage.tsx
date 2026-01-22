@@ -133,6 +133,8 @@ const UserManagementPage = () => {
   //   );
   // }) || [];
 
+  const filteredUsers = users || []; // Use users directly as filtering is done in queryFn
+
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;

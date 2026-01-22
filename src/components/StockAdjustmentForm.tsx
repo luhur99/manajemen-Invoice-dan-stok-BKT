@@ -73,7 +73,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data as WarehouseCategoryType[];
     },
     enabled: isOpen, // Only fetch when the dialog is open
   });
@@ -95,7 +95,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
         showError("Gagal memuat inventaris item.");
         throw error;
       }
-      return data;
+      return data as WarehouseInventory[];
     },
     enabled: isOpen && !!product.id, // Only fetch if dialog is open and product ID is available
   });

@@ -36,13 +36,13 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("*")
+        .select("*") // Select all columns to match Technician interface
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar teknisi.");
         throw error;
       }
-      return data;
+      return data as Technician[];
     },
   });
 
@@ -77,14 +77,14 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("id, name, code") // Select specific columns
         .order("name", { ascending: true });
 
       if (error) {
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data as WarehouseCategoryType[];
     },
   });
 
@@ -96,7 +96,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
 
       const { data, error } = await supabase
         .from("schedules")
-        .select("*")
+        .select("*") // Select all columns for Schedule interface
         .gte("schedule_date", startOfMonthDate)
         .lte("schedule_date", endOfMonthDate)
         .order("schedule_date", { ascending: true })

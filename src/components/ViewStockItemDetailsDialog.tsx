@@ -39,7 +39,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data as WarehouseCategoryType[];
     },
   });
 
@@ -67,7 +67,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
         .select("id, product_id, warehouse_category, quantity") // Select specific columns
         .eq("product_id", product.id);
       if (error) throw error;
-      return data;
+      return data as WarehouseInventory[];
     },
     enabled: isOpen,
   });
@@ -95,7 +95,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
         ...t,
         product_name: t.products?.nama_barang || "N/A",
         product_code: t.products?.kode_barang || "N/A",
-      }));
+      })) as StockLedgerWithProduct[];
     },
     enabled: isOpen,
   });

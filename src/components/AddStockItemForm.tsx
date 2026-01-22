@@ -74,7 +74,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data as WarehouseCategoryType[];
     },
     enabled: isOpen, // Only fetch when the dialog is open
   });

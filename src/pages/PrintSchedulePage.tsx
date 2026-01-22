@@ -44,7 +44,7 @@ const PrintSchedulePage = () => {
         if (scheduleData.invoice_id) {
           const { data: itemsData, error: itemsError } = await supabase
             .from("invoice_items")
-            .select("*")
+            .select("*") // Select all columns for InvoiceItem
             .eq("invoice_id", scheduleData.invoice_id);
 
           if (!itemsError && itemsData) {
