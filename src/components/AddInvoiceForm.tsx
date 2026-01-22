@@ -60,7 +60,7 @@ const formSchema = z.object({
   invoice_status: z.nativeEnum(InvoiceDocumentStatus).default(InvoiceDocumentStatus.WAITING_DOCUMENT_INV),
   items: z.array(
     z.object({
-      product_id: z.string().min(1, "Produk harus dipilih."), // Changed from selected_product_id
+      product_id: z.string().min(1, "Produk harus dipilih."),
       item_name: z.string().min(1, "Nama Item harus diisi."),
       item_code: z.string().optional(),
       quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
@@ -82,7 +82,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("basic_info");
-  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]); // State for search inputs
+  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -115,7 +115,6 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           harga_beli,
           harga_jual,
           safe_stock_limit,
-          created_at,
           supplier_id,
           warehouse_inventories (
             warehouse_category,
@@ -161,17 +160,17 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         total_amount: 0,
         payment_status: InvoicePaymentStatus.PENDING,
         type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
-        customer_type: initialSchedule?.customers?.customer_type || undefined, // Access from customers relation
-        payment_method: initialSchedule?.payment_method || undefined, // Access payment_method from ScheduleWithDetails
+        customer_type: initialSchedule?.customers?.customer_type || undefined,
+        payment_method: initialSchedule?.payment_method || undefined,
         notes: defaultNotes,
         courier_service: initialSchedule?.courier_service || undefined,
         invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
         items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
       });
-      setItemSearchInputs(fields.map(item => item.item_name || "")); // Initialize search inputs
+      setItemSearchInputs(fields.map(item => item.item_name || ""));
       setActiveTab("basic_info");
     }
-  }, [isOpen, initialSchedule, form]);
+  }, [isOpen, initialSchedule, form, fields]); // Added fields to dependency array
 
   // Update itemSearchInputs when fields change (e.g., adding/removing items)
   React.useEffect(() => {
@@ -193,7 +192,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     if (selectedProduct) {
       update(index, {
         ...fields[index],
-        product_id: selectedProduct.id, // Changed from selected_product_id
+        product_id: selectedProduct.id,
         item_name: selectedProduct.nama_barang,
         item_code: selectedProduct.kode_barang,
         unit_price: selectedProduct.harga_jual,
@@ -208,7 +207,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     } else {
       update(index, {
         ...fields[index],
-        product_id: undefined, // Changed from selected_product_id
+        product_id: "", // Set to empty string for consistency with defaultValues
         item_name: "",
         item_code: "",
         unit_price: 0,
@@ -508,16 +507,16 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
               <TabsContent value="items" className="mt-4 space-y-4">
                 {fields.map((item, index) => (
-                  <div key={item.id} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
+                  <div key={item.id || index} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
                     <div className="md:col-span-2">
                       <FormItem>
                         <FormLabel>Produk</FormLabel>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={item.product_id || ""}
+                          selectedProductId={item.product_id || undefined}
                           onSelectProduct={(productId) => handleProductSelect(index, productId)}
-                          inputValue={itemSearchInputs[index] || ""} // Pass inputValue
-                          onInputValueChange={(value) => { // Pass onInputValueChange
+                          inputValue={itemSearchInputs[index] || ""}
+                          onInputValueChange={(value) => {
                             setItemSearchInputs(prev => {
                               const newInputs = [...prev];
                               newInputs[index] = value;
@@ -584,7 +583,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   variant="outline"
                   onClick={() => {
                     append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
-                    setItemSearchInputs(prev => [...prev, ""]); // Add empty string for new item's search input
+                    setItemSearchInputs(prev => [...prev, ""]);
                   }}
                   className="w-full"
                 >

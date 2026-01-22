@@ -138,13 +138,38 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select("*")
-        .order("nama_barang", { ascending: true });
+        .select(`
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          supplier_id,
+          warehouse_inventories (
+            warehouse_category,
+            quantity
+          )
+        `);
       if (error) {
         showError("Gagal memuat daftar produk.");
         throw error;
       }
-      return data;
+      return data.map(item => ({
+        id: item.id,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        kode_barang: item.kode_barang,
+        nama_barang: item.nama_barang,
+        harga_jual: item.harga_jual,
+        harga_beli: item.harga_beli,
+        satuan: item.satuan,
+        safe_stock_limit: item.safe_stock_limit,
+        supplier_id: item.supplier_id,
+        inventories: item.warehouse_inventories as WarehouseInventory[],
+      }));
     },
     enabled: isOpen,
   });
@@ -154,13 +179,13 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("*")
+        .select("*") // Select all columns to match Supplier interface
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar supplier.");
         throw error;
       }
-      return data;
+      return data as Supplier[];
     },
     enabled: isOpen,
   });
@@ -375,7 +400,12 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
                     <FormItem>
                       <FormLabel>Kuantitas</FormLabel>
                       <FormControl>
-                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
+                        <Input
+                          type="number"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
+                          min="1"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -449,11 +479,21 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {suppliers?.map((supplier) => (
-                            <SelectItem key={supplier.id} value={supplier.id}>
-                              {supplier.name}
+                          {loadingSuppliers ? (
+                            <SelectItem value="loading" disabled>
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
                             </SelectItem>
-                          ))}
+                          ) : suppliers?.length === 0 ? (
+                            <SelectItem value="no-suppliers" disabled>
+                              Tidak ada supplier tersedia
+                            </SelectItem>
+                          ) : (
+                            suppliers?.map((supplier) => (
+                              <SelectItem key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -583,7 +623,6 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
                       name="received_at"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel>Tanggal Diterima (Opsional)</FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>

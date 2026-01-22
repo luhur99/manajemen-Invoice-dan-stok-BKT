@@ -21,6 +21,7 @@ import { showError } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const getEventTypeDisplay = (type: StockEventType) => {
   switch (type) {
@@ -51,19 +52,49 @@ const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
 
 const StockMovementHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [selectedEventType, setSelectedEventType] = useState<StockEventType | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const { data: stockMovements, isLoading, error } = useQuery<StockLedgerWithProduct[], Error>({
-    queryKey: ["stockMovements"],
+    queryKey: ["stockMovements", debouncedSearchTerm, selectedEventType, dateRange], // Include all filters
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("stock_ledger")
         .select(`
-          *,
+          id,
+          user_id,
+          product_id,
+          event_type,
+          quantity,
+          from_warehouse_category,
+          to_warehouse_category,
+          notes,
+          event_date,
+          created_at,
+          updated_at,
           products (nama_barang, kode_barang)
         `)
         .order("created_at", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `products.nama_barang.ilike.%${debouncedSearchTerm}%,products.kode_barang.ilike.%${debouncedSearchTerm}%,from_warehouse_category.ilike.%${debouncedSearchTerm}%,to_warehouse_category.ilike.%${debouncedSearchTerm}%,notes.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      if (selectedEventType !== "all") {
+        query = query.eq("event_type", selectedEventType);
+      }
+
+      if (dateRange?.from) {
+        query = query.gte("created_at", format(startOfDay(dateRange.from), "yyyy-MM-dd"));
+      }
+      if (dateRange?.to) {
+        query = query.lte("created_at", format(endOfDay(dateRange.to), "yyyy-MM-dd"));
+      }
+
+      const { data, error } = await query;
       if (error) {
         showError("Gagal memuat riwayat pergerakan stok.");
         throw error;
@@ -72,32 +103,33 @@ const StockMovementHistoryPage = () => {
     },
   });
 
-  const filteredStockMovements = useMemo(() => {
-    if (!stockMovements) return [];
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  // No need for local filtering anymore
+  // const filteredStockMovements = useMemo(() => {
+  //   if (!stockMovements) return [];
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
-    return stockMovements.filter((movement) => {
-      const matchesSearch =
-        movement.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        movement.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        (movement.from_warehouse_category && getCategoryDisplayName(movement.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-        (movement.to_warehouse_category && getCategoryDisplayName(movement.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-        movement.notes?.toLowerCase().includes(lowerCaseSearchTerm);
+  //   return stockMovements.filter((movement) => {
+  //     const matchesSearch =
+  //       movement.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       movement.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       (movement.from_warehouse_category && getCategoryDisplayName(movement.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+  //       (movement.to_warehouse_category && getCategoryDisplayName(movement.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+  //       movement.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
-      const matchesEventType =
-        selectedEventType === "all" || movement.event_type === selectedEventType;
+  //     const matchesEventType =
+  //       selectedEventType === "all" || movement.event_type === selectedEventType;
 
-      const itemDate = parseISO(movement.created_at);
-      const matchesDateRange = dateRange?.from
-        ? isWithinInterval(itemDate, {
-            start: startOfDay(dateRange.from),
-            end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-          })
-        : true;
+  //     const itemDate = parseISO(movement.created_at);
+  //     const matchesDateRange = dateRange?.from
+  //       ? isWithinInterval(itemDate, {
+  //           start: startOfDay(dateRange.from),
+  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+  //         })
+  //       : true;
 
-      return matchesSearch && matchesEventType && matchesDateRange;
-    });
-  }, [stockMovements, searchTerm, selectedEventType, dateRange]);
+  //     return matchesSearch && matchesEventType && matchesDateRange;
+  //   });
+  // }, [stockMovements, searchTerm, selectedEventType, dateRange]);
 
   if (isLoading) {
     return (
@@ -142,6 +174,7 @@ const StockMovementHistoryPage = () => {
               <SelectValue placeholder="Filter Tipe Event" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">Semua Tipe</SelectItem>
               {Object.values(StockEventType).map((type) => (
                 <SelectItem key={type as string} value={type as string}>
                   {getEventTypeDisplay(type)}
@@ -168,14 +201,14 @@ const StockMovementHistoryPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStockMovements.length === 0 ? (
+            {stockMovements?.length === 0 ? ( // Use 'stockMovements' directly
               <TableRow>
                 <TableCell colSpan={8} className="text-center">
                   Tidak ada pergerakan stok ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredStockMovements.map((movement) => (
+              stockMovements?.map((movement) => ( // Use 'stockMovements' directly
                 <TableRow key={movement.id}>
                   <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                   <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell>

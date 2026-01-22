@@ -15,10 +15,12 @@ import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import ViewNotesDialog from "@/components/ViewNotesDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const TechnicianManagementPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
 
   const [isAddEditFormOpen, setIsAddEditFormOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -32,12 +34,20 @@ const TechnicianManagementPage = () => {
   const itemsPerPage = 10;
 
   const { data: technicians = [], isLoading, error, refetch: fetchTechnicians } = useQuery<TechnicianWithDetails[], Error>({
-    queryKey: ["technicians"],
+    queryKey: ["technicians", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("technicians")
         .select("*")
         .order("name", { ascending: true });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `name.ilike.%${debouncedSearchTerm}%,phone_number.ilike.%${debouncedSearchTerm}%,type.ilike.%${debouncedSearchTerm}%,address.ilike.%${debouncedSearchTerm}%,city.ilike.%${debouncedSearchTerm}%,province.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -70,14 +80,15 @@ const TechnicianManagementPage = () => {
     }
   };
 
-  const filteredTechnicians = technicians.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.province?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // No need for local filtering anymore
+  // const filteredTechnicians = technicians.filter(item =>
+  //   item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   item.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   item.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   item.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   item.province?.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
 
   const handleAddClick = () => {
     setSelectedTechnician(null);
@@ -100,10 +111,10 @@ const TechnicianManagementPage = () => {
     setIsViewDetailsOpen(true);
   };
 
-  const totalPages = Math.ceil(filteredTechnicians.length / itemsPerPage);
+  const totalPages = Math.ceil(technicians.length / itemsPerPage); // Use 'technicians' directly
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredTechnicians.slice(startIndex, endIndex);
+  const currentItems = technicians.slice(startIndex, endIndex); // Use 'technicians' directly
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -149,7 +160,7 @@ const TechnicianManagementPage = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-grow"
         />
-        {filteredTechnicians.length > 0 ? (
+        {technicians.length > 0 ? ( // Use 'technicians' directly
           <>
             <div className="overflow-x-auto">
               <Table className="min-w-full">

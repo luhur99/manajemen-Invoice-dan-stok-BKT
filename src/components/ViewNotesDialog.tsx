@@ -30,7 +30,7 @@ const ViewNotesDialog: React.FC<ViewNotesDialogProps> = ({
     setLoadingCategories(true);
     const { data, error } = await supabase
       .from("warehouse_categories")
-      .select("*")
+      .select("id, name, code") // Select specific columns
       .order("name", { ascending: true });
 
     if (error) {
@@ -69,7 +69,7 @@ const ViewNotesDialog: React.FC<ViewNotesDialogProps> = ({
         try {
           const { data, error } = await supabase
             .from("invoices")
-            .select("invoice_number")
+            .select("invoice_number") // Select specific column
             .eq("id", invoiceId)
             .single();
 

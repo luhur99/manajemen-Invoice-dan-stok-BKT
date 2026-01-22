@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import EditStockItemForm from "@/components/EditStockItemForm";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog"; // Keep this for comprehensive product details
 import { Product as ProductType } from "@/types/data"; // Only import ProductType, no WarehouseInventory needed here
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 interface ProductWithDetails extends ProductType {
   // No need for current_stock or inventories here, as they are for stock management
@@ -21,6 +22,7 @@ interface ProductWithDetails extends ProductType {
 const StockPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for AddStockItemForm
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -31,9 +33,9 @@ const StockPage = () => {
 
   // Fetch only product metadata
   const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
-    queryKey: ["productsMetadata"], // Changed query key to differentiate
+    queryKey: ["productsMetadata", debouncedSearchTerm], // Include debounced search term in query key
     queryFn: async () => {
-      const { data: productsData, error: productsError } = await supabase
+      let query = supabase
         .from("products")
         .select(`
           id,
@@ -48,6 +50,14 @@ const StockPage = () => {
           supplier_id
         `)
         .order("nama_barang", { ascending: true });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `nama_barang.ilike.%${debouncedSearchTerm}%,kode_barang.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data: productsData, error: productsError } = await query;
 
       if (productsError) throw productsError;
       return productsData;
@@ -96,10 +106,11 @@ const StockPage = () => {
     }
   };
 
-  const filteredProducts = products?.filter((product) =>
-    product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // No need for local filtering anymore, as the query itself is filtered by debouncedSearchTerm
+  // const filteredProducts = products?.filter((product) =>
+  //   product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  //   product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
 
   if (isLoading) {
     return (
@@ -148,7 +159,7 @@ const StockPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredProducts?.map((product) => (
+            {products?.map((product) => ( // Use 'products' directly as it's already filtered
               <TableRow key={product.id}>
                 <TableCell className="font-medium">{product.kode_barang}</TableCell>
                 <TableCell>{product.nama_barang}</TableCell>

@@ -20,6 +20,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,7 +62,7 @@ const formSchema = z.object({
   items: z.array(
     z.object({
       id: z.string().optional(),
-      product_id: z.string().min(1, "Produk harus dipilih."), // Changed from selected_product_id
+      product_id: z.string().min(1, "Produk harus dipilih."),
       item_name: z.string().min(1, "Nama Item harus diisi."),
       item_code: z.string().optional(),
       quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
@@ -83,7 +84,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("basic_info");
-  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]); // State for search inputs
+  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -125,7 +126,6 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           harga_beli,
           harga_jual,
           safe_stock_limit,
-          created_at,
           supplier_id,
           warehouse_inventories (
             warehouse_category,
@@ -158,36 +158,49 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoice_items")
-        .select("*")
+        .select(`
+          id,
+          invoice_id,
+          user_id,
+          item_name,
+          quantity,
+          unit_price,
+          subtotal,
+          created_at,
+          unit_type,
+          product_id,
+          item_code,
+          updated_at
+        `)
         .eq("invoice_id", invoice.id);
       if (error) {
         showError("Gagal memuat item invoice.");
         throw error;
       }
-      return data;
+      return data as InvoiceItem[];
     },
     enabled: isOpen,
   });
 
   useEffect(() => {
     if (isOpen && invoiceItems) {
-      const items: InvoiceItem[] = invoiceItems.map(item => ({ // Explicitly type items
+      const items: InvoiceItem[] = invoiceItems.map(item => ({
         id: item.id,
-        product_id: item.product_id || null, // Ensure product_id is set
+        product_id: item.product_id || null,
         item_name: item.item_name,
         item_code: item.item_code || null,
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.subtotal,
         unit_type: item.unit_type,
-        invoice_id: item.invoice_id, // Include missing fields
-        user_id: item.user_id, // Include missing fields
-        created_at: item.created_at, // Include missing fields
-        updated_at: item.updated_at, // Include missing fields
+        invoice_id: item.invoice_id,
+        user_id: item.user_id,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
       }));
       form.setValue("items", items);
       setInitialItems(items);
-      setItemSearchInputs(items.map(item => item.item_name || "")); // Initialize search inputs
+      setItemSearchInputs(items.map(item => item.item_name || ""));
       setActiveTab("basic_info");
     }
   }, [isOpen, invoiceItems, form]);
@@ -211,7 +224,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     if (selectedProduct) {
       update(index, {
         ...fields[index],
-        product_id: selectedProduct.id, // Changed from selected_product_id
+        product_id: selectedProduct.id,
         item_name: selectedProduct.nama_barang,
         item_code: selectedProduct.kode_barang,
         unit_price: selectedProduct.harga_jual,
@@ -227,7 +240,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     } else {
       update(index, {
         ...fields[index],
-        product_id: null, // Changed from selected_product_id, set to null
+        product_id: null,
         item_name: "",
         item_code: "",
         unit_price: 0,
@@ -303,7 +316,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         const commonItemData = {
           invoice_id: invoice.id,
           user_id: userId,
-          product_id: item.product_id, // Changed from selected_product_id
+          product_id: item.product_id,
           item_name: item.item_name,
           item_code: item.item_code,
           quantity: item.quantity,
@@ -597,16 +610,16 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
               <TabsContent value="items" className="mt-4 space-y-4">
                 {fields.map((item, index) => (
-                  <div key={item.id} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
+                  <div key={item.id || index} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
                     <div className="md:col-span-2">
                       <FormItem>
                         <FormLabel>Produk</FormLabel>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={item.product_id || ""}
+                          selectedProductId={item.product_id || undefined}
                           onSelectProduct={(productId) => handleProductSelect(index, productId)}
-                          inputValue={itemSearchInputs[index] || ""} // Pass inputValue
-                          onInputValueChange={(value) => { // Pass onInputValueChange
+                          inputValue={itemSearchInputs[index] || ""}
+                          onInputValueChange={(value) => {
                             setItemSearchInputs(prev => {
                               const newInputs = [...prev];
                               newInputs[index] = value;
@@ -673,7 +686,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                   variant="outline"
                   onClick={() => {
                     append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
-                    setItemSearchInputs(prev => [...prev, ""]); // Add empty string for new item's search input
+                    setItemSearchInputs(prev => [...prev, ""]);
                   }}
                   className="w-full"
                 >
@@ -705,8 +718,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
-                {updateInvoiceMutation.isPending ? (
+              <Button type="submit" disabled={addInvoiceMutation.isPending}>
+                {addInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"
@@ -720,4 +733,4 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   );
 };
 
-export default EditInvoiceForm;
+export default AddInvoiceForm;

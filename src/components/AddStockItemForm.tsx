@@ -68,7 +68,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("id, name, code") // Select specific columns
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");

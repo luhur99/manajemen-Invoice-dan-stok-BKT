@@ -16,11 +16,12 @@ import ViewCustomerDetailsDialog from "@/components/ViewCustomerDetailsDialog";
 import PaginationControls from "@/components/PaginationControls";
 import { format } from "date-fns";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const CustomerManagementPage = () => {
   const queryClient = useQueryClient();
-  const [filteredCustomers, setFilteredCustomers] = useState<CustomerWithDetails[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
 
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
@@ -32,12 +33,20 @@ const CustomerManagementPage = () => {
   const itemsPerPage = 10;
 
   const { data: customers = [], isLoading, error, refetch: fetchCustomers } = useQuery<CustomerWithDetails[], Error>({
-    queryKey: ["customers"],
+    queryKey: ["customers", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("customers")
         .select("*")
         .order("customer_name", { ascending: true });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `customer_name.ilike.%${debouncedSearchTerm}%,company_name.ilike.%${debouncedSearchTerm}%,address.ilike.%${debouncedSearchTerm}%,phone_number.ilike.%${debouncedSearchTerm}%,customer_type.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         showError("Gagal memuat data pelanggan.");
@@ -70,18 +79,19 @@ const CustomerManagementPage = () => {
     },
   });
 
-  useEffect(() => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const filtered = customers.filter(item =>
-      item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.customer_type.toLowerCase().includes(lowerCaseSearchTerm)
-    );
-    setFilteredCustomers(filtered);
-    setCurrentPage(1);
-  }, [searchTerm, customers]);
+  // No need for local filtering anymore, as the query itself is filtered
+  // useEffect(() => {
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  //   const filtered = customers.filter(item =>
+  //     item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.customer_type.toLowerCase().includes(lowerCaseSearchTerm)
+  //   );
+  //   setFilteredCustomers(filtered);
+  //   setCurrentPage(1);
+  // }, [searchTerm, customers]);
 
   const handleDeleteCustomer = () => {
     if (selectedCustomer) {
@@ -104,10 +114,10 @@ const CustomerManagementPage = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const totalPages = Math.ceil(customers.length / itemsPerPage); // Use 'customers' directly
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredCustomers.slice(startIndex, endIndex);
+  const currentItems = customers.slice(startIndex, endIndex); // Use 'customers' directly
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -147,7 +157,7 @@ const CustomerManagementPage = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-grow"
         />
-        {filteredCustomers.length > 0 ? (
+        {customers.length > 0 ? ( // Use 'customers' directly
           <>
             <div className="overflow-x-auto">
               <Table className="min-w-full">

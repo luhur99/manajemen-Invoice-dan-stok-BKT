@@ -17,6 +17,7 @@ import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingReques
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import TechnicianCombobox from "@/components/TechnicianCombobox";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const getStatusColor = (status: SchedulingRequestStatus) => {
   switch (status) {
@@ -64,6 +65,7 @@ const getProductCategoryDisplay = (category: ScheduleProductCategory | null | un
 const SchedulingRequestPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<SchedulingRequestWithDetails | null>(null);
@@ -76,16 +78,45 @@ const SchedulingRequestPage = () => {
   const [technicianSearchInputForApproval, setTechnicianSearchInputForApproval] = useState(""); 
 
   const { data: requests, isLoading, isError, error, refetch } = useQuery<SchedulingRequestWithDetails[], Error>({
-    queryKey: ["schedulingRequests"],
+    queryKey: ["schedulingRequests", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("scheduling_requests")
         .select(`
-          *,
-          invoices (invoice_number),
-          customers (customer_name, company_name, phone_number, customer_type)
+          id,
+          user_id,
+          type,
+          full_address,
+          landmark,
+          requested_date,
+          requested_time,
+          contact_person,
+          payment_method,
+          status,
+          notes,
+          created_at,
+          sr_number,
+          invoice_id,
+          customer_id,
+          vehicle_details,
+          company_name,
+          customer_name,
+          phone_number,
+          updated_at,
+          technician_name,
+          product_category,
+          customers (customer_name, company_name, phone_number, customer_type),
+          invoices (invoice_number)
         `)
         .order("created_at", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `sr_number.ilike.%${debouncedSearchTerm}%,customer_name.ilike.%${debouncedSearchTerm}%,company_name.ilike.%${debouncedSearchTerm}%,type.ilike.%${debouncedSearchTerm}%,product_category.ilike.%${debouncedSearchTerm}%,status.ilike.%${debouncedSearchTerm}%,contact_person.ilike.%${debouncedSearchTerm}%,phone_number.ilike.%${debouncedSearchTerm}%,invoices.invoice_number.ilike.%${debouncedSearchTerm}%,technician_name.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -212,26 +243,27 @@ const SchedulingRequestPage = () => {
     }
   };
 
-  const filteredRequests = requests?.filter((request) => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const customerName = request.customers?.customer_name || request.customer_name;
-    const companyName = request.customers?.company_name || request.company_name;
-    const phoneNumber = request.customers?.phone_number || request.phone_number;
+  // No need for local filtering anymore
+  // const filteredRequests = requests?.filter((request) => {
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  //   const customerName = request.customers?.customer_name || request.customer_name;
+  //   const companyName = request.customers?.company_name || request.company_name;
+  //   const phoneNumber = request.customers?.phone_number || request.phone_number;
 
-    return (
-      request.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      customerName?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      companyName?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      getTypeDisplay(request.type).toLowerCase().includes(lowerCaseSearchTerm) ||
-      getProductCategoryDisplay(request.product_category).toLowerCase().includes(lowerCaseSearchTerm) || // Include product category in search
-      getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
-      phoneNumber?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.invoices?.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
-      request.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
-    );
-  });
+  //   return (
+  //     request.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     customerName?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     companyName?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     getTypeDisplay(request.type).toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     getProductCategoryDisplay(request.product_category).toLowerCase().includes(lowerCaseSearchTerm) || // Include product category in search
+  //     getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     phoneNumber?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     request.invoices?.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+  //     request.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
+  //   );
+  // });
 
   if (isLoading) {
     return (
@@ -290,7 +322,7 @@ const SchedulingRequestPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRequests?.map((request, index) => (
+            {requests?.map((request, index) => ( // Use 'requests' directly
               <TableRow key={request.id}>
                 <TableCell>{index + 1}</TableCell>
                 <TableCell>{request.sr_number || "-"}</TableCell>

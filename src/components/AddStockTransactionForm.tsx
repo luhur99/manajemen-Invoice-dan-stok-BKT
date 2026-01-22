@@ -73,7 +73,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("id, name, code") // Select specific columns
         .order("name", { ascending: true });
 
       if (error) {

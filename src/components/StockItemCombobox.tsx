@@ -35,27 +35,26 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   products,
   selectedProductId,
   onSelectProduct,
-  inputValue, // Destructure new prop
-  onInputValueChange, // Destructure new prop
+  inputValue,
+  onInputValueChange,
   placeholder = "Pilih produk...",
   disabled = false,
-  loading = false, // Default to false
+  loading = false,
 }) => {
   const [open, setOpen] = React.useState(false);
-  // Removed internal inputValue state as it's now controlled externally
 
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("*") // Select all columns to match WarehouseCategoryType
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data as WarehouseCategoryType[];
     },
   });
 
@@ -103,8 +102,8 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
         <Command>
           <CommandInput
             placeholder="Cari produk..."
-            value={inputValue} // Use external inputValue
-            onValueChange={onInputValueChange} // Use external onInputValueChange
+            value={inputValue}
+            onValueChange={onInputValueChange}
           />
           <CommandList>
             <CommandEmpty>Produk tidak ditemukan.</CommandEmpty>

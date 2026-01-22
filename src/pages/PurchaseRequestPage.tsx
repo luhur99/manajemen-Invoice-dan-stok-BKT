@@ -39,6 +39,7 @@ import {
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const getStatusBadgeClass = (status: PurchaseRequestStatus) => {
   switch (status) {
@@ -76,20 +77,62 @@ const PurchaseRequestPage = () => {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequestWithDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [selectedStatus, setSelectedStatus] = useState<PurchaseRequestStatus | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const { data: purchaseRequests, isLoading, error } = useQuery<PurchaseRequestWithDetails[], Error>({
-    queryKey: ["purchaseRequests"],
+    queryKey: ["purchaseRequests", debouncedSearchTerm, selectedStatus, dateRange], // Include all filters
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("purchase_requests")
         .select(`
-          *,
+          id,
+          user_id,
+          item_name,
+          item_code,
+          quantity,
+          unit_price,
+          suggested_selling_price,
+          total_price,
+          notes,
+          status,
+          created_at,
+          document_url,
+          received_quantity,
+          returned_quantity,
+          damaged_quantity,
+          target_warehouse_category,
+          received_notes,
+          received_at,
+          product_id,
+          supplier_id,
+          satuan,
+          pr_number,
+          updated_at,
           products (nama_barang, kode_barang, satuan),
           suppliers (name)
         `)
         .order("created_at", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `pr_number.ilike.%${debouncedSearchTerm}%,item_name.ilike.%${debouncedSearchTerm}%,item_code.ilike.%${debouncedSearchTerm}%,suppliers.name.ilike.%${debouncedSearchTerm}%,notes.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      if (selectedStatus !== "all") {
+        query = query.eq("status", selectedStatus);
+      }
+
+      if (dateRange?.from) {
+        query = query.gte("created_at", format(startOfDay(dateRange.from), "yyyy-MM-dd"));
+      }
+      if (dateRange?.to) {
+        query = query.lte("created_at", format(endOfDay(dateRange.to), "yyyy-MM-dd"));
+      }
+
+      const { data, error } = await query;
       if (error) {
         showError("Gagal memuat pengajuan pembelian.");
         throw error;
@@ -133,33 +176,34 @@ const PurchaseRequestPage = () => {
     setIsUploadDialogOpen(true);
   };
 
-  const filteredPurchaseRequests = useMemo(() => {
-    if (!purchaseRequests) return [];
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  // No need for local filtering anymore
+  // const filteredPurchaseRequests = useMemo(() => {
+  //   if (!purchaseRequests) return [];
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
-    return purchaseRequests.filter((request) => {
-      const matchesSearch =
-        request.pr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        request.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-        request.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-        request.suppliers?.name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
-        request.notes?.toLowerCase().includes(lowerCaseSearchTerm);
+  //   return purchaseRequests.filter((request) => {
+  //     const matchesSearch =
+  //       request.pr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       request.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       request.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       request.suppliers?.name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       request.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
-      const matchesStatus =
-        selectedStatus === "all" || request.status === selectedStatus;
+  //     const matchesStatus =
+  //       selectedStatus === "all" || request.status === selectedStatus;
 
-      const requestDate = parseISO(request.created_at);
-      const matchesDateRange = dateRange?.from
-        ? isWithinInterval(requestDate, {
-            start: startOfDay(dateRange.from),
-            end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-          })
-        : true;
+  //     const requestDate = parseISO(request.created_at);
+  //     const matchesDateRange = dateRange?.from
+  //       ? isWithinInterval(requestDate, {
+  //           start: startOfDay(dateRange.from),
+  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+  //         })
+  //       : true;
 
-      return matchesSearch && matchesStatus && matchesDateRange;
-    });
-  }, [purchaseRequests, searchTerm, selectedStatus, dateRange]);
+  //     return matchesSearch && matchesStatus && matchesDateRange;
+  //   });
+  // }, [purchaseRequests, searchTerm, selectedStatus, dateRange]);
 
   if (isLoading) {
     return (
@@ -245,14 +289,14 @@ const PurchaseRequestPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPurchaseRequests.length === 0 ? (
+              {purchaseRequests?.length === 0 ? ( // Use 'purchaseRequests' directly
                 <TableRow>
                   <TableCell colSpan={9} className="text-center">
                     Tidak ada pengajuan pembelian ditemukan.
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredPurchaseRequests.map((request, index) => (
+                purchaseRequests?.map((request, index) => ( // Use 'purchaseRequests' directly
                   <TableRow key={request.id}>
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{request.pr_number || "-"}</TableCell>

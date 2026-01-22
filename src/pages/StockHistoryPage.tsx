@@ -21,6 +21,7 @@ import { showError } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const getEventTypeDisplay = (type: StockEventType) => {
   switch (type) {
@@ -51,19 +52,49 @@ const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
 
 const StockHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [selectedEventType, setSelectedEventType] = useState<StockEventType | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const { data: stockHistory, isLoading, error } = useQuery<StockLedgerWithProduct[], Error>({
-    queryKey: ["stockHistory"],
+    queryKey: ["stockHistory", debouncedSearchTerm, selectedEventType, dateRange], // Include all filters
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("stock_ledger")
         .select(`
-          *,
+          id,
+          user_id,
+          product_id,
+          event_type,
+          quantity,
+          from_warehouse_category,
+          to_warehouse_category,
+          notes,
+          event_date,
+          created_at,
+          updated_at,
           products (nama_barang, kode_barang)
         `)
         .order("created_at", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `products.nama_barang.ilike.%${debouncedSearchTerm}%,products.kode_barang.ilike.%${debouncedSearchTerm}%,notes.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      if (selectedEventType !== "all") {
+        query = query.eq("event_type", selectedEventType);
+      }
+
+      if (dateRange?.from) {
+        query = query.gte("created_at", format(startOfDay(dateRange.from), "yyyy-MM-dd"));
+      }
+      if (dateRange?.to) {
+        query = query.lte("created_at", format(endOfDay(dateRange.to), "yyyy-MM-dd"));
+      }
+
+      const { data, error } = await query;
       if (error) {
         showError("Gagal memuat riwayat stok.");
         throw error;
@@ -72,31 +103,32 @@ const StockHistoryPage = () => {
     },
   });
 
-  const filteredStockHistory = useMemo(() => {
-    if (!stockHistory) return [];
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  // No need for local filtering anymore
+  // const filteredStockHistory = useMemo(() => {
+  //   if (!stockHistory) return [];
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
 
-    return stockHistory.filter((item) => {
-      const matchesSearch =
-        item.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-        getEventTypeDisplay(item.event_type).toLowerCase().includes(lowerCaseSearchTerm) ||
-        item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
+  //   return stockHistory.filter((item) => {
+  //     const matchesSearch =
+  //       item.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       item.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       getEventTypeDisplay(item.event_type).toLowerCase().includes(lowerCaseSearchTerm) ||
+  //       item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
-      const matchesEventType =
-        selectedEventType === "all" || item.event_type === selectedEventType;
+  //     const matchesEventType =
+  //       selectedEventType === "all" || item.event_type === selectedEventType;
 
-      const itemDate = parseISO(item.created_at);
-      const matchesDateRange = dateRange?.from
-        ? isWithinInterval(itemDate, {
-            start: startOfDay(dateRange.from),
-            end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-          })
-        : true;
+  //     const itemDate = parseISO(item.created_at);
+  //     const matchesDateRange = dateRange?.from
+  //       ? isWithinInterval(itemDate, {
+  //           start: startOfDay(dateRange.from),
+  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+  //         })
+  //       : true;
 
-      return matchesSearch && matchesEventType && matchesDateRange;
-    });
-  }, [stockHistory, searchTerm, selectedEventType, dateRange]);
+  //     return matchesSearch && matchesEventType && matchesDateRange;
+  //   });
+  // }, [stockHistory, searchTerm, selectedEventType, dateRange]);
 
   if (isLoading) {
     return (
@@ -141,6 +173,7 @@ const StockHistoryPage = () => {
               <SelectValue placeholder="Filter Tipe Event" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">Semua Tipe</SelectItem>
               {Object.values(StockEventType).map((type) => (
                 <SelectItem key={type as string} value={type as string}>
                   {getEventTypeDisplay(type)}
@@ -167,14 +200,14 @@ const StockHistoryPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStockHistory.length === 0 ? (
+            {stockHistory?.length === 0 ? ( // Use 'stockHistory' directly
               <TableRow>
                 <TableCell colSpan={8} className="text-center">
                   Tidak ada riwayat stok ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredStockHistory.map((entry) => (
+              stockHistory?.map((entry) => ( // Use 'stockHistory' directly
                 <TableRow key={entry.id}>
                   <TableCell>{format(new Date(entry.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                   <TableCell>{entry.products?.nama_barang || "N/A"}</TableCell>

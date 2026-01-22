@@ -157,21 +157,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         .from("invoices")
         .select(`
           id,
-          invoice_number,
-          invoice_date,
-          due_date,
-          customer_name,
-          company_name,
-          total_amount,
-          payment_status,
-          created_at,
-          type,
-          customer_type,
-          payment_method,
-          notes,
-          document_url,
-          courier_service
-        `)
+          invoice_number
+        `) // Select specific columns
         .order("invoice_number", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar invoice.");
@@ -187,7 +174,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
-        .select("*")
+        .select("id, customer_name, company_name, address, phone_number, customer_type") // Select specific columns
         .order("customer_name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar pelanggan.");
@@ -203,7 +190,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("*")
+        .select("id, name, type") // Select specific columns
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar teknisi.");

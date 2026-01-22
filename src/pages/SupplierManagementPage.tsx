@@ -36,6 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const SupplierManagementPage = () => {
   const queryClient = useQueryClient();
@@ -44,14 +45,23 @@ const SupplierManagementPage = () => {
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
 
   const { data: suppliers, isLoading, error } = useQuery<Supplier[], Error>({
-    queryKey: ["suppliers"],
+    queryKey: ["suppliers", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("suppliers")
         .select("*")
         .order("name", { ascending: true });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `name.ilike.%${debouncedSearchTerm}%,contact_person.ilike.%${debouncedSearchTerm}%,phone_number.ilike.%${debouncedSearchTerm}%,email.ilike.%${debouncedSearchTerm}%,address.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data, error } = await query;
       if (error) {
         showError("Gagal memuat supplier.");
         throw error;
@@ -90,19 +100,20 @@ const SupplierManagementPage = () => {
     setIsViewDetailsOpen(true);
   };
 
-  const filteredSuppliers = useMemo(() => {
-    if (!suppliers) return [];
-    return suppliers.filter((supplier) => {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        supplier.name.toLowerCase().includes(searchLower) ||
-        supplier.contact_person?.toLowerCase().includes(searchLower) ||
-        supplier.phone_number?.toLowerCase().includes(searchLower) ||
-        supplier.email?.toLowerCase().includes(searchLower) ||
-        supplier.address?.toLowerCase().includes(searchLower)
-      );
-    });
-  }, [suppliers, searchTerm]);
+  // No need for local filtering anymore
+  // const filteredSuppliers = useMemo(() => {
+  //   if (!suppliers) return [];
+  //   return suppliers.filter((supplier) => {
+  //     const searchLower = searchTerm.toLowerCase();
+  //     return (
+  //       supplier.name.toLowerCase().includes(searchLower) ||
+  //       supplier.contact_person?.toLowerCase().includes(searchLower) ||
+  //       supplier.phone_number?.toLowerCase().includes(searchLower) ||
+  //       supplier.email?.toLowerCase().includes(searchLower) ||
+  //       supplier.address?.toLowerCase().includes(searchLower)
+  //     );
+  //   });
+  // }, [suppliers, searchTerm]);
 
   if (isLoading) {
     return (
@@ -166,14 +177,14 @@ const SupplierManagementPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSuppliers.length === 0 ? (
+            {suppliers?.length === 0 ? ( // Use 'suppliers' directly
               <TableRow>
                 <TableCell colSpan={7} className="text-center">
                   Tidak ada supplier ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredSuppliers.map((supplier, index) => (
+              suppliers?.map((supplier, index) => ( // Use 'suppliers' directly
                 <TableRow key={supplier.id}>
                       <TableCell>{index + 1}</TableCell>
                       <TableCell>{supplier.name}</TableCell>

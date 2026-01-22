@@ -30,23 +30,52 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const ScheduleManagementPage = () => {
   const queryClient = useQueryClient();
   const [isAddEditFormOpen, setIsAddEditFormOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
 
   const { data: schedules, isLoading, error } = useQuery<Schedule[], Error>({
-    queryKey: ["schedules"],
+    queryKey: ["schedules", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("schedules")
         .select(`
-          *,
+          id,
+          user_id,
+          schedule_date,
+          schedule_time,
+          type,
+          customer_name,
+          address,
+          technician_name,
+          invoice_id,
+          status,
+          notes,
+          created_at,
+          phone_number,
+          courier_service,
+          document_url,
+          scheduling_request_id,
+          do_number,
+          updated_at,
+          product_category,
+          customer_id,
           customers (customer_name, company_name, phone_number, address, customer_type)
         `) // Join customers table
         .order("schedule_date", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `do_number.ilike.%${debouncedSearchTerm}%,customer_name.ilike.%${debouncedSearchTerm}%,technician_name.ilike.%${debouncedSearchTerm}%,type.ilike.%${debouncedSearchTerm}%,status.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data, error } = await query;
       if (error) {
         showError("Gagal memuat jadwal.");
         throw error;
@@ -85,21 +114,22 @@ const ScheduleManagementPage = () => {
     setIsAddEditFormOpen(true);
   };
 
-  const filteredSchedules = useMemo(() => {
-    if (!schedules) return [];
-    return schedules.filter((schedule) => {
-      const searchLower = searchTerm.toLowerCase();
-      const customerName = (schedule as any).customers?.customer_name || schedule.customer_name; // Use joined data
-      return (
-        schedule.do_number?.toLowerCase().includes(searchLower) ||
-        customerName.toLowerCase().includes(searchLower) ||
-        schedule.technician_name?.toLowerCase().includes(searchLower) ||
-        schedule.type.toLowerCase().includes(searchLower) ||
-        schedule.status.toLowerCase().includes(searchLower) ||
-        format(new Date(schedule.schedule_date), "dd-MM-yyyy").includes(searchLower)
-      );
-    });
-  }, [schedules, searchTerm]);
+  // No need for local filtering anymore
+  // const filteredSchedules = useMemo(() => {
+  //   if (!schedules) return [];
+  //   return schedules.filter((schedule) => {
+  //     const searchLower = searchTerm.toLowerCase();
+  //     const customerName = (schedule as any).customers?.customer_name || schedule.customer_name; // Use joined data
+  //     return (
+  //       schedule.do_number?.toLowerCase().includes(searchLower) ||
+  //       customerName.toLowerCase().includes(searchLower) ||
+  //       schedule.technician_name?.toLowerCase().includes(searchLower) ||
+  //       schedule.type.toLowerCase().includes(searchLower) ||
+  //       schedule.status.toLowerCase().includes(searchLower) ||
+  //       format(new Date(schedule.schedule_date), "dd-MM-yyyy").includes(searchLower)
+  //     );
+  //   });
+  // }, [schedules, searchTerm]);
 
   if (isLoading) {
     return (
@@ -170,14 +200,14 @@ const ScheduleManagementPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSchedules.length === 0 ? (
+            {schedules?.length === 0 ? ( // Use 'schedules' directly
               <TableRow>
                 <TableCell colSpan={10} className="text-center">
                   Tidak ada jadwal ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredSchedules.map((schedule, index) => (
+              schedules?.map((schedule, index) => ( // Use 'schedules' directly
                 <TableRow key={schedule.id}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>

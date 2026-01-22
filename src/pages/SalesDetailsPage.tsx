@@ -14,10 +14,12 @@ import ViewSalesDetailDialog from "@/components/ViewSalesDetailDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { SalesDetail } from "@/types/data"; // Corrected import
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const SalesDetailsPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = React.useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = React.useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -26,12 +28,20 @@ const SalesDetailsPage = () => {
   const [salesDetailToView, setSalesDetailToView] = React.useState<SalesDetail | null>(null);
 
   const { data: salesDetails, isLoading, error, refetch: fetchSalesDetails } = useQuery<SalesDetail[], Error>({
-    queryKey: ["salesDetails"],
+    queryKey: ["salesDetails", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("sales_details")
         .select("*")
         .order("tanggal", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `customer.ilike.%${debouncedSearchTerm}%,no_transaksi.ilike.%${debouncedSearchTerm}%,invoice_number.ilike.%${debouncedSearchTerm}%,perusahaan.ilike.%${debouncedSearchTerm}%,teknisi.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data;
@@ -79,17 +89,18 @@ const SalesDetailsPage = () => {
     }
   };
 
-  const filteredSalesDetails = salesDetails?.filter((item) => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return (
-      item.customer.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.no_transaksi.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.perusahaan?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.teknisi?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      format(new Date(item.tanggal), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
-    );
-  });
+  // No need for local filtering anymore
+  // const filteredSalesDetails = salesDetails?.filter((item) => {
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  //   return (
+  //     item.customer.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.no_transaksi.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.perusahaan?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.teknisi?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     format(new Date(item.tanggal), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
+  //   );
+  // });
 
   if (isLoading) {
     return (
@@ -135,9 +146,9 @@ const SalesDetailsPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredSalesDetails?.map((detail) => (
+            {salesDetails?.map((detail, index) => ( // Use 'salesDetails' directly
               <TableRow key={detail.id}>
-                <TableCell>{detail.no}</TableCell>
+                <TableCell>{index + 1}</TableCell>
                 <TableCell>{format(new Date(detail.tanggal), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{detail.no_transaksi}</TableCell>
                 <TableCell>{detail.invoice_number}</TableCell>

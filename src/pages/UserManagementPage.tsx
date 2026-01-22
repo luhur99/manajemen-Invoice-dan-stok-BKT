@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import EditUserRoleForm from "@/components/EditUserRoleForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"; // Added Label import
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const UserManagementPage = () => {
   const { session, loading: sessionLoading, profile } = useSession();
@@ -26,6 +27,7 @@ const UserManagementPage = () => {
 
   const [isAddUserFormOpen, setIsAddUserFormOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -41,7 +43,7 @@ const UserManagementPage = () => {
   const [newPassword, setNewPassword] = useState("");
 
   const { data: users, isLoading: usersLoading, error: usersError, refetch: refetchUsers } = useQuery<UserWithProfile[], Error>({
-    queryKey: ["allUsersWithProfiles"],
+    queryKey: ["allUsersWithProfiles", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('list-users');
       if (error) {
@@ -51,7 +53,7 @@ const UserManagementPage = () => {
         throw new Error(data.error);
       }
       // Map the raw user data to UserWithProfile type
-      return (data as any[]).map((user: any) => ({
+      const allUsers = (data as any[]).map((user: any) => ({
         id: user.id,
         email: user.email,
         created_at: user.created_at,
@@ -63,6 +65,18 @@ const UserManagementPage = () => {
           phone_number: user.phone_number,
         },
       })) as UserWithProfile[];
+
+      // Apply client-side filtering for debounced search term
+      if (debouncedSearchTerm) {
+        const lowerCaseSearchTerm = debouncedSearchTerm.toLowerCase();
+        return allUsers.filter((user) =>
+          user.email.toLowerCase().includes(lowerCaseSearchTerm) ||
+          user.profiles?.first_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          user.profiles?.last_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+          user.profiles?.role.toLowerCase().includes(lowerCaseSearchTerm)
+        );
+      }
+      return allUsers;
     },
     enabled: !!session && profile?.role === 'admin',
   });
@@ -108,15 +122,16 @@ const UserManagementPage = () => {
     },
   });
 
-  const filteredUsers = users?.filter((user) => {
-    const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    return (
-      user.email.toLowerCase().includes(lowerCaseSearchTerm) ||
-      user.profiles?.first_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      user.profiles?.last_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      user.profiles?.role.toLowerCase().includes(lowerCaseSearchTerm)
-    );
-  }) || [];
+  // No need for local filtering anymore, as it's done in queryFn
+  // const filteredUsers = users?.filter((user) => {
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  //   return (
+  //     user.email.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     user.profiles?.first_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     user.profiles?.last_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     user.profiles?.role.toLowerCase().includes(lowerCaseSearchTerm)
+  //   );
+  // }) || [];
 
   const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;

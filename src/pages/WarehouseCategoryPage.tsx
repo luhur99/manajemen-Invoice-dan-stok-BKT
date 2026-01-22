@@ -16,6 +16,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
 import { WarehouseCategory } from "@/types/data";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 // Define the schema for the new warehouse_categories table
 interface WarehouseCategoryWithNo extends WarehouseCategory {
@@ -43,6 +44,7 @@ const WarehouseCategoryPage: React.FC = () => {
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -57,12 +59,18 @@ const WarehouseCategoryPage: React.FC = () => {
   });
 
   const { data: categories = [], isLoading, error, refetch: fetchCategories } = useQuery<WarehouseCategoryWithNo[], Error>({
-    queryKey: ["warehouseCategories"],
+    queryKey: ["warehouseCategories", debouncedSearchTerm], // Include debounced search term
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("warehouse_categories")
         .select("*")
         .order("name", { ascending: true });
+
+      if (debouncedSearchTerm) {
+        query = query.ilike("name", `%${debouncedSearchTerm}%`);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -143,9 +151,10 @@ const WarehouseCategoryPage: React.FC = () => {
     },
   });
 
-  const filteredCategories = categories.filter((category) =>
-    category.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // No need for local filtering anymore
+  // const filteredCategories = categories.filter((category) =>
+  //   category.name.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
 
   const handleAddCategory = (values: z.infer<typeof formSchema>) => {
     addCategoryMutation.mutate(values);
@@ -210,7 +219,7 @@ const WarehouseCategoryPage: React.FC = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-grow"
         />
-        {filteredCategories.length > 0 ? (
+        {categories.length > 0 ? ( // Use 'categories' directly
           <div className="overflow-x-auto rounded-md border">
             <Table className="min-w-full">
               <TableHeader>
@@ -221,7 +230,7 @@ const WarehouseCategoryPage: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCategories.map((category) => (
+                {categories.map((category) => ( // Use 'categories' directly
                   <TableRow key={category.id}>
                     <TableCell>{category.no}</TableCell>
                     <TableCell>{category.name}</TableCell>

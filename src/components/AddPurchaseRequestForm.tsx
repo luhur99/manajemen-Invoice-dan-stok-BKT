@@ -124,7 +124,6 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
           harga_beli,
           harga_jual,
           safe_stock_limit,
-          created_at,
           supplier_id,
           warehouse_inventories (
             warehouse_category,
@@ -158,13 +157,13 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("*")
+        .select("*") // Select all columns to match Supplier interface
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar supplier.");
         throw error;
       }
-      return data;
+      return data as Supplier[];
     },
     enabled: isOpen, // Only fetch when the dialog is open
   });
@@ -175,13 +174,13 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("*") // Select all columns to match WarehouseCategoryType interface
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data as WarehouseCategoryType[];
     },
     enabled: isOpen, // Only fetch when the dialog is open
   });
@@ -208,7 +207,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
           suggested_selling_price: 0,
           total_price: 0,
           supplier_id: "",
-          target_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
+          target_warehouse_category: warehouseCategories?.[0]?.code || "",
           notes: "",
         });
       });
@@ -506,8 +505,8 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                         </FormControl>
                         <SelectContent>
                           {warehouseCategories?.map((category) => (
-                            <SelectItem key={category.id} value={category.code}> {/* Fixed here */}
-                              {category.name} {/* Fixed here */}
+                            <SelectItem key={category.id} value={category.code}>
+                              {category.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
+import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   switch (status) {
@@ -89,18 +90,59 @@ const InvoiceManagementPage = () => {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const { data: invoices, isLoading, error } = useQuery<InvoiceWithDetails[], Error>({
-    queryKey: ["invoices"],
+    queryKey: ["invoices", debouncedSearchTerm, dateRange], // Include debounced search term and date range
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("invoices")
         .select(`
-          *,
-          invoice_items (*)
+          id,
+          user_id,
+          invoice_number,
+          invoice_date,
+          due_date,
+          customer_name,
+          company_name,
+          total_amount,
+          payment_status,
+          created_at,
+          type,
+          customer_type,
+          payment_method,
+          notes,
+          document_url,
+          courier_service,
+          invoice_status,
+          updated_at,
+          invoice_items (
+            id,
+            item_name,
+            item_code,
+            quantity,
+            unit_price,
+            subtotal,
+            unit_type
+          )
         `)
         .order("invoice_date", { ascending: false });
+
+      if (debouncedSearchTerm) {
+        query = query.or(
+          `invoice_number.ilike.%${debouncedSearchTerm}%,customer_name.ilike.%${debouncedSearchTerm}%,company_name.ilike.%${debouncedSearchTerm}%,payment_status.ilike.%${debouncedSearchTerm}%,type.ilike.%${debouncedSearchTerm}%`
+        );
+      }
+
+      if (dateRange?.from) {
+        query = query.gte("invoice_date", format(startOfDay(dateRange.from), "yyyy-MM-dd"));
+      }
+      if (dateRange?.to) {
+        query = query.lte("invoice_date", format(endOfDay(dateRange.to), "yyyy-MM-dd"));
+      }
+
+      const { data, error } = await query;
       if (error) {
         showError("Gagal memuat invoice.");
         throw error;
@@ -144,28 +186,29 @@ const InvoiceManagementPage = () => {
     setIsUploadDialogOpen(true);
   };
 
-  const filteredInvoices = useMemo(() => {
-    if (!invoices) return [];
-    return invoices.filter((invoice) => {
-      const searchLower = searchTerm.toLowerCase();
-      const matchesSearch =
-        invoice.invoice_number.toLowerCase().includes(searchLower) ||
-        invoice.customer_name.toLowerCase().includes(searchLower) ||
-        invoice.company_name?.toLowerCase().includes(searchLower) ||
-        invoice.payment_status.toLowerCase().includes(searchLower) ||
-        invoice.type?.toLowerCase().includes(searchLower);
+  // No need for local filtering anymore, as the query itself is filtered
+  // const filteredInvoices = useMemo(() => {
+  //   if (!invoices) return [];
+  //   return invoices.filter((invoice) => {
+  //     const searchLower = searchTerm.toLowerCase();
+  //     const matchesSearch =
+  //       invoice.invoice_number.toLowerCase().includes(searchLower) ||
+  //       invoice.customer_name.toLowerCase().includes(searchLower) ||
+  //       invoice.company_name?.toLowerCase().includes(searchLower) ||
+  //       invoice.payment_status.toLowerCase().includes(searchLower) ||
+  //       invoice.type?.toLowerCase().includes(searchLower);
 
-      const invoiceDate = parseISO(invoice.invoice_date);
-      const matchesDateRange = dateRange?.from
-        ? isWithinInterval(invoiceDate, {
-            start: startOfDay(dateRange.from),
-            end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-          })
-        : true;
+  //     const invoiceDate = parseISO(invoice.invoice_date);
+  //     const matchesDateRange = dateRange?.from
+  //       ? isWithinInterval(invoiceDate, {
+  //           start: startOfDay(dateRange.from),
+  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+  //         })
+  //       : true;
 
-      return matchesSearch && matchesDateRange;
-    });
-  }, [invoices, searchTerm, dateRange]);
+  //     return matchesSearch && matchesDateRange;
+  //   });
+  // }, [invoices, searchTerm, dateRange]);
 
   if (isLoading) {
     return (
@@ -233,14 +276,14 @@ const InvoiceManagementPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredInvoices.length === 0 ? (
+            {invoices?.length === 0 ? ( // Use 'invoices' directly
               <TableRow>
                 <TableCell colSpan={8} className="text-center">
                   Tidak ada invoice ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInvoices.map((invoice) => (
+              invoices?.map((invoice) => ( // Use 'invoices' directly
                 <TableRow key={invoice.id}>
                   <TableCell>{invoice.invoice_number}</TableCell>
                   <TableCell>{format(parseISO(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>

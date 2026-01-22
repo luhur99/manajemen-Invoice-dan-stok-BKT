@@ -66,7 +66,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("id, name, code") // Select specific columns
         .order("name", { ascending: true });
 
       if (error) {
@@ -88,7 +88,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_inventories")
-        .select("*")
+        .select("id, product_id, warehouse_category, quantity") // Select specific columns
         .eq("product_id", product.id);
 
       if (error) {
