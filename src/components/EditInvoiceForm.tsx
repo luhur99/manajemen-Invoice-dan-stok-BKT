@@ -705,8 +705,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={addInvoiceMutation.isPending}>
-                {addInvoiceMutation.isPending ? (
+              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
+                {updateInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"
@@ -720,4 +720,4 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   );
 };
 
-export default AddInvoiceForm;
+export default EditInvoiceForm;

@@ -89,6 +89,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("product_info"); // State to manage active tab
+  const [productSearchInput, setProductSearchInput] = useState(""); // State for StockItemCombobox input
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -211,6 +212,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
           notes: "",
         });
       });
+      setProductSearchInput(""); // Reset product search input
       setActiveTab("product_info"); // Reset to first tab
     }
   }, [isOpen, form, warehouseCategories]);
@@ -228,6 +230,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
       form.setValue("unit_price", product.harga_beli);
       form.setValue("suggested_selling_price", product.harga_jual);
       form.setValue("supplier_id", product.supplier_id || "");
+      setProductSearchInput(product.nama_barang); // Update search input when product is selected
     } else {
       form.setValue("item_name", "");
       form.setValue("item_code", "");
@@ -235,6 +238,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
       form.setValue("unit_price", 0);
       form.setValue("suggested_selling_price", 0);
       form.setValue("supplier_id", "");
+      // Do not clear productSearchInput here if it's meant for filtering
     }
   }, [selectedProductId, products, form]);
 
@@ -330,8 +334,10 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                           products={products || []}
                           selectedProductId={field.value}
                           onSelectProduct={field.onChange}
+                          inputValue={productSearchInput}
+                          onInputValueChange={setProductSearchInput}
                           disabled={loadingProducts}
-                          placeholder="Pilih produk untuk permintaan pembelian"
+                          loading={loadingProducts}
                         />
                       </FormControl>
                       <FormMessage />
@@ -500,8 +506,8 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
                         </FormControl>
                         <SelectContent>
                           {warehouseCategories?.map((category) => (
-                            <SelectItem key={category.id} value={category.code}>
-                              {category.name}
+                            <SelectItem key={category.id} value={category.code}> {/* Fixed here */}
+                              {category.name} {/* Fixed here */}
                             </SelectItem>
                           ))}
                         </SelectContent>

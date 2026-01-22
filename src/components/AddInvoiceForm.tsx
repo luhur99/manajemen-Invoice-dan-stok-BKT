@@ -383,7 +383,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   name="customer_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nama Pelangabel</FormLabel>
+                      <FormLabel>Nama Pelanggan</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -482,19 +482,9 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih metode pembayaran" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Cash">Cash</SelectItem>
-                          <SelectItem value="Transfer">Transfer</SelectItem>
-                          <SelectItem value="DP">DP</SelectItem>
-                          <SelectItem value="Lainnya">Lainnya</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
