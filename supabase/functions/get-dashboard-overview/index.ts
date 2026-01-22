@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { format, parseISO, subMonths, startOfMonth } from 'https://esm.sh/date-fns@2.30.0';
+import { format, parseISO, subMonths, startOfMonth, endOfMonth, startOfDay } from 'https://esm.sh/date-fns@2.30.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -191,7 +191,7 @@ serve(async (req) => {
     recentStockLedgerData.forEach(entry => {
       const itemName = entry.products?.[0]?.nama_barang || "Item Tidak Dikenal";
       let desc = "";
-      if (['initial', 'in'].includes(entry.event_type) && entry.quantity > 0) {
+      if (['in', 'initial'].includes(entry.event_type) && entry.quantity > 0) {
         const toCategory = entry.to_warehouse_category ? ` di ${getCategoryDisplayName(entry.to_warehouse_category)}` : "";
         desc = `Stok masuk ${entry.quantity} unit untuk ${itemName}${toCategory}`;
       } else if (entry.event_type === 'out' && entry.quantity > 0) {
@@ -224,68 +224,53 @@ serve(async (req) => {
     const latestActivities = allActivities.slice(0, 5);
     console.log('Finished processing all activities.');
 
-    // Fetch data for monthly invoice chart
-    console.log('Fetching monthly invoice chart data...');
-    const sixMonthsAgo = subMonths(new Date(), 5);
-    const startDate = startOfMonth(sixMonthsAgo);
+    // --- New: Fetch data for current month summaries ---
+    console.log('Fetching current month summaries...');
+    const now = new Date();
+    const startOfCurrentMonth = format(startOfMonth(now), "yyyy-MM-dd");
+    const endOfCurrentMonth = format(endOfMonth(now), "yyyy-MM-dd");
 
-    const { data: allInvoicesForChart, error: chartInvoicesError } = await supabaseAdminClient
+    // Total Invoices This Month
+    const { count: totalInvoicesThisMonth, error: currentMonthInvoicesError } = await supabaseAdminClient
       .from("invoices")
-      .select("created_at")
-      .gte("created_at", format(startDate, "yyyy-MM-dd"));
-    if (chartInvoicesError) { console.error('Error fetching chart invoices:', chartInvoicesError); throw chartInvoicesError; }
+      .select("id", { count: "exact" })
+      .gte("created_at", startOfCurrentMonth)
+      .lte("created_at", endOfCurrentMonth);
+    if (currentMonthInvoicesError) { console.error('Error fetching current month invoices:', currentMonthInvoicesError); throw currentMonthInvoicesError; }
 
-    const monthlyInvoiceCounts = {};
-    for (let i = 0; i < 6; i++) {
-      const month = format(subMonths(new Date(), i), "MMM yyyy");
-      monthlyInvoiceCounts[month] = 0;
-    }
-    allInvoicesForChart.forEach(invoice => {
-      const month = format(parseISO(invoice.created_at), "MMM yyyy");
-      if (monthlyInvoiceCounts[month] !== undefined) {
-        monthlyInvoiceCounts[month]++;
-      }
-    });
-    const monthlyInvoiceData = Object.keys(monthlyInvoiceCounts)
-      .sort((a, b) => parseISO(`01 ${a}`).getTime() - parseISO(`01 ${b}`).getTime())
-      .map(month => ({
-        month,
-        invoices: monthlyInvoiceCounts[month],
-      }));
-    console.log('Finished fetching monthly invoice chart data.');
-
-    // Fetch data for monthly stock ledger chart
-    console.log('Fetching monthly stock ledger chart data...');
-    const { data: allStockLedgerForChart, error: chartStockLedgerError } = await supabaseAdminClient
+    // Total Stock In/Out This Month
+    const { data: currentMonthStockLedger, error: currentMonthStockLedgerError } = await supabaseAdminClient
       .from("stock_ledger")
-      .select("event_type, quantity, created_at")
-      .gte("created_at", format(startDate, "yyyy-MM-dd"));
-    if (chartStockLedgerError) { console.error('Error fetching chart stock ledger:', chartStockLedgerError); throw chartStockLedgerError; }
+      .select("event_type, quantity, from_warehouse_category, to_warehouse_category")
+      .gte("created_at", startOfCurrentMonth)
+      .lte("created_at", endOfCurrentMonth);
+    if (currentMonthStockLedgerError) { console.error('Error fetching current month stock ledger:', currentMonthStockLedgerError); throw currentMonthStockLedgerError; }
 
-    const monthlyStockAggregates = {};
-    for (let i = 0; i < 6; i++) {
-      const month = format(subMonths(new Date(), i), "MMM yyyy");
-      monthlyStockAggregates[month] = { stock_in: 0, stock_out: 0 };
-    }
-    allStockLedgerForChart.forEach(entry => {
-      const month = format(parseISO(entry.created_at), "MMM yyyy");
-      if (monthlyStockAggregates[month]) {
+    let totalStockInThisMonth = 0;
+    let totalStockOutThisMonth = 0;
+    if (currentMonthStockLedger) {
+      currentMonthStockLedger.forEach(entry => {
         if (['in', 'initial'].includes(entry.event_type) && entry.quantity > 0) {
-          monthlyStockAggregates[month].stock_in += entry.quantity;
+          totalStockInThisMonth += entry.quantity;
         } else if (entry.event_type === 'out' && entry.quantity > 0) {
-          monthlyStockAggregates[month].stock_out += entry.quantity;
+          totalStockOutThisMonth += entry.quantity;
         } else if (entry.event_type === 'adjustment') {
-          monthlyStockAggregates[month].stock_in += entry.quantity; // Simplified: count all adjustments as 'in' for chart
+          // If `to_warehouse_category` is present and `from_warehouse_category` is null, it's an increase.
+          // If `from_warehouse_category` is present and `to_warehouse_category` is null, it's a decrease.
+          if (entry.to_warehouse_category && !entry.from_warehouse_category) {
+              totalStockInThisMonth += entry.quantity;
+          } else if (entry.from_warehouse_category && !entry.to_warehouse_category) {
+              totalStockOutThisMonth += entry.quantity;
+          } else {
+              // For ambiguous adjustments (e.g., both from/to or neither),
+              // we'll default to counting as 'in' for simplicity in this summary.
+              // A more precise dashboard might require a 'delta' column in stock_ledger.
+              totalStockInThisMonth += entry.quantity;
+          }
         }
-      }
-    });
-    const monthlyStockData = Object.keys(monthlyStockAggregates)
-      .sort((a, b) => parseISO(`01 ${a}`).getTime() - parseISO(`01 ${b}`).getTime())
-      .map(month => ({
-        month,
-        ...monthlyStockAggregates[month],
-      }));
-    console.log('Finished fetching monthly stock ledger chart data.');
+      });
+    }
+    console.log('Finished fetching current month summaries.');
 
     return new Response(JSON.stringify({
       pendingInvoices: invoicesCount,
@@ -293,8 +278,9 @@ serve(async (req) => {
       lowStockItems: lowStockCount,
       pendingPurchaseRequests: purchaseRequestsCount,
       latestActivities,
-      monthlyInvoiceData,
-      monthlyStockData,
+      totalInvoicesThisMonth,
+      totalStockInThisMonth,
+      totalStockOutThisMonth,
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

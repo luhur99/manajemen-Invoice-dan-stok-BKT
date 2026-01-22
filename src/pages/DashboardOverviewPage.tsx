@@ -11,8 +11,7 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend }
-from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -29,7 +28,7 @@ interface LatestActivity {
   date: string; // ISO date string
 }
 
-// Chart configuration
+// Chart configuration (kept for potential future use or other charts, but not used for monthly summaries anymore)
 const chartConfig = {
   invoices: {
     label: "Invoices",
@@ -91,8 +90,10 @@ const DashboardOverviewPage = () => {
   const lowStockItems = data?.lowStockItems || 0;
   const pendingPurchaseRequests = data?.pendingPurchaseRequests || 0;
   const latestActivities: LatestActivity[] = data?.latestActivities || [];
-  const monthlyInvoiceData = data?.monthlyInvoiceData || [];
-  const monthlyStockData = data?.monthlyStockData || [];
+  // New data points for monthly summaries
+  const totalInvoicesThisMonth = data?.totalInvoicesThisMonth || 0;
+  const totalStockInThisMonth = data?.totalStockInThisMonth || 0;
+  const totalStockOutThisMonth = data?.totalStockOutThisMonth || 0;
 
   // Show loading state while checking session
   if (!session) {
@@ -210,89 +211,66 @@ const DashboardOverviewPage = () => {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* New section for monthly summaries */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"> {/* Adjusted grid for 3 cards */}
         <Card>
-          <CardHeader>
-            <CardTitle>Invoice Dibuat per Bulan</CardTitle>
-            <CardDescription>Jumlah invoice yang dibuat selama 6 bulan terakhir.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Invoice Bulan Ini</CardTitle>
+            <ReceiptText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-              <BarChart accessibilityLayer data={monthlyInvoiceData}>
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  tickFormatter={(value) => value.slice(0, 3)}
-                />
-                <YAxis
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="invoices" fill="var(--color-invoices)" radius={4} />
-              </BarChart>
-            </ChartContainer>
+            <div className="text-2xl font-bold">{totalInvoicesThisMonth}</div>
+            <p className="text-xs text-muted-foreground">
+              Invoice dibuat bulan ini
+            </p>
           </CardContent>
         </Card>
-
-        {/* New Card for Monthly Stock Transactions Chart */}
         <Card>
-          <CardHeader>
-            <CardTitle>Pergerakan Stok per Bulan</CardTitle>
-            <CardDescription>Total stok masuk dan keluar selama 6 bulan terakhir.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stok Masuk Bulan Ini</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-              <BarChart accessibilityLayer data={monthlyStockData}>
-                <CartesianGrid vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  tickFormatter={(value) => value.slice(0, 3)}
-                />
-                <YAxis
-                  tickLine={false}
-                  tickMargin={10}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Legend />
-                <Bar dataKey="stock_in" fill="var(--color-stock_in)" radius={4} />
-                <Bar dataKey="stock_out" fill="var(--color-stock_out)" radius={4} />
-              </BarChart>
-            </ChartContainer>
+            <div className="text-2xl font-bold">{totalStockInThisMonth}</div>
+            <p className="text-xs text-muted-foreground">
+              Total kuantitas stok masuk
+            </p>
           </CardContent>
         </Card>
-
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Aktivitas Terbaru</CardTitle>
-            <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Stok Keluar Bulan Ini</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            {latestActivities.length > 0 ? (
-              <ul className="space-y-2">
-                {latestActivities.map((activity) => (
-                  <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
-                    <span>{activity.description}</span>
-                    <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-700 dark:text-gray-300">Belum ada aktivitas terbaru.</p>
-            )}
+            <div className="text-2xl font-bold">{totalStockOutThisMonth}</div>
+            <p className="text-xs text-muted-foreground">
+              Total kuantitas stok keluar
+            </p>
           </CardContent>
         </Card>
       </div>
+
+      <Card> {/* This card is now a direct child of the main space-y-6 div */}
+        <CardHeader>
+          <CardTitle>Aktivitas Terbaru</CardTitle>
+          <CardDescription>Lihat ringkasan 5 aktivitas penjualan dan stok terbaru Anda.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {latestActivities.length > 0 ? (
+            <ul className="space-y-2">
+              {latestActivities.map((activity) => (
+                <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
+                  <span>{activity.description}</span>
+                  <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-700 dark:text-gray-300">Belum ada aktivitas terbaru.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <TechnicianScheduleCalendar />
     </div>
