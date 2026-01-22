@@ -140,8 +140,6 @@ const SupplierManagementPage = () => {
             </Button>
           </DialogTrigger>
           <AddSupplierForm
-            isOpen={isAddFormOpen}
-            onOpenChange={setIsAddFormOpen}
             onSuccess={() => setIsAddFormOpen(false)}
           />
         </Dialog>
@@ -170,7 +168,7 @@ const SupplierManagementPage = () => {
             ) : (
               filteredSuppliers.map((supplier, index) => (
                 <TableRow key={supplier.id}>
-                      <TableCell>{index + 1}</TableCell> {/* Fixed */}
+                      <TableCell>{index + 1}</TableCell>
                       <TableCell>{supplier.name}</TableCell>
                       <TableCell>{supplier.contact_person || "-"}</TableCell>
                       <TableCell>{supplier.phone_number || "-"}</TableCell>
@@ -210,7 +208,7 @@ const SupplierManagementPage = () => {
             isOpen={isEditFormOpen}
             onOpenChange={setIsEditFormOpen}
             onSuccess={() => setIsEditFormOpen(false)}
-            initialData={selectedSupplier}
+            supplier={selectedSupplier}
           />
           <ViewSupplierDetailsDialog
             isOpen={isViewDetailsOpen}

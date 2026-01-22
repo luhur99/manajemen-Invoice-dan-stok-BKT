@@ -284,7 +284,7 @@ const StockManagementPage = () => {
             isOpen={isEditFormOpen}
             onOpenChange={setIsEditFormOpen}
             onSuccess={() => setIsEditFormOpen(false)}
-            initialData={selectedProduct}
+            product={selectedProduct}
           />
           <ViewStockItemDetailsDialog
             isOpen={isViewDetailsOpen}
@@ -295,7 +295,8 @@ const StockManagementPage = () => {
             isOpen={isAddTransactionOpen}
             onOpenChange={setIsAddTransactionOpen}
             onSuccess={() => setIsAddTransactionOpen(false)}
-            product={selectedProduct}
+            products={products || []} // Pass all products
+            initialProductId={selectedProduct.id} // Pass selected product ID
           />
           <StockAdjustmentForm
             isOpen={isAdjustmentOpen}

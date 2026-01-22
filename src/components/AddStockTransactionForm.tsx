@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
-import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
+import { WarehouseCategory as WarehouseCategoryType, StockEventType, Product } from "@/types/data"; // Added Product
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
 
 // Schema validasi menggunakan Zod
@@ -40,11 +40,11 @@ const formSchema = z.object({
 
 interface AddStockTransactionFormProps {
   onSuccess: () => void;
-  products: { id: string; nama_barang: string; kode_barang: string }[];
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  products: Product[]; // Changed from products: { id: string; nama_barang: string; kode_barang: string }[];
   initialProductId?: string;
   initialEventType?: StockEventType;
+  isOpen: boolean; // Keep isOpen and onOpenChange for direct control by parent
+  onOpenChange: (open: boolean) => void; // Keep isOpen and onOpenChange for direct control by parent
 }
 
 const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({

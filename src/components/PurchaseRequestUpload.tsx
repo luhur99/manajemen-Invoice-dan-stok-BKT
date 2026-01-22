@@ -21,17 +21,17 @@ import { PurchaseRequestStatus } from "@/types/data"; // Import PurchaseRequestS
 interface PurchaseRequestUploadProps {
   purchaseRequestId: string;
   currentDocumentUrl?: string | null;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  isOpen: boolean; // Added isOpen prop
+  onOpenChange: (open: boolean) => void; // Added onOpenChange prop
+  onSuccess: () => void; // Changed from onUploadSuccess
 }
 
 const PurchaseRequestUpload: React.FC<PurchaseRequestUploadProps> = ({
   purchaseRequestId,
   currentDocumentUrl,
-  isOpen,
-  onOpenChange,
-  onSuccess,
+  isOpen, // Destructure new prop
+  onOpenChange, // Destructure new prop
+  onSuccess, // Changed from onUploadSuccess
 }) => {
   const queryClient = useQueryClient();
   const [file, setFile] = React.useState<File | null>(null);

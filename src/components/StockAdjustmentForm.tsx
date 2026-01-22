@@ -6,6 +6,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -14,9 +21,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
@@ -33,8 +39,8 @@ const formSchema = z.object({
 
 interface StockAdjustmentFormProps {
   product: Product;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
+  isOpen: boolean; // Keep isOpen and onOpenChange for direct control by parent
+  onOpenChange: (open: boolean) => void; // Keep isOpen and onOpenChange for direct control by parent
   onSuccess: () => void;
 }
 

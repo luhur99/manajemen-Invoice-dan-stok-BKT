@@ -95,6 +95,11 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button className="flex items-center gap-2">
+          <PlusCircle className="h-4 w-4" /> Tambah Supplier
+        </Button>
+      </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tambah Pemasok Baru</DialogTitle>

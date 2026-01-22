@@ -233,7 +233,7 @@ const UserManagementPage = () => {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{`${user.profiles?.first_name || ''} ${user.profiles?.last_name || ''}`.trim() || '-'}</TableCell>
                       <TableCell>{user.profiles?.role.charAt(0).toUpperCase() + user.profiles?.role.slice(1)}</TableCell>
-                      <TableCell>{format(new Date(user.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
+                      <TableCell>{user.created_at ? format(new Date(user.created_at), "dd-MM-yyyy HH:mm") : "-"}</TableCell>
                       <TableCell>{user.last_sign_in_at ? format(new Date(user.last_sign_in_at), "dd-MM-yyyy HH:mm") : "-"}</TableCell>
                       <TableCell className="text-center flex items-center justify-center space-x-1">
                         <Button variant="ghost" size="icon" onClick={() => handleEditRoleClick(user)} title="Edit Peran">

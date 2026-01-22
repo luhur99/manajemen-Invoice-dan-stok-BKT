@@ -141,7 +141,6 @@ const StockHistoryPage = () => {
               <SelectValue placeholder="Filter Tipe Event" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Tipe</SelectItem>
               {Object.values(StockEventType).map((type) => (
                 <SelectItem key={type as string} value={type as string}>
                   {getEventTypeDisplay(type)}

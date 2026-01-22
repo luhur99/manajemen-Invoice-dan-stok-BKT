@@ -15,7 +15,7 @@ import { format } from "date-fns";
 
 interface ViewPurchaseRequestDetailsDialogProps {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: () => void; // Changed from onOpenChange
   request: PurchaseRequest | null;
 }
 
@@ -38,13 +38,13 @@ const getStatusDisplay = (status: PurchaseRequestStatus) => {
 
 const ViewPurchaseRequestDetailsDialog: React.FC<ViewPurchaseRequestDetailsDialogProps> = ({
   isOpen,
-  onClose,
+  onClose, // Changed from onOpenChange
   request,
 }) => {
   if (!request) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}> {/* Changed onOpenChange to onClose */}
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Detail Permintaan Pembelian</DialogTitle>

@@ -16,15 +16,19 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogTrigger,
+  DialogContent, // Added import
+  DialogHeader, // Added import
+  DialogTitle, // Added import
+  DialogDescription, // Added import
 } from "@/components/ui/dialog";
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
-import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategoryEnum, Supplier, StockEventType, PurchaseRequestWithDetails } from "@/types/data"; // Fixed imports
+import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategoryEnum, Supplier, StockEventType, PurchaseRequestWithDetails } from "@/types/data";
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm";
 import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm";
 import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog";
-import PurchaseRequestUpload from "@/components/PurchaseRequestUpload";
+import PurchaseRequestUpload from "@/components/PurchaseRequestUpload"; // Corrected import
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DropdownMenu,
@@ -70,12 +74,12 @@ const PurchaseRequestPage = () => {
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequestWithDetails | null>(null); // Fixed type
+  const [selectedPurchaseRequest, setSelectedPurchaseRequest] = useState<PurchaseRequestWithDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<PurchaseRequestStatus | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const { data: purchaseRequests, isLoading, error } = useQuery<PurchaseRequestWithDetails[], Error>({ // Fixed type
+  const { data: purchaseRequests, isLoading, error } = useQuery<PurchaseRequestWithDetails[], Error>({
     queryKey: ["purchaseRequests"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -90,7 +94,7 @@ const PurchaseRequestPage = () => {
         showError("Gagal memuat pengajuan pembelian.");
         throw error;
       }
-      return data as PurchaseRequestWithDetails[]; // Fixed type casting
+      return data as PurchaseRequestWithDetails[];
     },
   });
 
@@ -114,17 +118,17 @@ const PurchaseRequestPage = () => {
     }
   };
 
-  const handleEdit = (request: PurchaseRequestWithDetails) => { // Fixed type
+  const handleEdit = (request: PurchaseRequestWithDetails) => {
     setSelectedPurchaseRequest(request);
     setIsEditFormOpen(true);
   };
 
-  const handleViewDetails = (request: PurchaseRequestWithDetails) => { // Fixed type
+  const handleViewDetails = (request: PurchaseRequestWithDetails) => {
     setSelectedPurchaseRequest(request);
     setIsViewDetailsOpen(true);
   };
 
-  const handleUploadDocument = (request: PurchaseRequestWithDetails) => { // Fixed type
+  const handleUploadDocument = (request: PurchaseRequestWithDetails) => {
     setSelectedPurchaseRequest(request);
     setIsUploadDialogOpen(true);
   };
@@ -138,7 +142,7 @@ const PurchaseRequestPage = () => {
         request.pr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
         request.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
         request.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-        request.suppliers?.name?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+        request.suppliers?.name?.toLowerCase().includes(lowerCaseSearchTerm) ||
         getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
         request.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
@@ -249,12 +253,12 @@ const PurchaseRequestPage = () => {
             ) : (
               filteredPurchaseRequests.map((request, index) => (
                 <TableRow key={request.id}>
-                  <TableCell>{index + 1}</TableCell> {/* Fixed */}
+                  <TableCell>{index + 1}</TableCell>
                   <TableCell>{request.pr_number || "-"}</TableCell>
                   <TableCell>{request.item_name}</TableCell>
                   <TableCell>{request.item_code}</TableCell>
                   <TableCell>{request.quantity} {request.satuan || ""}</TableCell>
-                  <TableCell>{request.suppliers?.name || "-"}</TableCell> {/* Fixed */}
+                  <TableCell>{request.suppliers?.name || "-"}</TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(request.status)}`}>
                       {getStatusDisplay(request.status)}
@@ -302,8 +306,8 @@ const PurchaseRequestPage = () => {
           />
           <ViewPurchaseRequestDetailsDialog
             isOpen={isViewDetailsOpen}
-            onOpenChange={setIsViewDetailsOpen}
-            purchaseRequest={selectedPurchaseRequest}
+            onClose={() => setIsViewDetailsOpen(false)} {/* Changed onOpenChange to onClose */}
+            request={selectedPurchaseRequest}
           />
           <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
             <DialogContent>
@@ -314,8 +318,10 @@ const PurchaseRequestPage = () => {
                 </DialogDescription>
               </DialogHeader>
               <PurchaseRequestUpload
+                isOpen={isUploadDialogOpen} // Added isOpen
+                onOpenChange={setIsUploadDialogOpen} // Added onOpenChange
                 purchaseRequestId={selectedPurchaseRequest.id}
-                onUploadSuccess={(url) => {
+                onSuccess={(url) => { // Changed onUploadSuccess to onSuccess
                   setSelectedPurchaseRequest((prev) => prev ? { ...prev, document_url: url } : null);
                   setIsUploadDialogOpen(false);
                 }}

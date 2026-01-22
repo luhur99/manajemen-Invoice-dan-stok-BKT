@@ -48,10 +48,12 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
 }) => {
   if (!request) return null;
 
-  const customerName = (request as any).customer_name_from_customers || request.customer_name;
-  const companyName = (request as any).company_name_from_customers || request.company_name;
-  const phoneNumber = (request as any).phone_number_from_customers || request.phone_number;
-  const customerType = (request as any).customer_type_from_customers || request.customer_type;
+  // Access joined data from the request object
+  const customerName = (request as any).customers?.customer_name || request.customer_name;
+  const companyName = (request as any).customers?.company_name || request.company_name;
+  const phoneNumber = (request as any).customers?.phone_number || request.phone_number;
+  const customerType = (request as any).customers?.customer_type || request.customer_type;
+  const invoiceNumber = (request as any).invoices?.invoice_number || request.invoice_id;
 
 
   return (
@@ -84,13 +86,12 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
             <p className="font-medium">Kategori Produk:</p>
             <p>{getProductCategoryDisplay(request.product_category)}</p>
           </div>
-          {request.invoice_id && (
+          {invoiceNumber && (
             <div className="grid grid-cols-2 gap-2">
-              <p className="font-medium">Nomor Invoice Terkait:</p> {/* Updated label */}
-              <p>{(request as any).invoice_number || request.invoice_id}</p>
+              <p className="font-medium">Nomor Invoice Terkait:</p>
+              <p>{invoiceNumber}</p>
             </div>
           )}
-          {/* New: Display Vehicle Details */}
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Detil Kendaraan:</p>
             <p className="whitespace-pre-wrap">{request.vehicle_details || "-"}</p>
@@ -128,7 +129,7 @@ const ViewSchedulingRequestDetailsDialog: React.FC<ViewSchedulingRequestDetailsD
             <p>{request.payment_method || "-"}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <p className="font-medium">Nama Teknisi:</p> {/* New field */}
+            <p className="font-medium">Nama Teknisi:</p>
             <p>{request.technician_name || "-"}</p>
           </div>
           <div className="grid grid-cols-2 gap-2">

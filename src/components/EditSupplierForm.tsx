@@ -35,9 +35,9 @@ const formSchema = z.object({
 
 interface EditSupplierFormProps {
   supplier: Supplier;
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  isOpen: boolean; // Keep isOpen and onOpenChange for direct control by parent
+  onOpenChange: (open: boolean) => void; // Keep isOpen and onOpenChange for direct control by parent
 }
 
 const EditSupplierForm: React.FC<EditSupplierFormProps> = ({ supplier, isOpen, onOpenChange, onSuccess }) => {
