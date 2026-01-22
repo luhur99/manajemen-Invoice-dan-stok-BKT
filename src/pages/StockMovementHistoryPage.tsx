@@ -1,101 +1,105 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Eye } from "lucide-react"; // Import Eye icon
-import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, Loader2 } from "lucide-react";
+import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
-import { showError } from "@/utils/toast"; // Import showError
-import ViewNotesDialog from "@/components/ViewNotesDialog"; // Import ViewNotesDialog
+import { StockLedgerWithProduct, StockEventType, WarehouseCategoryEnum } from "@/types/data"; // Updated imports
+import { showError } from "@/utils/toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
+
+const getEventTypeDisplay = (type: StockEventType) => {
+  switch (type) {
+    case StockEventType.IN:
+      return "Masuk";
+    case StockEventType.OUT:
+      return "Keluar";
+    case StockEventType.TRANSFER:
+      return "Transfer";
+    case StockEventType.ADJUSTMENT:
+      return "Penyesuaian";
+    case StockEventType.INITIAL:
+      return "Awal";
+    default:
+      return type;
+  }
+};
+
+const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
+  switch (code) {
+    case WarehouseCategoryEnum.GUDANG_UTAMA: return "Gudang Utama";
+    case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
+    case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";
+    case WarehouseCategoryEnum.GUDANG_RETUR: return "Gudang Retur";
+    default: return code;
+  }
+};
 
 const StockMovementHistoryPage = () => {
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [selectedFromCategory, setSelectedFromCategory] = React.useState<string | "all">("all");
-  const [selectedToCategory, setSelectedToCategory] = React.useState<string | "all">("all");
-  
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false); // State for ViewNotesDialog
-  const [notesToView, setNotesToView] = useState<string>(""); // State for notes content
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEventType, setSelectedEventType] = useState<StockEventType | "all">("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
-    queryKey: ["warehouseCategories"],
-    queryFn: async () => {
-      console.log("StockMovementHistoryPage: Fetching warehouse categories...");
-      const { data, error } = await supabase
-        .from("warehouse_categories")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (error) {
-        console.error("StockMovementHistoryPage: Supabase error fetching warehouse categories:", error);
-        showError("Gagal memuat kategori gudang.");
-        throw error;
-      }
-      console.log("StockMovementHistoryPage: Warehouse categories data received:", data);
-      return data;
-    },
-    retry: 0, // Disable retries to surface errors faster
-  });
-
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories?.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
-  const { data: movements, isLoading, error, refetch: fetchMovements } = useQuery<StockLedgerWithProduct[], Error>({ // Updated type and query key
+  const { data: stockMovements, isLoading, error } = useQuery<StockLedgerWithProduct[], Error>({
     queryKey: ["stockMovements"],
     queryFn: async () => {
-      console.log("StockMovementHistoryPage: Fetching stock movements...");
       const { data, error } = await supabase
-        .from("stock_ledger") // Changed table name
+        .from("stock_ledger")
         .select(`
           *,
           products (nama_barang, kode_barang)
         `)
-        .eq("event_type", StockEventType.TRANSFER) // Filter for transfer events
         .order("created_at", { ascending: false });
-
       if (error) {
-        console.error("StockMovementHistoryPage: Supabase error fetching stock movements:", error);
+        showError("Gagal memuat riwayat pergerakan stok.");
         throw error;
       }
-      console.log("StockMovementHistoryPage: Stock movements data received:", data);
-
-      return data.map(m => ({
-        ...m,
-        product_name: m.products?.nama_barang || "N/A",
-        product_code: m.products?.kode_barang || "N/A",
-      }));
+      return data as StockLedgerWithProduct[];
     },
-    retry: 0, // Disable retries to surface errors faster
   });
 
-  const handleViewNotes = (notes: string) => {
-    setNotesToView(notes);
-    setIsViewNotesOpen(true);
-  };
-
-  const filteredMovements = movements?.filter((item) => {
+  const filteredStockMovements = useMemo(() => {
+    if (!stockMovements) return [];
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const matchesSearch =
-      item.product_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (item.from_warehouse_category && getCategoryDisplayName(item.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (item.to_warehouse_category && getCategoryDisplayName(item.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-      item.notes?.toLowerCase().includes(lowerCaseSearchTerm) || // Changed from reason to notes
-      format(new Date(item.event_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm); // Changed from movement_date to event_date
 
-    const matchesFromCategory = selectedFromCategory === "all" || item.from_warehouse_category === selectedFromCategory;
-    const matchesToCategory = selectedToCategory === "all" || item.to_warehouse_category === selectedToCategory;
+    return stockMovements.filter((movement) => {
+      const matchesSearch =
+        movement.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+        movement.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+        (movement.from_warehouse_category && getCategoryDisplayName(movement.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+        (movement.to_warehouse_category && getCategoryDisplayName(movement.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
+        movement.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
-    return matchesSearch && matchesFromCategory && matchesToCategory;
-  });
+      const matchesEventType =
+        selectedEventType === "all" || movement.event_type === selectedEventType;
 
-  if (isLoading || loadingCategories) {
+      const itemDate = parseISO(movement.created_at);
+      const matchesDateRange = dateRange?.from
+        ? isWithinInterval(itemDate, {
+            start: startOfDay(dateRange.from),
+            end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+          })
+        : true;
+
+      return matchesSearch && matchesEventType && matchesDateRange;
+    });
+  }, [stockMovements, searchTerm, selectedEventType, dateRange]);
+
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -103,100 +107,100 @@ const StockMovementHistoryPage = () => {
     );
   }
 
-  if (error || categoriesError) {
-    return <div className="text-red-500">Error loading stock movements or categories: {error?.message || categoriesError?.message}</div>;
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Gagal memuat riwayat pergerakan stok: {error.message}
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Riwayat Perpindahan Stok</h1>
+      <h1 className="text-3xl font-bold mb-6">Riwayat Pergerakan Stok</h1>
 
-      <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
-        <Input
-          placeholder="Cari perpindahan..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm flex-grow"
-        />
-        <div className="flex gap-4">
+      <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+        <div className="flex items-center gap-2">
+          <div className="relative w-full max-w-sm">
+            <Input
+              type="text"
+              placeholder="Cari item, gudang, atau catatan..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          </div>
           <Select
-            value={selectedFromCategory}
-            onValueChange={(value: string | "all") => setSelectedFromCategory(value)}
-            disabled={loadingCategories}
+            onValueChange={(value: StockEventType | "all") => setSelectedEventType(value)}
+            value={selectedEventType}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Dari Kategori"} />
+              <SelectValue placeholder="Filter Tipe Event" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Semua Asal</SelectItem>
-              {warehouseCategories?.map((category) => (
-                <SelectItem key={category.id} value={category.code}>
-                  {category.name}
+              <SelectItem value="all">Semua Tipe</SelectItem>
+              {Object.values(StockEventType).map((type) => (
+                <SelectItem key={type as string} value={type as string}> {/* Cast to string */}
+                  {getEventTypeDisplay(type)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-
-          <Select
-            value={selectedToCategory}
-            onValueChange={(value: string | "all") => setSelectedToCategory(value)}
-            disabled={loadingCategories}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Ke Kategori"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Tujuan</SelectItem>
-              {warehouseCategories?.map((category) => (
-                <SelectItem key={category.id} value={category.code}>
-                  {category.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DateRangePicker date={dateRange} onDateChange={setDateRange} />
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Tanggal & Waktu</TableHead>
               <TableHead>Nama Produk</TableHead>
               <TableHead>Kode Produk</TableHead>
-              <TableHead>Dari Kategori</TableHead>
-              <TableHead>Ke Kategori</TableHead>
-              <TableHead className="text-right">Kuantitas</TableHead>
+              <TableHead>Tipe Event</TableHead>
+              <TableHead>Kuantitas</TableHead>
+              <TableHead>Dari Gudang</TableHead>
+              <TableHead>Ke Gudang</TableHead>
               <TableHead>Catatan</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredMovements?.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground">Tidak ada riwayat perpindahan stok yang ditemukan.</TableCell></TableRow>
+            {filteredStockMovements.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center">
+                  Tidak ada pergerakan stok ditemukan.
+                </TableCell>
+              </TableRow>
             ) : (
-              filteredMovements?.map((movement) => (
+              filteredStockMovements.map((movement) => (
                 <TableRow key={movement.id}>
                   <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                  <TableCell>{movement.product_name || "N/A"}</TableCell>
-                  <TableCell>{movement.product_code || "N/A"}</TableCell>
+                  <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell> {/* Fixed */}
+                  <TableCell>{movement.products?.kode_barang || "N/A"}</TableCell> {/* Fixed */}
+                  <TableCell>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      movement.event_type === StockEventType.IN || movement.event_type === StockEventType.INITIAL ? "bg-green-100 text-green-800" :
+                      movement.event_type === StockEventType.OUT ? "bg-red-100 text-red-800" :
+                      movement.event_type === StockEventType.TRANSFER ? "bg-blue-100 text-blue-800" :
+                      "bg-gray-100 text-gray-800"
+                    }`}>
+                      {getEventTypeDisplay(movement.event_type)}
+                    </span>
+                  </TableCell>
+                  <TableCell>{movement.quantity}</TableCell>
                   <TableCell>{movement.from_warehouse_category ? getCategoryDisplayName(movement.from_warehouse_category) : "-"}</TableCell>
                   <TableCell>{movement.to_warehouse_category ? getCategoryDisplayName(movement.to_warehouse_category) : "-"}</TableCell>
-                  <TableCell className="text-right">{movement.quantity}</TableCell>
-                  <TableCell>{movement.notes ? (<Button variant="outline" size="sm" onClick={() => handleViewNotes(movement.notes!)} className="h-7 px-2"><Eye className="h-3 w-3 mr-1" /> Lihat</Button>) : ("-")}</TableCell>
+                  <TableCell>{movement.notes || "-"}</TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
-
-      {/* View Notes Dialog */}
-      <ViewNotesDialog
-        notes={notesToView}
-        isOpen={isViewNotesOpen}
-        onOpenChange={setIsViewNotesOpen}
-        title="Catatan Perpindahan Stok"
-      />
     </div>
   );
 };

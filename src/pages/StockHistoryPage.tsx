@@ -1,103 +1,104 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Eye } from "lucide-react"; // Import Eye icon
-import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Search, Loader2 } from "lucide-react";
+import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
-import { showError } from "@/utils/toast"; // Import showError
-import ViewNotesDialog from "@/components/ViewNotesDialog"; // Import ViewNotesDialog
+import { StockLedgerWithProduct, StockEventType, WarehouseCategoryEnum } from "@/types/data"; // Updated imports
+import { showError } from "@/utils/toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRange } from "react-day-picker";
+
+const getEventTypeDisplay = (type: StockEventType) => {
+  switch (type) {
+    case StockEventType.IN:
+      return "Masuk";
+    case StockEventType.OUT:
+      return "Keluar";
+    case StockEventType.TRANSFER:
+      return "Transfer";
+    case StockEventType.ADJUSTMENT:
+      return "Penyesuaian";
+    case StockEventType.INITIAL:
+      return "Awal";
+    default:
+      return type;
+  }
+};
+
+const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
+  switch (code) {
+    case WarehouseCategoryEnum.GUDANG_UTAMA: return "Gudang Utama";
+    case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
+    case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";
+    case WarehouseCategoryEnum.GUDANG_RETUR: return "Gudang Retur";
+    default: return code;
+  }
+};
 
 const StockHistoryPage = () => {
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [selectedType, setSelectedType] = React.useState<StockEventType | "all">("all"); // Updated type
-  const [selectedCategory, setSelectedCategory] = React.useState<string | "all">("all");
-  
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false); // State for ViewNotesDialog
-  const [notesToView, setNotesToView] = useState<string>(""); // State for notes content
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEventType, setSelectedEventType] = useState<StockEventType | "all">("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
-    queryKey: ["warehouseCategories"],
+  const { data: stockHistory, isLoading, error } = useQuery<StockLedgerWithProduct[], Error>({
+    queryKey: ["stockHistory"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("warehouse_categories")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (error) {
-        showError("Gagal memuat kategori gudang.");
-        throw error;
-      }
-      return data;
-    },
-  });
-
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories?.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
-  // Helper function to get display name for StockEventType
-  const getEventTypeDisplay = (type: StockEventType) => {
-    switch (type) {
-      case StockEventType.INITIAL: return "Stok Awal";
-      case StockEventType.IN: return "Masuk";
-      case StockEventType.OUT: return "Keluar";
-      case StockEventType.TRANSFER: return "Pindah";
-      case StockEventType.ADJUSTMENT: return "Penyesuaian";
-      default: return type;
-    }
-  };
-
-  const { data: ledgerEntries, isLoading, error, refetch: fetchLedgerEntries } = useQuery<StockLedgerWithProduct[], Error>({ // Updated type and query key
-    queryKey: ["stockLedgerEntries"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("stock_ledger") // Changed table name
+        .from("stock_ledger")
         .select(`
           *,
           products (nama_barang, kode_barang)
         `)
         .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      return data.map(t => ({
-        ...t,
-        product_name: t.products?.nama_barang || "N/A",
-        product_code: t.products?.kode_barang || "N/A",
-      }));
+      if (error) {
+        showError("Gagal memuat riwayat stok.");
+        throw error;
+      }
+      return data as StockLedgerWithProduct[];
     },
   });
 
-  const handleViewNotes = (notes: string) => {
-    setNotesToView(notes);
-    setIsViewNotesOpen(true);
-  };
-
-  const filteredLedgerEntries = ledgerEntries?.filter((item) => {
+  const filteredStockHistory = useMemo(() => {
+    if (!stockHistory) return [];
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const matchesSearch =
-      item.product_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-      item.product_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-      getEventTypeDisplay(item.event_type).toLowerCase().includes(lowerCaseSearchTerm) || // Updated to event_type
-      item.notes?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      (item.from_warehouse_category && getCategoryDisplayName(item.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-      (item.to_warehouse_category && getCategoryDisplayName(item.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
-      format(new Date(item.event_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm); // Updated to event_date
 
-    const matchesType = selectedType === "all" || item.event_type === selectedType;
-    const matchesCategory = selectedCategory === "all" || item.from_warehouse_category === selectedCategory || item.to_warehouse_category === selectedCategory;
+    return stockHistory.filter((item) => {
+      const matchesSearch =
+        item.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+        item.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+        getEventTypeDisplay(item.event_type).toLowerCase().includes(lowerCaseSearchTerm) ||
+        item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
 
-    return matchesSearch && matchesType && matchesCategory;
-  });
+      const matchesEventType =
+        selectedEventType === "all" || item.event_type === selectedEventType;
 
-  if (isLoading || loadingCategories) {
+      const itemDate = parseISO(item.created_at);
+      const matchesDateRange = dateRange?.from
+        ? isWithinInterval(itemDate, {
+            start: startOfDay(dateRange.from),
+            end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+          })
+        : true;
+
+      return matchesSearch && matchesEventType && matchesDateRange;
+    });
+  }, [stockHistory, searchTerm, selectedEventType, dateRange]);
+
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -105,119 +106,100 @@ const StockHistoryPage = () => {
     );
   }
 
-  if (error || categoriesError) {
-    return <div className="text-red-500">Error loading stock ledger entries or categories: {error?.message || categoriesError?.message}</div>;
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Gagal memuat riwayat stok: {error.message}
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Riwayat Stok</h1>
 
-      <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
-        <Input
-          placeholder="Cari riwayat stok..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm flex-grow"
-        />
-        <div className="flex gap-4">
+      <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+        <div className="flex items-center gap-2">
+          <div className="relative w-full max-w-sm">
+            <Input
+              type="text"
+              placeholder="Cari item, kode, atau catatan..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          </div>
           <Select
-            value={selectedType}
-            onValueChange={(value: StockEventType | "all") => setSelectedType(value)}
+            onValueChange={(value: StockEventType | "all") => setSelectedEventType(value)}
+            value={selectedEventType}
           >
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter Tipe" />
+              <SelectValue placeholder="Filter Tipe Event" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Tipe</SelectItem>
               {Object.values(StockEventType).map((type) => (
-                <SelectItem key={type} value={type}>
+                <SelectItem key={type as string} value={type as string}> {/* Cast to string */}
                   {getEventTypeDisplay(type)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-
-          <Select
-            value={selectedCategory}
-            onValueChange={(value: string | "all") => setSelectedCategory(value)}
-            disabled={loadingCategories}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Filter Kategori"} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Kategori</SelectItem>
-              {warehouseCategories?.map((category) => (
-                <SelectItem key={category.id} value={category.code}>
-                  {category.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DateRangePicker date={dateRange} onDateChange={setDateRange} />
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Tanggal & Waktu</TableHead>
               <TableHead>Nama Produk</TableHead>
               <TableHead>Kode Produk</TableHead>
-              <TableHead>Tipe Peristiwa</TableHead>
-              <TableHead>Dari Kategori</TableHead>
-              <TableHead>Ke Kategori</TableHead>
-              <TableHead className="text-right">Kuantitas</TableHead>
+              <TableHead>Tipe Event</TableHead>
+              <TableHead>Kuantitas</TableHead>
+              <TableHead>Dari Gudang</TableHead>
+              <TableHead>Ke Gudang</TableHead>
               <TableHead>Catatan</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredLedgerEntries?.length === 0 ? (
+            {filteredStockHistory.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground">
-                  Tidak ada riwayat stok yang ditemukan.
+                <TableCell colSpan={8} className="text-center">
+                  Tidak ada riwayat stok ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredLedgerEntries?.map((entry) => (
+              filteredStockHistory.map((entry) => (
                 <TableRow key={entry.id}>
                   <TableCell>{format(new Date(entry.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                  <TableCell>{entry.product_name || "N/A"}</TableCell>
-                  <TableCell>{entry.product_code || "N/A"}</TableCell>
+                  <TableCell>{entry.products?.nama_barang || "N/A"}</TableCell> {/* Fixed */}
+                  <TableCell>{entry.products?.kode_barang || "N/A"}</TableCell> {/* Fixed */}
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      entry.event_type === StockEventType.OUT || entry.event_type === StockEventType.ADJUSTMENT ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      entry.event_type === StockEventType.IN || entry.event_type === StockEventType.INITIAL ? "bg-green-100 text-green-800" :
+                      entry.event_type === StockEventType.OUT ? "bg-red-100 text-red-800" :
+                      entry.event_type === StockEventType.TRANSFER ? "bg-blue-100 text-blue-800" :
+                      "bg-gray-100 text-gray-800"
                     }`}>
                       {getEventTypeDisplay(entry.event_type)}
                     </span>
                   </TableCell>
+                  <TableCell>{entry.quantity}</TableCell>
                   <TableCell>{entry.from_warehouse_category ? getCategoryDisplayName(entry.from_warehouse_category) : "-"}</TableCell>
                   <TableCell>{entry.to_warehouse_category ? getCategoryDisplayName(entry.to_warehouse_category) : "-"}</TableCell>
-                  <TableCell className="text-right">{entry.quantity}</TableCell>
-                  <TableCell>
-                    {entry.notes ? (
-                      <Button variant="outline" size="sm" onClick={() => handleViewNotes(entry.notes!)} className="h-7 px-2">
-                        <Eye className="h-3 w-3 mr-1" /> Lihat
-                      </Button>
-                    ) : (
-                      "-"
-                    )}
-                  </TableCell>
+                  <TableCell>{entry.notes || "-"}</TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </div>
-
-      {/* View Notes Dialog */}
-      <ViewNotesDialog
-        notes={notesToView}
-        isOpen={isViewNotesOpen}
-        onOpenChange={setIsViewNotesOpen}
-        title="Catatan Riwayat Stok"
-      />
     </div>
   );
 };

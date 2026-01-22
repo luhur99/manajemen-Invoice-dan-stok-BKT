@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -27,103 +27,125 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data";
+import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategoryEnum, WarehouseInventory, PurchaseRequestStatus, StockEventType } from "@/types/data"; // Fixed import
 import StockItemCombobox from "./StockItemCombobox";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/components/SessionContextProvider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { format } from "date-fns";
 
 const formSchema = z.object({
-  pr_number: z.string().optional().nullable(), // Added pr_number to schema
-  product_id: z.string().min(1, "Produk harus dipilih."),
-  item_name: z.string().min(1, "Nama item harus diisi."),
-  item_code: z.string().min(1, "Kode item harus diisi."),
-  satuan: z.string().optional(),
+  pr_number: z.string().optional().nullable(),
+  item_name: z.string().min(1, "Nama item wajib diisi."),
+  item_code: z.string().min(1, "Kode item wajib diisi."),
+  product_id: z.string().uuid().optional().nullable(),
   quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
   unit_price: z.number().min(0, "Harga satuan tidak boleh negatif."),
   suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
   total_price: z.number().min(0, "Total harga tidak boleh negatif."),
-  supplier_id: z.string().min(1, "Supplier harus dipilih."),
-  target_warehouse_category: z.string({
-    required_error: "Kategori gudang tujuan harus dipilih.",
-  }).min(1, "Kategori gudang tujuan harus dipilih."),
-  notes: z.string().optional(),
+  satuan: z.string().optional().nullable(),
+  supplier_id: z.string().uuid().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  status: z.nativeEnum(PurchaseRequestStatus).default(PurchaseRequestStatus.PENDING),
+  document_url: z.string().optional().nullable(),
+  received_quantity: z.number().int().min(0, "Kuantitas diterima tidak boleh negatif.").optional().nullable(),
+  returned_quantity: z.number().int().min(0, "Kuantitas dikembalikan tidak boleh negatif.").optional().nullable(),
+  damaged_quantity: z.number().int().min(0, "Kuantitas rusak tidak boleh negatif.").optional().nullable(),
+  target_warehouse_category: z.nativeEnum(WarehouseCategoryEnum).optional().nullable(),
+  received_notes: z.string().optional().nullable(),
+  received_at: z.date().optional().nullable(),
+}).superRefine((data, ctx) => {
+  if (data.status === PurchaseRequestStatus.WAITING_FOR_RECEIVED && (!data.received_quantity || data.received_quantity <= 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Kuantitas diterima wajib diisi dan harus lebih dari 0 saat status 'Waiting for Received'.",
+      path: ['received_quantity'],
+    });
+  }
+  if (data.status === PurchaseRequestStatus.CLOSED && (!data.received_quantity || data.received_quantity <= 0)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Kuantitas diterima wajib diisi dan harus lebih dari 0 saat status 'Closed'.",
+      path: ['received_quantity'],
+    });
+  }
+  if (data.status === PurchaseRequestStatus.REJECTED && (!data.notes || data.notes.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Alasan (catatan) wajib diisi saat status 'Rejected'.",
+      path: ['notes'],
+    });
+  }
 });
 
 interface EditPurchaseRequestFormProps {
-  purchaseRequest: PurchaseRequestWithDetails;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  initialData: PurchaseRequestWithDetails; // Use PurchaseRequestWithDetails
 }
 
-const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purchaseRequest, isOpen, onOpenChange, onSuccess }) => {
+const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
+  isOpen,
+  onOpenChange,
+  onSuccess,
+  initialData,
+}) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("product_info"); // State to manage active tab
+  const [activeTab, setActiveTab] = useState("basic");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      pr_number: purchaseRequest.pr_number || null, // Set initial PR number
-      product_id: purchaseRequest.product_id || "",
-      item_name: purchaseRequest.item_name,
-      item_code: purchaseRequest.item_code,
-      satuan: purchaseRequest.satuan || "",
-      quantity: purchaseRequest.quantity,
-      unit_price: purchaseRequest.unit_price,
-      suggested_selling_price: purchaseRequest.suggested_selling_price,
-      total_price: purchaseRequest.total_price,
-      supplier_id: purchaseRequest.supplier_id || "",
-      target_warehouse_category: purchaseRequest.target_warehouse_category || "",
-      notes: purchaseRequest.notes || "",
+      pr_number: initialData.pr_number || null,
+      item_name: initialData.item_name,
+      item_code: initialData.item_code,
+      product_id: initialData.product_id || null,
+      quantity: initialData.quantity,
+      unit_price: initialData.unit_price,
+      suggested_selling_price: initialData.suggested_selling_price,
+      total_price: initialData.total_price,
+      satuan: initialData.satuan || null,
+      supplier_id: initialData.supplier_id || null,
+      notes: initialData.notes || null,
+      status: initialData.status,
+      document_url: initialData.document_url || null,
+      received_quantity: initialData.received_quantity || 0,
+      returned_quantity: initialData.returned_quantity || 0,
+      damaged_quantity: initialData.damaged_quantity || 0,
+      target_warehouse_category: initialData.target_warehouse_category || null,
+      received_notes: initialData.received_notes || null,
+      received_at: initialData.received_at ? new Date(initialData.received_at) : null,
     },
   });
 
-  // Fetch products using useQuery
+  const watchedQuantity = form.watch("quantity");
+  const watchedUnitPrice = form.watch("unit_price");
+  const watchedProductId = form.watch("product_id");
+  const watchedStatus = form.watch("status");
+  const [productSearchInput, setProductSearchInput] = useState(initialData.products?.nama_barang || "");
+
+  useEffect(() => {
+    form.setValue("total_price", watchedQuantity * watchedUnitPrice);
+  }, [watchedQuantity, watchedUnitPrice, form]);
+
   const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
     queryKey: ["products"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
-        .select(`
-          id,
-          user_id,
-          kode_barang,
-          nama_barang,
-          satuan,
-          harga_beli,
-          harga_jual,
-          safe_stock_limit,
-          created_at,
-          supplier_id,
-          warehouse_inventories (
-            warehouse_category,
-            quantity
-          )
-        `);
+        .select("*")
+        .order("nama_barang", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar produk.");
         throw error;
       }
-      return data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        created_at: item.created_at,
-        kode_barang: item.kode_barang,
-        nama_barang: item.nama_barang,
-        harga_jual: item.harga_jual,
-        harga_beli: item.harga_beli,
-        satuan: item.satuan,
-        safe_stock_limit: item.safe_stock_limit,
-        supplier_id: item.supplier_id,
-        inventories: item.warehouse_inventories as WarehouseInventory[],
-      }));
+      return data;
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  // Fetch suppliers using useQuery
   const { data: suppliers, isLoading: loadingSuppliers } = useQuery<Supplier[], Error>({
     queryKey: ["suppliers"],
     queryFn: async () => {
@@ -137,77 +159,46 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
       }
       return data;
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  // Fetch warehouse categories using useQuery
-  const { data: warehouseCategories, isLoading: loadingCategories } = useQuery<WarehouseCategoryType[], Error>({
+  const { data: warehouseCategories, isLoading: loadingWarehouseCategories } = useQuery<WarehouseCategoryEnum[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*")
+        .select("code")
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data;
+      return data.map(item => item.code as WarehouseCategoryEnum);
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  // Reset form with new purchaseRequest data when the dialog opens or purchaseRequest prop changes
-  useEffect(() => {
-    if (isOpen && purchaseRequest) {
-      form.reset({
-        pr_number: purchaseRequest.pr_number || null,
-        product_id: purchaseRequest.product_id || "",
-        item_name: purchaseRequest.item_name,
-        item_code: purchaseRequest.item_code,
-        satuan: purchaseRequest.satuan || "",
-        quantity: purchaseRequest.quantity,
-        unit_price: purchaseRequest.unit_price,
-        suggested_selling_price: purchaseRequest.suggested_selling_price,
-        total_price: purchaseRequest.total_price,
-        supplier_id: purchaseRequest.supplier_id || "",
-        target_warehouse_category: purchaseRequest.target_warehouse_category || "",
-        notes: purchaseRequest.notes || "",
-      });
-      setActiveTab("product_info"); // Reset to first tab
-    }
-  }, [isOpen, purchaseRequest, form]);
-
-  const selectedProductId = form.watch("product_id");
-  const quantity = form.watch("quantity");
-  const unitPrice = form.watch("unit_price");
-
-  useEffect(() => {
-    const product = products?.find(p => p.id === selectedProductId);
+  const handleProductSelect = (product: Product | undefined) => {
     if (product) {
+      form.setValue("product_id", product.id);
       form.setValue("item_name", product.nama_barang);
       form.setValue("item_code", product.kode_barang);
-      form.setValue("satuan", product.satuan || "");
       form.setValue("unit_price", product.harga_beli);
       form.setValue("suggested_selling_price", product.harga_jual);
-      form.setValue("supplier_id", product.supplier_id || "");
+      form.setValue("satuan", product.satuan);
+      setProductSearchInput(product.nama_barang);
+      form.clearErrors(["item_name", "item_code", "unit_price", "suggested_selling_price", "satuan"]);
     } else {
-      if (selectedProductId === "") {
-        form.setValue("item_name", "");
-        form.setValue("item_code", "");
-        form.setValue("satuan", "");
-        form.setValue("unit_price", 0);
-        form.setValue("suggested_selling_price", 0);
-        form.setValue("supplier_id", "");
-      }
+      form.setValue("product_id", null);
+      form.setValue("item_name", "");
+      form.setValue("item_code", "");
+      form.setValue("unit_price", 0);
+      form.setValue("suggested_selling_price", 0);
+      form.setValue("satuan", null);
+      setProductSearchInput("");
     }
-  }, [selectedProductId, products, form]);
+  };
 
-  useEffect(() => {
-    form.setValue("total_price", quantity * unitPrice);
-  }, [quantity, unitPrice, form]);
-
-  // Mutation for updating a purchase request
   const updatePurchaseRequestMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const userId = session?.user?.id;
@@ -215,33 +206,62 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
         throw new Error("Pengguna tidak terautentikasi.");
       }
 
-      const { error } = await supabase.from("purchase_requests").update({
-        pr_number: values.pr_number, // Include PR number in update
-        product_id: values.product_id,
-        item_name: values.item_name,
-        item_code: values.item_code,
-        satuan: values.satuan,
+      const dataToSubmit = {
+        item_name: values.item_name.trim(),
+        item_code: values.item_code.trim(),
+        product_id: values.product_id || null,
         quantity: values.quantity,
         unit_price: values.unit_price,
         suggested_selling_price: values.suggested_selling_price,
         total_price: values.total_price,
-        supplier_id: values.supplier_id,
-        target_warehouse_category: values.target_warehouse_category,
-        notes: values.notes,
+        satuan: values.satuan?.trim() || null,
+        supplier_id: values.supplier_id || null,
+        notes: values.notes?.trim() || null,
+        status: values.status,
+        document_url: values.document_url || null,
+        received_quantity: values.received_quantity || 0,
+        returned_quantity: values.returned_quantity || 0,
+        damaged_quantity: values.damaged_quantity || 0,
+        target_warehouse_category: values.target_warehouse_category || null,
+        received_notes: values.received_notes?.trim() || null,
+        received_at: values.received_at ? format(values.received_at, "yyyy-MM-dd") : null,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", purchaseRequest.id);
+      };
+
+      const { error } = await supabase
+        .from("purchase_requests")
+        .update(dataToSubmit)
+        .eq("id", initialData.id);
 
       if (error) throw error;
+
+      // If status changes to 'closed' and received_quantity > 0, create stock ledger entry
+      if (values.status === PurchaseRequestStatus.CLOSED && values.received_quantity && values.received_quantity > 0) {
+        const { error: stockError } = await supabase.from("stock_ledger").insert({
+          user_id: userId,
+          product_id: values.product_id,
+          event_type: StockEventType.IN,
+          quantity: values.received_quantity,
+          to_warehouse_category: values.target_warehouse_category,
+          notes: `Penerimaan dari PR #${values.pr_number || initialData.pr_number} - ${values.received_notes || ''}`,
+          event_date: format(new Date(), "yyyy-MM-dd"),
+        });
+        if (stockError) {
+          console.error("Error creating stock ledger entry:", stockError);
+          throw new Error("Gagal membuat entri buku besar stok.");
+        }
+      }
     },
     onSuccess: () => {
-      showSuccess("Permintaan pembelian berhasil diperbarui!");
+      showSuccess("Pengajuan pembelian berhasil diperbarui!");
+      onSuccess();
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] }); // Invalidate to refetch list
-      onSuccess(); // Call parent's onSuccess
+      queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
+      queryClient.invalidateQueries({ queryKey: ["stockHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["stockMovements"] });
     },
     onError: (err: any) => {
-      showError(`Gagal memperbarui permintaan pembelian: ${err.message}`);
+      showError(`Gagal memperbarui pengajuan pembelian: ${err.message}`);
       console.error("Error updating purchase request:", err);
     },
   });
@@ -250,26 +270,41 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
     updatePurchaseRequestMutation.mutate(values);
   };
 
+  if (loadingProducts || loadingSuppliers || loadingWarehouseCategories) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Pengajuan Pembelian</DialogTitle>
+            <DialogDescription>Memuat data...</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Permintaan Pembelian</DialogTitle>
+          <DialogTitle>Edit Pengajuan Pembelian</DialogTitle>
           <DialogDescription>
-            Ubah detail permintaan pembelian di sini. Klik simpan saat Anda selesai.
+            Perbarui detail pengajuan pembelian ini.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="product_info">Produk</TabsTrigger>
-                <TabsTrigger value="quantity_price">Kuantitas & Harga</TabsTrigger>
-                <TabsTrigger value="supplier_warehouse">Supplier & Gudang</TabsTrigger>
-                <TabsTrigger value="notes">Catatan</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="basic">Informasi Dasar</TabsTrigger>
+                <TabsTrigger value="details">Detail Item & Supplier</TabsTrigger>
+                <TabsTrigger value="status">Status & Penerimaan</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="product_info" className="mt-4 space-y-4">
+              <TabsContent value="basic" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="pr_number"
@@ -288,14 +323,16 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                   name="product_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Produk</FormLabel>
+                      <FormLabel>Pilih Produk (Opsional)</FormLabel>
                       <FormControl>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={field.value}
-                          onSelectProduct={field.onChange}
+                          selectedProductId={field.value || undefined}
+                          onSelectProduct={(productId) => handleProductSelect(products?.find(p => p.id === productId))}
+                          inputValue={productSearchInput}
+                          onInputValueChange={setProductSearchInput}
                           disabled={loadingProducts}
-                          placeholder="Pilih produk untuk permintaan pembelian"
+                          loading={loadingProducts}
                         />
                       </FormControl>
                       <FormMessage />
@@ -309,7 +346,7 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                     <FormItem>
                       <FormLabel>Nama Item</FormLabel>
                       <FormControl>
-                        <Input {...field} readOnly className="bg-gray-100" />
+                        <Input {...field} readOnly={!!watchedProductId} className={watchedProductId ? "bg-gray-100" : ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -322,7 +359,20 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                     <FormItem>
                       <FormLabel>Kode Item</FormLabel>
                       <FormControl>
-                        <Input {...field} readOnly className="bg-gray-100" />
+                        <Input {...field} readOnly={!!watchedProductId} className={watchedProductId ? "bg-gray-100" : ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kuantitas</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -333,9 +383,9 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                   name="satuan"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Satuan</FormLabel>
+                      <FormLabel>Satuan (Opsional)</FormLabel>
                       <FormControl>
-                        <Input {...field} readOnly className="bg-gray-100" />
+                        <Input {...field} readOnly={!!watchedProductId} className={watchedProductId ? "bg-gray-100" : ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -343,38 +393,15 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                 />
               </TabsContent>
 
-              <TabsContent value="quantity_price" className="mt-4 space-y-4">
-                <FormField
-                  control={form.control}
-                  name="quantity"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kuantitas</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value, 10))}
-                          min="1"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <TabsContent value="details" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="unit_price"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Harga Satuan (Beli)</FormLabel>
+                      <FormLabel>Harga Satuan</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                          min="0"
-                        />
+                        <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -387,14 +414,7 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                     <FormItem>
                       <FormLabel>Harga Jual Disarankan</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                          min="0"
-                          readOnly
-                          className="bg-gray-100"
-                        />
+                        <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -413,59 +433,22 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                     </FormItem>
                   )}
                 />
-              </TabsContent>
-
-              <TabsContent value="supplier_warehouse" className="mt-4 space-y-4">
                 <FormField
                   control={form.control}
                   name="supplier_id"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Supplier</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={loadingSuppliers}>
+                      <FormLabel>Supplier (Opsional)</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih supplier" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {loadingSuppliers ? (
-                            <SelectItem value="loading" disabled>
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
-                            </SelectItem>
-                          ) : suppliers?.length === 0 ? (
-                            <SelectItem value="no-suppliers" disabled>
-                              Tidak ada supplier tersedia
-                            </SelectItem>
-                          ) : (
-                            suppliers?.map((supplier) => (
-                              <SelectItem key={supplier.id} value={supplier.id}>
-                                {supplier.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="target_warehouse_category"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kategori Gudang Tujuan</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang tujuan"} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {warehouseCategories?.map((category) => (
-                            <SelectItem key={category.id} value={category.code}>
-                              {category.name}
+                          {suppliers?.map((supplier) => (
+                            <SelectItem key={supplier.id} value={supplier.id}>
+                              {supplier.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -474,14 +457,11 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                     </FormItem>
                   )}
                 />
-              </TabsContent>
-
-              <TabsContent value="notes" className="mt-4 space-y-4">
                 <FormField
                   control={form.control}
                   name="notes"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="md:col-span-2">
                       <FormLabel>Catatan (Opsional)</FormLabel>
                       <FormControl>
                         <Textarea {...field} />
@@ -491,8 +471,153 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({ purch
                   )}
                 />
               </TabsContent>
+
+              <TabsContent value="status" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(PurchaseRequestStatus).map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {watchedStatus === PurchaseRequestStatus.WAITING_FOR_RECEIVED || watchedStatus === PurchaseRequestStatus.CLOSED ? (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="received_quantity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kuantitas Diterima</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="returned_quantity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kuantitas Dikembalikan (Opsional)</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="damaged_quantity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kuantitas Rusak (Opsional)</FormLabel>
+                          <FormControl>
+                            <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="target_warehouse_category"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Kategori Gudang Tujuan</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || ""}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih kategori gudang" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {warehouseCategories?.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                  {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="received_notes"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Catatan Penerimaan (Opsional)</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="received_at"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Tanggal Diterima (Opsional)</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant={"outline"}
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP")
+                                  ) : (
+                                    <span>Pilih tanggal</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value || undefined}
+                                onSelect={field.onChange}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                ) : null}
+              </TabsContent>
             </Tabs>
-            <DialogFooter>
+            <DialogFooter className="md:col-span-2">
               <Button type="submit" disabled={updatePurchaseRequestMutation.isPending}>
                 {updatePurchaseRequestMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

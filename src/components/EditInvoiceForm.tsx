@@ -43,7 +43,7 @@ import {
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formSchema = z.object({
   invoice_number: z.string().min(1, "Nomor Invoice harus diisi."),
@@ -60,8 +60,8 @@ const formSchema = z.object({
   courier_service: z.string().optional(),
   items: z.array(
     z.object({
-      id: z.string().optional(), // For existing items
-      selected_product_id: z.string().min(1, "Produk harus dipilih."),
+      id: z.string().optional(),
+      product_id: z.string().min(1, "Produk harus dipilih."), // Changed from selected_product_id
       item_name: z.string().min(1, "Nama Item harus diisi."),
       item_code: z.string().optional(),
       quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
@@ -82,7 +82,7 @@ interface EditInvoiceFormProps {
 const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("basic_info"); // State to manage active tab
+  const [activeTab, setActiveTab] = useState("basic_info");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -110,7 +110,6 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
   const [initialItems, setInitialItems] = React.useState<InvoiceItem[]>([]);
 
-  // Fetch products using useQuery
   const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
     queryKey: ["products"],
     queryFn: async () => {
@@ -150,10 +149,9 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         inventories: item.warehouse_inventories as WarehouseInventory[],
       }));
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  // Fetch invoice items using useQuery
   const { data: invoiceItems, isLoading: loadingInvoiceItems } = useQuery<InvoiceItem[], Error>({
     queryKey: ["invoiceItems", invoice.id],
     queryFn: async () => {
@@ -167,26 +165,28 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       }
       return data;
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  // Populate form with invoice items when they load
   useEffect(() => {
     if (isOpen && invoiceItems) {
-      const items = invoiceItems.map(item => ({
+      const items: InvoiceItem[] = invoiceItems.map(item => ({ // Explicitly type items
         id: item.id,
-        selected_product_id: item.product_id || "",
+        product_id: item.product_id || null, // Ensure product_id is set
         item_name: item.item_name,
-        item_code: item.item_code || "",
+        item_code: item.item_code || null,
         quantity: item.quantity,
         unit_price: item.unit_price,
         subtotal: item.subtotal,
         unit_type: item.unit_type,
-        created_at: item.created_at,
+        invoice_id: item.invoice_id, // Include missing fields
+        user_id: item.user_id, // Include missing fields
+        created_at: item.created_at, // Include missing fields
+        updated_at: item.updated_at, // Include missing fields
       }));
       form.setValue("items", items);
       setInitialItems(items);
-      setActiveTab("basic_info"); // Reset to first tab
+      setActiveTab("basic_info");
     }
   }, [isOpen, invoiceItems, form]);
 
@@ -204,18 +204,18 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     if (selectedProduct) {
       update(index, {
         ...fields[index],
-        selected_product_id: selectedProduct.id,
+        product_id: selectedProduct.id, // Changed from selected_product_id
         item_name: selectedProduct.nama_barang,
         item_code: selectedProduct.kode_barang,
         unit_price: selectedProduct.harga_jual,
         unit_type: selectedProduct.satuan,
-        quantity: fields[index].quantity || 1, // Ensure quantity is at least 1
+        quantity: fields[index].quantity || 1,
         subtotal: selectedProduct.harga_jual * (fields[index].quantity || 1),
       });
     } else {
       update(index, {
         ...fields[index],
-        selected_product_id: undefined,
+        product_id: null, // Changed from selected_product_id, set to null
         item_name: "",
         item_code: "",
         unit_price: 0,
@@ -243,7 +243,6 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     });
   };
 
-  // Mutation for updating an invoice
   const updateInvoiceMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const userId = session?.user?.id;
@@ -272,7 +271,6 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
       if (invoiceError) throw invoiceError;
 
-      // Handle invoice items: delete removed, update existing, insert new
       const itemsToDelete = initialItems.filter(
         (initialItem) => !(values.items as typeof formSchema._type['items']).some((currentItem) => currentItem.id === initialItem.id)
       );
@@ -288,7 +286,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         const commonItemData = {
           invoice_id: invoice.id,
           user_id: userId,
-          product_id: item.selected_product_id,
+          product_id: item.product_id, // Changed from selected_product_id
           item_name: item.item_name,
           item_code: item.item_code,
           quantity: item.quantity,
@@ -298,14 +296,12 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         };
 
         if (item.id) {
-          // Update existing item
           const { error: updateItemError } = await supabase
             .from("invoice_items")
             .update(commonItemData)
             .eq("id", item.id);
           if (updateItemError) throw updateItemError;
         } else {
-          // Insert new item
           const { error: insertItemError } = await supabase
             .from("invoice_items")
             .insert(commonItemData);
@@ -316,9 +312,9 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     onSuccess: () => {
       showSuccess("Invoice berhasil diperbarui!");
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate to refetch list
-      queryClient.invalidateQueries({ queryKey: ["invoiceItems", invoice.id] }); // Invalidate specific invoice items
-      onSuccess(); // Call parent's onSuccess
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoiceItems", invoice.id] });
+      onSuccess();
     },
     onError: (err: any) => {
       showError(`Gagal memperbarui invoice: ${err.message}`);
@@ -590,7 +586,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         <FormLabel>Produk</FormLabel>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={item.selected_product_id}
+                          selectedProductId={item.product_id || ""} // Changed from selected_product_id
                           onSelectProduct={(productId) => handleProductSelect(index, productId)}
                           disabled={loadingProducts}
                         />
@@ -649,7 +645,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => append({ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })}
+                  onClick={() => append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })} // Changed from selected_product_id
                   className="w-full"
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item

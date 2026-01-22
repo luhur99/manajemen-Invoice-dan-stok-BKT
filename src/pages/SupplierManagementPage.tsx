@@ -1,257 +1,225 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { SupplierWithDetails } from "@/types/data";
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Supplier } from "@/types/data"; // Changed from SupplierWithDetails
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { format } from "date-fns";
+import { Edit, Trash2, PlusCircle, Search, Loader2, Eye } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddSupplierForm from "@/components/AddSupplierForm";
 import EditSupplierForm from "@/components/EditSupplierForm";
-import PaginationControls from "@/components/PaginationControls";
-import { format } from "date-fns";
-import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react";
-import ViewNotesDialog from "@/components/ViewNotesDialog";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import ViewSupplierDetailsDialog from "@/components/ViewSupplierDetailsDialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const SupplierManagementPage = () => {
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<SupplierWithDetails | null>(null);
+  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null); // Changed type
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [isViewNotesOpen, setIsViewNotesOpen] = useState(false);
-  const [notesToView, setNotesToView] = useState<string>("");
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-
-  const { data: suppliers = [], isLoading, error } = useQuery<SupplierWithDetails[], Error>({
+  const { data: suppliers, isLoading, error } = useQuery<Supplier[], Error>({ // Changed type
     queryKey: ["suppliers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
         .select("*")
         .order("name", { ascending: true });
-
       if (error) {
-        showError("Gagal memuat data pemasok.");
+        showError("Gagal memuat supplier.");
         throw error;
       }
-
-      return data.map((sup, index) => ({
-        ...sup,
-        no: index + 1, // Assign sequential number for display
-      }));
+      return data;
     },
   });
 
   const deleteSupplierMutation = useMutation({
-    mutationFn: async (supplierId: string) => {
-      const { error } = await supabase
-        .from("suppliers")
-        .delete()
-        .eq("id", supplierId);
-
-      if (error) {
-        throw error;
-      }
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("suppliers").delete().eq("id", id);
+      if (error) throw error;
     },
     onSuccess: () => {
-      showSuccess("Pemasok berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] }); // Invalidate and refetch
+      showSuccess("Supplier berhasil dihapus!");
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
     },
-    onError: (err: any) => {
-      showError(`Gagal menghapus pemasok: ${err.message}`);
-      console.error("Error deleting supplier:", err);
+    onError: (err) => {
+      showError(`Gagal menghapus supplier: ${err.message}`);
     },
   });
 
-  const filteredSuppliers = suppliers.filter(item =>
-    item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.contact_person?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.notes?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  useEffect(() => {
-    setCurrentPage(1); // Reset to first page on search term change
-  }, [searchTerm]);
-
-  const handleDeleteSupplier = () => {
-    if (selectedSupplier) {
-      deleteSupplierMutation.mutate(selectedSupplier.id);
+  const handleDelete = (id: string) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus supplier ini?")) {
+      deleteSupplierMutation.mutate(id);
     }
   };
 
-  const handleEditClick = (supplier: SupplierWithDetails) => {
+  const handleEdit = (supplier: Supplier) => { // Changed type
     setSelectedSupplier(supplier);
     setIsEditFormOpen(true);
   };
 
-  const handleViewNotes = (notes: string) => {
-    setNotesToView(notes);
-    setIsViewNotesOpen(true);
-  };
-
-  const handleDeleteClick = (supplier: SupplierWithDetails) => {
+  const handleViewDetails = (supplier: Supplier) => { // Changed type
     setSelectedSupplier(supplier);
-    setIsDeleteModalOpen(true);
+    setIsViewDetailsOpen(true);
   };
 
-  const totalPages = Math.ceil(filteredSuppliers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = filteredSuppliers.slice(startIndex, endIndex);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handleSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-  };
+  const filteredSuppliers = useMemo(() => {
+    if (!suppliers) return [];
+    return suppliers.filter((supplier) => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        supplier.name.toLowerCase().includes(searchLower) ||
+        supplier.contact_person?.toLowerCase().includes(searchLower) ||
+        supplier.phone_number?.toLowerCase().includes(searchLower) ||
+        supplier.email?.toLowerCase().includes(searchLower) ||
+        supplier.address?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [suppliers, searchTerm]);
 
   if (isLoading) {
     return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Manajemen Pemasok</CardTitle>
-          <CardDescription>Memuat daftar pemasok...</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-center items-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex justify-center items-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Gagal memuat supplier: {error.message}
+        </AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader>
-        <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Manajemen Pemasok</CardTitle>
-          <AddSupplierForm onSuccess={handleSuccess} />
+    <div className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Manajemen Supplier</h1>
+
+      <div className="flex justify-between items-center mb-4">
+        <div className="relative w-full max-w-sm">
+          <Input
+            type="text"
+            placeholder="Cari supplier..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
         </div>
-        <CardDescription>Kelola semua informasi pemasok Anda di sini.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">Error: {error.message}</p>}
-        <Input
-          type="text"
-          placeholder="Cari berdasarkan nama, kontak, telepon, email, atau alamat..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-grow"
-        />
-        {filteredSuppliers.length > 0 ? (
-          <>
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No</TableHead>
-                    <TableHead>Nama Pemasok</TableHead>
-                    <TableHead>Kontak Person</TableHead>
-                    <TableHead>Nomor Telepon</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Alamat</TableHead>
-                    <TableHead>Catatan</TableHead>
-                    <TableHead>Dibuat Pada</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentItems.map((supplier) => (
-                    <TableRow key={supplier.id}>
-                      <TableCell>{supplier.no}</TableCell>
+        <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setIsAddFormOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Tambah Supplier
+            </Button>
+          </DialogTrigger>
+          <AddSupplierForm
+            isOpen={isAddFormOpen}
+            onOpenChange={setIsAddFormOpen}
+            onSuccess={() => setIsAddFormOpen(false)}
+          />
+        </Dialog>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>No.</TableHead>
+              <TableHead>Nama</TableHead>
+              <TableHead>Kontak Person</TableHead>
+              <TableHead>Telepon</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Alamat</TableHead>
+              <TableHead className="text-right">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredSuppliers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center">
+                  Tidak ada supplier ditemukan.
+                </TableCell>
+              </TableRow>
+            ) : (
+              filteredSuppliers.map((supplier, index) => (
+                <TableRow key={supplier.id}>
+                      <TableCell>{index + 1}</TableCell> {/* Fixed */}
                       <TableCell>{supplier.name}</TableCell>
                       <TableCell>{supplier.contact_person || "-"}</TableCell>
                       <TableCell>{supplier.phone_number || "-"}</TableCell>
                       <TableCell>{supplier.email || "-"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{supplier.address || "-"}</TableCell>
-                      <TableCell>
-                        {supplier.notes ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewNotes(supplier.notes!)} className="h-7 px-2">
-                            <Eye className="h-3 w-3 mr-1" /> Lihat
-                          </Button>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>{format(new Date(supplier.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell className="text-center flex items-center justify-center space-x-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(supplier)} title="Edit Pemasok">
-                          <Edit className="h-4 w-4" />
+                      <TableCell>{supplier.address || "-"}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Buka menu</span>
+                          <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(supplier)} title="Hapus Pemasok">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleViewDetails(supplier)}>
+                          <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(supplier)}>
+                          <Edit className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(supplier.id)} className="text-red-600">
+                          <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
             )}
-          </>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada data pemasok yang tersedia atau cocok dengan pencarian Anda.</p>
-        )}
-      </CardContent>
+          </TableBody>
+        </Table>
+      </div>
 
       {selectedSupplier && (
-        <EditSupplierForm
-          supplier={selectedSupplier}
-          isOpen={isEditFormOpen}
-          onOpenChange={setIsEditFormOpen}
-          onSuccess={handleSuccess}
-        />
+        <>
+          <EditSupplierForm
+            isOpen={isEditFormOpen}
+            onOpenChange={setIsEditFormOpen}
+            onSuccess={() => setIsEditFormOpen(false)}
+            initialData={selectedSupplier}
+          />
+          <ViewSupplierDetailsDialog
+            isOpen={isViewDetailsOpen}
+            onOpenChange={setIsViewDetailsOpen}
+            supplier={selectedSupplier}
+          />
+        </>
       )}
-
-      <ViewNotesDialog
-        notes={notesToView}
-        isOpen={isViewNotesOpen}
-        onOpenChange={setIsViewNotesOpen}
-      />
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Konfirmasi Hapus Pemasok</DialogTitle>
-            <DialogDescription>
-              Apakah Anda yakin ingin menghapus pemasok "{selectedSupplier?.name}"? Tindakan ini tidak dapat dibatalkan.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteSupplier} disabled={deleteSupplierMutation.isPending}>
-              {deleteSupplierMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Hapus"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+    </div>
   );
 };
 

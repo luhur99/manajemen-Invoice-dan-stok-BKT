@@ -7,121 +7,123 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { format, parseISO } from "date-fns";
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data"; // Use InvoiceWithDetails
+import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Invoice, InvoiceItem, InvoiceDocumentStatus } from "@/types/data"; // Import InvoiceDocumentStatus
-import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
-import { showError } from "@/utils/toast";
+import { Printer } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface ViewInvoiceDetailsDialogProps {
-  invoice: Invoice;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  invoice: InvoiceWithDetails; // Use InvoiceWithDetails
 }
 
-const getInvoiceDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
+const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   switch (status) {
-    case InvoiceDocumentStatus.COMPLETED: return "Completed";
+    case InvoicePaymentStatus.PAID:
+      return "bg-green-100 text-green-800";
+    case InvoicePaymentStatus.PENDING:
+      return "bg-yellow-100 text-yellow-800";
+    case InvoicePaymentStatus.OVERDUE:
+      return "bg-red-100 text-red-800";
+    case InvoicePaymentStatus.PARTIAL:
+      return "bg-blue-100 text-blue-800";
+    case InvoicePaymentStatus.CANCELLED:
+      return "bg-gray-100 text-gray-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
+const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
+  switch (status) {
+    case InvoiceDocumentStatus.COMPLETED: return "Completed"; // Fixed
     case InvoiceDocumentStatus.WAITING_DOCUMENT_INV: return "Waiting Document";
-    default: return status;
+    case InvoiceDocumentStatus.DOCUMENT_INV_SENT: return "Document Sent";
+    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED: return "Document Received";
+    default: return "Unknown";
   }
 };
 
 const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
-  invoice,
   isOpen,
   onOpenChange,
+  invoice,
 }) => {
-  const { data: items, isLoading, error } = useQuery<InvoiceItem[], Error>({
-    queryKey: ["invoiceItems", invoice.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoice_items")
-        .select("*")
-        .eq("invoice_id", invoice.id);
-      if (error) {
-        showError("Gagal memuat item invoice.");
-        throw error;
-      }
-      return data;
-    },
-    enabled: isOpen,
-  });
-
-  if (isLoading) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px]">
-          <DialogHeader>
-            <DialogTitle>Detail Invoice</DialogTitle>
-            <DialogDescription>Memuat detail invoice...</DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center items-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (error) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px]">
-          <DialogHeader>
-            <DialogTitle>Detail Invoice</DialogTitle>
-            <DialogDescription>Terjadi kesalahan saat memuat detail invoice.</DialogDescription>
-          </DialogHeader>
-          <div className="text-red-500">Error: {error.message}</div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detail Invoice: {invoice.invoice_number}</DialogTitle>
           <DialogDescription>Informasi lengkap mengenai invoice ini.</DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+          <div>
             <p><strong>Nomor Invoice:</strong> {invoice.invoice_number}</p>
-            <p><strong>Tanggal Invoice:</strong> {format(new Date(invoice.invoice_date), "dd-MM-yyyy")}</p>
-            <p><strong>Jatuh Tempo:</strong> {invoice.due_date ? format(new Date(invoice.due_date), "dd-MM-yyyy") : "-"}</p>
-            <p><strong>Pelanggan:</strong> {invoice.customer_name}</p>
-            <p><strong>Perusahaan:</strong> {invoice.company_name || "-"}</p>
-            <p><strong>Status Pembayaran:</strong> {invoice.payment_status}</p>
-            <p><strong>Status Dokumen:</strong> {getInvoiceDocumentStatusDisplay(invoice.invoice_status)}</p> {/* New field */}
-            <p><strong>Tipe Invoice:</strong> {invoice.type || "-"}</p>
-            <p><strong>Tipe Pelanggan:</strong> {invoice.customer_type || "-"}</p>
+            <p><strong>Tanggal Invoice:</strong> {format(parseISO(invoice.invoice_date), "dd MMMM yyyy")}</p>
+            <p><strong>Tanggal Jatuh Tempo:</strong> {invoice.due_date ? format(parseISO(invoice.due_date), "dd MMMM yyyy") : "-"}</p>
+            <p><strong>Nama Pelanggan:</strong> {invoice.customer_name}</p>
+            <p><strong>Nama Perusahaan:</strong> {invoice.company_name || "-"}</p>
+            <p><strong>Tipe Invoice:</strong> {invoice.type ? invoice.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</p>
+            <p><strong>Tipe Pelanggan:</strong> {invoice.customer_type ? invoice.customer_type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</p>
             <p><strong>Metode Pembayaran:</strong> {invoice.payment_method || "-"}</p>
             <p><strong>Layanan Kurir:</strong> {invoice.courier_service || "-"}</p>
           </div>
-          <p><strong>Catatan:</strong> {invoice.notes || "-"}</p>
+          <div>
+            <p><strong>Total Jumlah:</strong> Rp {invoice.total_amount.toLocaleString('id-ID')}</p>
+            <p>
+              <strong>Status Pembayaran:</strong>{" "}
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentStatusBadgeClass(invoice.payment_status)}`}>
+                {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
+              </span>
+            </p>
+            <p>
+              <strong>Status Dokumen:</strong>{" "}
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDocumentStatusDisplay(invoice.invoice_status).includes("Waiting") ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}`}>
+                {getDocumentStatusDisplay(invoice.invoice_status)}
+              </span>
+            </p>
+            <p><strong>Dibuat Pada:</strong> {format(parseISO(invoice.created_at), "dd MMMM yyyy HH:mm")}</p>
+            <p><strong>Terakhir Diperbarui:</strong> {format(parseISO(invoice.updated_at), "dd MMMM yyyy HH:mm")}</p>
+            {invoice.document_url && (
+              <p className="mt-2">
+                <strong>Dokumen:</strong>{" "}
+                <a href={invoice.document_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                  Lihat Dokumen
+                </a>
+              </p>
+            )}
+          </div>
+        </div>
 
-          <h3 className="text-lg font-semibold mt-4 mb-2">Item Invoice</h3>
-          <div className="overflow-x-auto rounded-md border">
+        <Separator className="my-4" />
+
+        <h3 className="text-lg font-semibold mb-2">Item Invoice</h3>
+        {invoice.invoice_items && invoice.invoice_items.length > 0 ? (
+          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nama Item</TableHead>
-                  <TableHead>Kode Item</TableHead>
-                  <TableHead className="text-right">Kuantitas</TableHead>
+                  <TableHead>Item</TableHead>
+                  <TableHead>Kode</TableHead>
+                  <TableHead>Kuantitas</TableHead>
+                  <TableHead>Satuan</TableHead>
                   <TableHead className="text-right">Harga Satuan</TableHead>
                   <TableHead className="text-right">Subtotal</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items?.map((item) => (
+                {invoice.invoice_items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.item_name}</TableCell>
                     <TableCell>{item.item_code || "-"}</TableCell>
-                    <TableCell className="text-right">{item.quantity}</TableCell>
+                    <TableCell>{item.quantity}</TableCell>
+                    <TableCell>{item.unit_type || "-"}</TableCell>
                     <TableCell className="text-right">Rp {item.unit_price.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="text-right">Rp {item.subtotal.toLocaleString('id-ID')}</TableCell>
                   </TableRow>
@@ -129,13 +131,26 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
               </TableBody>
             </Table>
           </div>
-          <div className="flex justify-end items-center mt-4">
-            <span className="text-lg font-semibold mr-2">Total Jumlah:</span>
-            <span className="text-xl font-bold">
-              Rp {invoice.total_amount.toLocaleString('id-ID')}
-            </span>
-          </div>
-        </div>
+        ) : (
+          <p>Tidak ada item dalam invoice ini.</p>
+        )}
+
+        {invoice.notes && (
+          <>
+            <Separator className="my-4" />
+            <h3 className="text-lg font-semibold mb-2">Catatan</h3>
+            <p className="whitespace-pre-wrap">{invoice.notes}</p>
+          </>
+        )}
+
+        <DialogFooter className="mt-4">
+          <Button asChild variant="outline">
+            <Link to={`/print/invoice/${invoice.id}`} target="_blank">
+              <Printer className="mr-2 h-4 w-4" /> Cetak Invoice
+            </Link>
+          </Button>
+          <Button onClick={() => onOpenChange(false)}>Tutup</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

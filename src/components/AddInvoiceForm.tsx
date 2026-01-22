@@ -41,12 +41,11 @@ import {
   InvoiceDocumentStatus,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/components/SessionContextProvider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formSchema = z.object({
-  // invoice_number: Removed from client-side schema as it's generated on server
   invoice_date: z.date({ required_error: "Tanggal Invoice harus diisi." }),
   due_date: z.date().optional(),
   customer_name: z.string().min(1, "Nama Pelanggan harus diisi."),
@@ -61,7 +60,7 @@ const formSchema = z.object({
   invoice_status: z.nativeEnum(InvoiceDocumentStatus).default(InvoiceDocumentStatus.WAITING_DOCUMENT_INV),
   items: z.array(
     z.object({
-      selected_product_id: z.string().min(1, "Produk harus dipilih."),
+      product_id: z.string().min(1, "Produk harus dipilih."), // Changed from selected_product_id
       item_name: z.string().min(1, "Nama Item harus diisi."),
       item_code: z.string().optional(),
       quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
@@ -82,7 +81,7 @@ interface AddInvoiceFormProps {
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess, initialSchedule }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("basic_info"); // State to manage active tab
+  const [activeTab, setActiveTab] = useState("basic_info");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -92,7 +91,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       total_amount: 0,
       payment_status: InvoicePaymentStatus.PENDING,
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
-      items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+      items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
     },
   });
 
@@ -101,7 +100,6 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     name: "items",
   });
 
-  // Fetch products using useQuery
   const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
     queryKey: ["products"],
     queryFn: async () => {
@@ -142,13 +140,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         inventories: item.warehouse_inventories as WarehouseInventory[],
       }));
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  // Watch the 'type' field to conditionally render 'courier_service'
   const watchedInvoiceType = form.watch("type");
 
-  // Effect to handle initial schedule data
   React.useEffect(() => {
     if (isOpen) {
       let defaultNotes = "";
@@ -164,14 +160,14 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         total_amount: 0,
         payment_status: InvoicePaymentStatus.PENDING,
         type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
-        customer_type: undefined,
-        payment_method: initialSchedule?.payment_method || undefined,
+        customer_type: initialSchedule?.customers?.customer_type || undefined, // Access from customers relation
+        payment_method: initialSchedule?.payment_method || undefined, // Access payment_method from ScheduleWithDetails
         notes: defaultNotes,
         courier_service: initialSchedule?.courier_service || undefined,
         invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
-        items: [{ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+        items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
       });
-      setActiveTab("basic_info"); // Reset to first tab
+      setActiveTab("basic_info");
     }
   }, [isOpen, initialSchedule, form]);
 
@@ -190,7 +186,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     if (selectedProduct) {
       update(index, {
         ...fields[index],
-        selected_product_id: selectedProduct.id,
+        product_id: selectedProduct.id, // Changed from selected_product_id
         item_name: selectedProduct.nama_barang,
         item_code: selectedProduct.kode_barang,
         unit_price: selectedProduct.harga_jual,
@@ -200,7 +196,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     } else {
       update(index, {
         ...fields[index],
-        selected_product_id: undefined,
+        product_id: undefined, // Changed from selected_product_id
         item_name: "",
         item_code: "",
         unit_price: 0,
@@ -228,13 +224,10 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     });
   };
 
-  // Mutation for adding an invoice
   const addInvoiceMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      // Use Edge Function for secure, atomic invoice creation
       const { data, error } = await supabase.functions.invoke('create-invoice', {
         body: JSON.stringify({
-          // invoice_number is generated on the server
           invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
           due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
@@ -247,7 +240,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           notes: values.notes,
           courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null,
           invoice_status: values.invoice_status,
-          items: values.items, // Pass items to function
+          items: values.items,
         }),
       });
 
@@ -261,7 +254,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       onSuccess();
       onOpenChange(false);
       form.reset();
-      queryClient.invalidateQueries({ queryKey: ["invoices"] }); // Invalidate invoices to refetch
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
     },
     onError: (err: any) => {
       showError(`Gagal menambahkan invoice: ${err.message}`);
@@ -373,7 +366,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   name="customer_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nama Pelanggan</FormLabel>
+                      <FormLabel>Nama Pelangabel</FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -514,7 +507,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                         <FormLabel>Produk</FormLabel>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={item.selected_product_id}
+                          selectedProductId={item.product_id || ""} // Changed from selected_product_id
                           onSelectProduct={(productId) => handleProductSelect(index, productId)}
                           disabled={loadingProducts}
                         />
@@ -573,7 +566,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => append({ selected_product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })}
+                  onClick={() => append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })} // Changed from selected_product_id
                   className="w-full"
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item

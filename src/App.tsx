@@ -20,13 +20,14 @@ import SchedulingRequestPage from "./pages/SchedulingRequestPage";
 import CustomerManagementPage from "./pages/CustomerManagementPage";
 import TechnicianManagementPage from "./pages/TechnicianManagementPage";
 import TechnicianScheduleCalendar from "./pages/TechnicianScheduleCalendar";
-import PrintInvoicePage from "./pages/PrintInvoicePage"; // Import Print Invoice
-import PrintSchedulePage from "./pages/PrintSchedulePage"; // Import Print Schedule
+import PrintInvoicePage from "./pages/PrintInvoicePage";
+import PrintSchedulePage from "./pages/PrintSchedulePage";
 import NotFound from "./pages/NotFound";
 import UserManagementPage from "./pages/UserManagementPage";
 import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
-import ErrorBoundary from "./components/ErrorBoundary"; // Import ErrorBoundary
+import ErrorBoundary from "./components/ErrorBoundary";
+import ScheduleDetailPage from "./pages/ScheduleDetailPage"; // Import ScheduleDetailPage
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/" element={<ErrorBoundary><MainLayout><DashboardOverviewPage /></MainLayout></ErrorBoundary>} />
             <Route path="/invoices" element={<ErrorBoundary><MainLayout><InvoiceManagementPage /></MainLayout></ErrorBoundary>} />
             <Route path="/schedules" element={<ErrorBoundary><MainLayout><ScheduleManagementPage /></MainLayout></ErrorBoundary>} />
+            <Route path="/schedules/:id" element={<ErrorBoundary><MainLayout><ScheduleDetailPage /></MainLayout></ErrorBoundary>} /> {/* New route for Schedule Detail */}
             <Route path="/stock" element={<ErrorBoundary><MainLayout><StockPage /></MainLayout></ErrorBoundary>} />
             <Route path="/stock-management" element={<ErrorBoundary><MainLayout><StockManagementPage /></MainLayout></ErrorBoundary>} />
             <Route path="/sales-details" element={<ErrorBoundary><MainLayout><SalesDetailsPage /></MainLayout></ErrorBoundary>} />

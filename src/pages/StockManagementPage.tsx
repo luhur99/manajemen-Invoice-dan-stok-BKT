@@ -1,141 +1,157 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import { Loader2, PlusCircle, ArrowUp, ArrowDown, Eye, ArrowRightLeft } from "lucide-react";
-import { showError } from "@/utils/toast";
-import AddStockTransactionForm from "@/components/AddStockTransactionForm";
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { format } from "date-fns";
+import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, PackagePlus, PackageMinus, Repeat2 } from "lucide-react";
+import { showError, showSuccess } from "@/utils/toast";
+import AddStockItemForm from "@/components/AddStockItemForm";
+import EditStockItemForm from "@/components/EditStockItemForm";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
-import StockMovementForm from "@/components/StockMovementForm";
-import StockAdjustmentForm from "@/components/StockAdjustmentForm"; // Added for stock adjustment
-import { Product as ProductType, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data"; // Updated imports
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import AddStockTransactionForm from "@/components/AddStockTransactionForm";
+import StockAdjustmentForm from "@/components/StockAdjustmentForm";
+import { Product as ProductType, WarehouseInventory, WarehouseCategoryEnum, StockEventType } from "@/types/data"; // Fixed imports
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-interface ProductWithDetails extends ProductType {
-  current_stock?: number;
-  inventories?: WarehouseInventory[];
-}
+const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
+  switch (code) {
+    case WarehouseCategoryEnum.GUDANG_UTAMA: return "Gudang Utama";
+    case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
+    case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";
+    case WarehouseCategoryEnum.GUDANG_RETUR: return "Gudang Retur";
+    default: return code;
+  }
+};
 
 const StockManagementPage = () => {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
-  const [initialEventType, setInitialEventType] = useState<StockEventType>(StockEventType.OUT); // Changed type
-  const [selectedProductForTransaction, setSelectedProductForTransaction] = useState<ProductWithDetails | null>(null);
-
+  const queryClient = useQueryClient();
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [productToView, setProductToView] = useState<ProductWithDetails | null>(null);
+  const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
+  const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<ProductType | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
-  const [isMovementFormOpen, setIsMovementFormOpen] = useState(false);
-  const [productForMovement, setProductForMovement] = useState<ProductWithDetails | null>(null);
-
-  const [isAdjustmentFormOpen, setIsAdjustmentFormOpen] = useState(false); // State for adjustment form
-  const [productForAdjustment, setProductForAdjustment] = useState<ProductWithDetails | null>(null); // State for adjustment product
-
-  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
-    queryKey: ["warehouseCategories"],
+  const { data: products, isLoading, error } = useQuery<ProductType[], Error>({
+    queryKey: ["products"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("warehouse_categories")
-        .select("*")
-        .order("name", { ascending: true });
-
-      if (error) {
-        showError("Gagal memuat kategori gudang.");
-        throw error;
-      }
-      return data;
-    },
-  });
-
-  const getCategoryDisplayName = useCallback((code: string) => {
-    const category = warehouseCategories?.find(cat => cat.code === code);
-    return category ? category.name : code;
-  }, [warehouseCategories]);
-
-  const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
-    queryKey: ["productsWithInventories"], // Changed query key to differentiate from product metadata
-    queryFn: async () => {
-      const { data: productsData, error: productsError } = await supabase
         .from("products")
         .select(`
-          id,
-          user_id,
-          kode_barang,
-          nama_barang,
-          satuan,
-          harga_beli,
-          harga_jual,
-          safe_stock_limit,
-          created_at,
-          supplier_id,
+          *,
           warehouse_inventories (
             warehouse_category,
             quantity
           )
-        `);
-
-      if (productsError) throw productsError;
-
-      return productsData.map(product => {
-        const totalStock = product.warehouse_inventories?.reduce((sum: number, inv: { quantity: number }) => sum + inv.quantity, 0) || 0;
-        return {
-          ...product,
-          current_stock: totalStock,
-          inventories: product.warehouse_inventories as WarehouseInventory[],
-        };
-      });
+        `)
+        .order("nama_barang", { ascending: true });
+      if (error) {
+        showError("Gagal memuat item stok.");
+        throw error;
+      }
+      return data.map(item => ({
+        ...item,
+        inventories: item.warehouse_inventories as WarehouseInventory[],
+      }));
     },
   });
 
-  // Removed handleOpenTransactionForm as it's no longer needed for direct IN/OUT buttons
-  // const handleOpenTransactionForm = (product: ProductWithDetails, type: StockEventType) => {
-  //   setSelectedProductForTransaction(product);
-  //   setInitialEventType(type);
-  //   setIsTransactionFormOpen(true);
-  // };
+  const { data: warehouseCategories, isLoading: loadingWarehouseCategories } = useQuery<WarehouseCategoryEnum[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("code")
+        .order("name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data.map(item => item.code as WarehouseCategoryEnum);
+    },
+  });
 
-  const handleViewDetails = (product: ProductWithDetails) => {
-    setProductToView(product);
+  const deleteProductMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showSuccess("Item stok berhasil dihapus!");
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["stockHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["stockMovements"] });
+    },
+    onError: (err) => {
+      showError(`Gagal menghapus item stok: ${err.message}`);
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus item stok ini?")) {
+      deleteProductMutation.mutate(id);
+    }
+  };
+
+  const handleEdit = (product: ProductType) => {
+    setSelectedProduct(product);
+    setIsEditFormOpen(true);
+  };
+
+  const handleViewDetails = (product: ProductType) => {
+    setSelectedProduct(product);
     setIsViewDetailsOpen(true);
   };
 
-  const handleOpenMovementForm = (product: ProductWithDetails) => {
-    setProductForMovement(product);
-    setIsMovementFormOpen(true);
+  const handleAddTransaction = (product: ProductType) => {
+    setSelectedProduct(product);
+    setIsAddTransactionOpen(true);
   };
 
-  const handleOpenAdjustmentForm = (product: ProductWithDetails) => { // Handler for adjustment form
-    setProductForAdjustment(product);
-    setIsAdjustmentFormOpen(true);
+  const handleAdjustment = (product: ProductType) => {
+    setSelectedProduct(product);
+    setIsAdjustmentOpen(true);
   };
 
-  const filteredProducts = products?.filter((product) =>
-    product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const formatInventories = useCallback((inventories?: WarehouseInventory[]) => {
-    if (loadingCategories) return "Memuat kategori...";
-    if (categoriesError) return "Error memuat kategori";
-
-    const inventoryMap = new Map(inventories?.map(inv => [inv.warehouse_category, inv.quantity]) || []);
-
-    const formatted = warehouseCategories?.map(category => {
-      const quantity = inventoryMap.get(category.code) || 0;
-      return `${category.name}: ${quantity}`;
+  const filteredProducts = useMemo(() => {
+    if (!products) return [];
+    return products.filter((product) => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        product.nama_barang.toLowerCase().includes(searchLower) ||
+        product.kode_barang.toLowerCase().includes(searchLower) ||
+        product.satuan?.toLowerCase().includes(searchLower)
+      );
     });
+  }, [products, searchTerm]);
 
-    return formatted?.join(', ') || '';
-  }, [loadingCategories, categoriesError, warehouseCategories]);
-
-  if (isLoading || loadingCategories) {
+  if (isLoading || loadingWarehouseCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -143,108 +159,151 @@ const StockManagementPage = () => {
     );
   }
 
-  if (error || categoriesError) {
-    return <div className="text-red-500">Error loading products or categories: {error?.message || categoriesError?.message}</div>;
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Gagal memuat item stok: {error.message}
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manajemen Stok Produk</h1>
-      <p className="text-gray-600 dark:text-gray-300 mb-4">
-        Lihat status stok produk Anda di berbagai kategori gudang, lakukan transaksi stok, dan pindahkan stok antar lokasi.
-      </p>
+      <h1 className="text-3xl font-bold mb-6">Manajemen Stok</h1>
 
-      <div className="flex justify-between items-center mb-6">
-        <Input
-          placeholder="Cari produk berdasarkan nama atau kode..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
-        />
-        {/* Add Stock Item button is now in Product Management Page */}
+      <div className="flex justify-between items-center mb-4">
+        <div className="relative w-full max-w-sm">
+          <Input
+            type="text"
+            placeholder="Cari item stok..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+        </div>
+        <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setIsAddFormOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item Stok
+            </Button>
+          </DialogTrigger>
+          <AddStockItemForm
+            isOpen={isAddFormOpen}
+            onOpenChange={setIsAddFormOpen}
+            onSuccess={() => setIsAddFormOpen(false)}
+          />
+        </Dialog>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>No.</TableHead>
               <TableHead>Kode Barang</TableHead>
               <TableHead>Nama Barang</TableHead>
-              <TableHead className="min-w-[200px]">Stok per Kategori</TableHead>
+              <TableHead>Satuan</TableHead>
+              <TableHead>Harga Beli</TableHead>
+              <TableHead>Harga Jual</TableHead>
+              <TableHead>Stok Aman</TableHead>
               <TableHead>Total Stok</TableHead>
-              <TableHead className="text-center">Aksi</TableHead>
+              <TableHead>Stok per Gudang</TableHead>
+              <TableHead className="text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredProducts?.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell className="font-medium">{product.kode_barang}</TableCell>
-                <TableCell>{product.nama_barang}</TableCell>
-                <TableCell className="whitespace-normal">{formatInventories(product.inventories)}</TableCell>
-                <TableCell>{product.current_stock}</TableCell>
-                <TableCell className="flex space-x-2 justify-center">
-                  <Button variant="ghost" size="icon" onClick={() => handleViewDetails(product)} title="Lihat Detail Stok">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenMovementForm(product)} title="Pindahkan Stok">
-                    <ArrowRightLeft className="h-4 w-4" />
-                  </Button>
-                  {/* Removed Stok Masuk and Stok Keluar buttons */}
-                  {/* <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.IN)} title="Stok Masuk">
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => handleOpenTransactionForm(product, StockEventType.OUT)} title="Stok Keluar">
-                    <ArrowDown className="h-4 w-4" />
-                  </Button> */}
-                  <Button variant="outline" size="sm" onClick={() => handleOpenAdjustmentForm(product)} title="Sesuaikan Stok">
-                    <PlusCircle className="h-4 w-4" /> {/* Using PlusCircle for adjustment */}
-                  </Button>
+            {filteredProducts.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={10} className="text-center">
+                  Tidak ada item stok ditemukan.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredProducts.map((product, index) => {
+                const totalStock = product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
+                const stockPerWarehouse = warehouseCategories?.map(category => {
+                  const quantity = product.inventories?.find(inv => inv.warehouse_category === category)?.quantity || 0;
+                  return `${getCategoryDisplayName(category as WarehouseCategoryEnum)}: ${quantity}`; // Fixed casting
+                }).join(", ") || "-";
+
+                return (
+                  <TableRow key={product.id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{product.kode_barang}</TableCell>
+                    <TableCell>{product.nama_barang}</TableCell>
+                    <TableCell>{product.satuan || "-"}</TableCell>
+                    <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
+                    <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
+                    <TableCell>{product.safe_stock_limit || 0}</TableCell>
+                    <TableCell className={totalStock < (product.safe_stock_limit || 0) ? "text-red-500 font-semibold" : ""}>
+                      {totalStock}
+                    </TableCell>
+                    <TableCell>{stockPerWarehouse}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Buka menu</span>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(product)}>
+                            <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(product)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAddTransaction(product)}>
+                            <PackagePlus className="mr-2 h-4 w-4" /> Tambah/Kurangi Stok
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAdjustment(product)}>
+                            <Repeat2 className="mr-2 h-4 w-4" /> Penyesuaian Stok
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDelete(product.id)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
 
-      {/* Add Stock Transaction Form (controlled by parent) - This component is still needed for other uses, but not triggered by these buttons */}
-      {isTransactionFormOpen && selectedProductForTransaction && products && (
-        <AddStockTransactionForm
-          products={products}
-          initialProductId={selectedProductForTransaction.id}
-          initialEventType={initialEventType} // Changed to initialEventType
-          isOpen={isTransactionFormOpen}
-          onOpenChange={setIsTransactionFormOpen}
-          onSuccess={fetchProducts}
-        />
-      )}
-
-      {/* View Stock Item Details Dialog */}
-      {productToView && (
-        <ViewStockItemDetailsDialog
-          product={productToView}
-          isOpen={isViewDetailsOpen}
-          onOpenChange={setIsViewDetailsOpen}
-        />
-      )}
-
-      {/* Stock Movement Form */}
-      {isMovementFormOpen && productForMovement && (
-        <StockMovementForm
-          product={productForMovement}
-          isOpen={isMovementFormOpen}
-          onOpenChange={setIsMovementFormOpen}
-          onSuccess={fetchProducts}
-        />
-      )}
-
-      {/* Stock Adjustment Form */}
-      {isAdjustmentFormOpen && productForAdjustment && (
-        <StockAdjustmentForm
-          product={productForAdjustment}
-          isOpen={isAdjustmentFormOpen}
-          onOpenChange={setIsAdjustmentFormOpen}
-          onSuccess={fetchProducts}
-        />
+      {selectedProduct && (
+        <>
+          <EditStockItemForm
+            isOpen={isEditFormOpen}
+            onOpenChange={setIsEditFormOpen}
+            onSuccess={() => setIsEditFormOpen(false)}
+            initialData={selectedProduct}
+          />
+          <ViewStockItemDetailsDialog
+            isOpen={isViewDetailsOpen}
+            onOpenChange={setIsViewDetailsOpen}
+            product={selectedProduct}
+          />
+          <AddStockTransactionForm
+            isOpen={isAddTransactionOpen}
+            onOpenChange={setIsAddTransactionOpen}
+            onSuccess={() => setIsAddTransactionOpen(false)}
+            product={selectedProduct}
+          />
+          <StockAdjustmentForm
+            isOpen={isAdjustmentOpen}
+            onOpenChange={setIsAdjustmentOpen}
+            onSuccess={() => setIsAdjustmentOpen(false)}
+            product={selectedProduct}
+          />
+        </>
       )}
     </div>
   );
