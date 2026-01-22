@@ -21,9 +21,9 @@ import {
   DialogTitle, // Added import
   DialogDescription, // Added import
 } from "@/components/ui/dialog";
-import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns"; // Added parseISO
+import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
 import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data";
-import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react"; // Added UploadCloud
+import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
 import EditInvoiceForm from "@/components/EditInvoiceForm";
@@ -36,7 +36,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {

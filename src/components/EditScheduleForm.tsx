@@ -65,7 +65,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
       schedule_date: new Date(schedule.schedule_date),
       schedule_time: schedule.schedule_time || "",
       type: schedule.type as ScheduleType, // Cast to enum
-      product_category: schedule.product_category || undefined, // Set initial product category
+      product_category: schedule.product_category || null, // Set initial product category
       customer_name: schedule.customer_name,
       address: schedule.address || "",
       technician_name: schedule.technician_name || null, // Set initial technician name
@@ -101,7 +101,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
         schedule_date: new Date(schedule.schedule_date),
         schedule_time: schedule.schedule_time || "",
         type: schedule.type as ScheduleType,
-        product_category: schedule.product_category || undefined, // Reset product category
+        product_category: schedule.product_category || null, // Reset product category
         customer_name: schedule.customer_name,
         address: schedule.address || "",
         technician_name: schedule.technician_name || null,
@@ -230,7 +230,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                     </FormControl>
                     <SelectContent>
                       {Object.values(ScheduleProductCategory).map((category) => (
-                        <SelectItem key={category} value={category}>
+                        <SelectItem key={category as string} value={category as string}>
                           {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                         </SelectItem>
                       ))}
@@ -267,7 +267,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                     </FormControl>
                     <SelectContent>
                       {Object.values(ScheduleType).map((type) => (
-                        <SelectItem key={type} value={type}>
+                        <SelectItem key={type as string} value={type as string}>
                           {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                         </SelectItem>
                       ))}
@@ -379,7 +379,7 @@ const EditScheduleForm: React.FC<EditScheduleFormProps> = ({ schedule, isOpen, o
                     </FormControl>
                     <SelectContent>
                       {Object.values(ScheduleStatus).map((status) => (
-                        <SelectItem key={status} value={status}>
+                        <SelectItem key={status as string} value={status as string}>
                           {status.charAt(0).toUpperCase() + status.slice(1)}
                         </SelectItem>
                       ))}

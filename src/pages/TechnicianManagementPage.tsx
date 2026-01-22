@@ -41,10 +41,7 @@ const TechnicianManagementPage = () => {
 
       if (error) throw error;
 
-      return data.map((tech, index) => ({
-        ...tech,
-        no: index + 1,
-      }));
+      return data as TechnicianWithDetails[];
     },
   });
 
@@ -168,9 +165,9 @@ const TechnicianManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentItems.map((technician) => (
+                  {currentItems.map((technician, index) => (
                     <TableRow key={technician.id}>
-                      <TableCell>{technician.no}</TableCell>
+                      <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell>{technician.name}</TableCell>
                       <TableCell>{technician.phone_number || "-"}</TableCell>
                       <TableCell>{technician.type.charAt(0).toUpperCase() + technician.type.slice(1)}</TableCell>

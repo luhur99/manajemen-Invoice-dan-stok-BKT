@@ -219,7 +219,7 @@ const AddEditTechnicianForm: React.FC<AddEditTechnicianFormProps> = ({ isOpen, o
                     </FormControl>
                     <SelectContent>
                       {Object.values(TechnicianType).map((type) => (
-                        <SelectItem key={type} value={type}>
+                        <SelectItem key={type as string} value={type as string}>
                           {type.charAt(0).toUpperCase() + type.slice(1)}
                         </SelectItem>
                       ))}

@@ -38,7 +38,7 @@ const PrintSchedulePage = () => {
             invoice_number: scheduleData.invoices?.invoice_number,
             sr_number: scheduleData.scheduling_requests?.sr_number
         }
-        setSchedule(scheduleWithDetails);
+        setSchedule(scheduleWithDetails as ScheduleWithDetails); // Cast to ScheduleWithDetails
 
         // If linked to an invoice, fetch items
         if (scheduleData.invoice_id) {
@@ -48,7 +48,7 @@ const PrintSchedulePage = () => {
             .eq("invoice_id", scheduleData.invoice_id);
 
           if (!itemsError && itemsData) {
-            setItems(itemsData);
+            setItems(itemsData as InvoiceItem[]); // Cast to InvoiceItem[]
           }
         }
 
@@ -121,7 +121,7 @@ const PrintSchedulePage = () => {
             <h3 className="mb-2 font-bold text-gray-700 bg-gray-100 p-1">DETAIL PEKERJAAN:</h3>
             <p className="text-sm"><strong>Teknisi:</strong> {schedule.technician_name || "-"}</p>
             <p className="text-sm"><strong>Waktu:</strong> {schedule.schedule_time || "-"}</p>
-            {schedule.invoice_number && <p className="text-sm"><strong>Ref Invoice:</strong> {schedule.invoice_number}</p>}
+            {schedule.invoices?.invoice_number && <p className="text-sm"><strong>Ref Invoice:</strong> {schedule.invoices.invoice_number}</p>}
             {schedule.courier_service && <p className="text-sm"><strong>Kurir:</strong> {schedule.courier_service}</p>}
           </div>
         </div>

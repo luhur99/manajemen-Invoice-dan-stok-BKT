@@ -46,11 +46,13 @@ export interface SchedulingRequest {
   updated_at: string; // ISO date string
   technician_name: string | null;
   product_category: ScheduleProductCategory | null;
+  customer_type: CustomerTypeEnum | null; // Added customer_type
 }
 
-// New interface for SchedulingRequest with joined customer details
+// New interface for SchedulingRequest with joined customer and invoice details
 export interface SchedulingRequestWithDetails extends SchedulingRequest {
   customers: Pick<Customer, 'customer_name' | 'company_name' | 'phone_number' | 'address' | 'customer_type'> | null;
+  invoices: Pick<Invoice, 'invoice_number'> | null; // Added for invoice_number
 }
 
 export enum PurchaseRequestStatus {
@@ -192,7 +194,7 @@ export interface StockLedger {
 
 // New interface for StockLedger with joined product details
 export interface StockLedgerWithProduct extends StockLedger {
-  products: Pick<Product, 'nama_barang'> | null;
+  products: Pick<Product, 'nama_barang' | 'kode_barang'> | null; // Added kode_barang
 }
 
 export interface PurchaseRequest {
@@ -224,7 +226,7 @@ export interface PurchaseRequest {
 // New interface for PurchaseRequest with joined details
 export interface PurchaseRequestWithDetails extends PurchaseRequest {
   products: Pick<Product, 'nama_barang' | 'kode_barang' | 'satuan'> | null;
-  suppliers: Pick<Supplier, 'name'> | null;
+  suppliers: Pick<Supplier, 'name'> | null; // Added name for supplier_name
 }
 
 export interface Customer {
@@ -384,5 +386,5 @@ export interface Profile {
 
 // New interface for Supabase User with joined Profile details
 export interface UserWithProfile extends User {
-  profiles: Pick<Profile, 'role' | 'first_name' | 'last_name'> | null;
+  profiles: Pick<Profile, 'role' | 'first_name' | 'last_name' | 'phone_number'> | null; // Added phone_number
 }

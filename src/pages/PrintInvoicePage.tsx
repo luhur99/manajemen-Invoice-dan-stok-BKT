@@ -28,7 +28,7 @@ const PrintInvoicePage = () => {
           .single();
 
         if (invoiceError) throw invoiceError;
-        setInvoice(invoiceData);
+        setInvoice(invoiceData as InvoiceWithDetails); // Cast to InvoiceWithDetails
 
         // Fetch Invoice Items
         const { data: itemsData, error: itemsError } = await supabase
@@ -37,7 +37,7 @@ const PrintInvoicePage = () => {
           .eq("invoice_id", id);
 
         if (itemsError) throw itemsError;
-        setItems(itemsData || []);
+        setItems(itemsData as InvoiceItem[] || []); // Cast to InvoiceItem[]
 
       } catch (err: any) {
         console.error("Error fetching invoice for print:", err);

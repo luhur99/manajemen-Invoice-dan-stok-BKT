@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react"; // Added useState here
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -31,58 +31,59 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory } from "@/types/data"; // Import ScheduleProductCategory
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory } from "@/types/data";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import TechnicianCombobox from "./TechnicianCombobox";
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
+import { useSession } from "@/components/SessionContextProvider";
 
 const formSchema = z.object({
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
-  schedule_time: z.string().optional(),
+  schedule_time: z.string().optional().nullable(),
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
-  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(), // New field
+  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(),
   customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
-  address: z.string().optional(),
+  address: z.string().optional().nullable(),
   technician_name: z.string().optional().nullable(),
-  invoice_id: z.string().optional(),
+  invoice_id: z.string().optional().nullable(),
   status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
-  notes: z.string().optional(),
-  phone_number: z.string().optional(),
-  courier_service: z.string().optional(),
+  notes: z.string().optional().nullable(),
+  phone_number: z.string().optional().nullable(),
+  courier_service: z.string().optional().nullable(),
 });
 
-interface AddScheduleFormProps {
+interface AddEditScheduleFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  initialData?: Schedule | null;
 }
 
-const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpenChange, onSuccess, initialData }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       schedule_date: new Date(),
-      schedule_time: "",
+      schedule_time: null,
       type: ScheduleType.INSTALASI,
-      product_category: null, // Default to null
+      product_category: null,
       customer_name: "",
-      address: "",
+      address: null,
       technician_name: null,
-      invoice_id: "",
+      invoice_id: null,
       status: ScheduleStatus.SCHEDULED,
-      notes: "",
-      phone_number: "",
-      courier_service: "",
+      notes: null,
+      phone_number: null,
+      courier_service: null,
     },
   });
 
-  const [activeTab, setActiveTab] = useState("basic"); // State to manage active tab
-  const [technicianSearchInput, setTechnicianSearchInput] = useState("");
+  const [activeTab, setActiveTab] = useState("basic");
+  const [technicianSearchInput, setTechnicianSearchInput] = useState(initialData?.technician_name || "");
 
-  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+  const { data: technicians, isLoading: loadingTechnicians } = useQuery<Technician[], Error>({
     queryKey: ["technicians"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -95,16 +96,47 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
       }
       return data;
     },
-    enabled: isOpen, // Only fetch when the dialog is open
+    enabled: isOpen,
   });
 
-  React.useEffect(() => {
-    if (!isOpen) {
-      form.reset();
-      setActiveTab("basic"); // Reset to first tab when dialog closes
-      setTechnicianSearchInput("");
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        form.reset({
+          schedule_date: new Date(initialData.schedule_date),
+          schedule_time: initialData.schedule_time || null,
+          type: initialData.type,
+          product_category: initialData.product_category || null,
+          customer_name: initialData.customer_name,
+          address: initialData.address || null,
+          technician_name: initialData.technician_name || null,
+          invoice_id: initialData.invoice_id || null,
+          status: initialData.status,
+          notes: initialData.notes || null,
+          phone_number: initialData.phone_number || null,
+          courier_service: initialData.courier_service || null,
+        });
+        setTechnicianSearchInput(initialData.technician_name || "");
+      } else {
+        form.reset({
+          schedule_date: new Date(),
+          schedule_time: null,
+          type: ScheduleType.INSTALASI,
+          product_category: null,
+          customer_name: "",
+          address: null,
+          technician_name: null,
+          invoice_id: null,
+          status: ScheduleStatus.SCHEDULED,
+          notes: null,
+          phone_number: null,
+          courier_service: null,
+        });
+        setTechnicianSearchInput("");
+      }
+      setActiveTab("basic");
     }
-  }, [isOpen, form]);
+  }, [isOpen, initialData, form]);
 
   const handleTechnicianSelect = (technician: Technician | undefined) => {
     if (technician) {
@@ -117,20 +149,19 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
     }
   };
 
-  // Mutation for adding a schedule
-  const addScheduleMutation = useMutation({
+  const saveScheduleMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const userId = session?.user?.id;
       if (!userId) {
         throw new Error("Anda harus login untuk membuat jadwal.");
       }
 
-      const { error } = await supabase.from("schedules").insert({
+      const dataToSubmit = {
         user_id: userId,
         schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
         schedule_time: values.schedule_time,
         type: values.type,
-        product_category: values.product_category, // Include new field
+        product_category: values.product_category,
         customer_name: values.customer_name,
         address: values.address,
         technician_name: values.technician_name,
@@ -139,34 +170,50 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
         notes: values.notes,
         phone_number: values.phone_number,
         courier_service: values.courier_service,
-      });
+      };
 
-      if (error) throw error;
+      if (initialData) {
+        const { error } = await supabase
+          .from("schedules")
+          .update({
+            ...dataToSubmit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", initialData.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("schedules")
+          .insert(dataToSubmit);
+
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
-      showSuccess("Jadwal berhasil ditambahkan!");
+      showSuccess(initialData ? "Jadwal berhasil diperbarui!" : "Jadwal berhasil ditambahkan!");
       onSuccess();
       onOpenChange(false);
       form.reset();
-      queryClient.invalidateQueries({ queryKey: ["schedules"] }); // Invalidate schedules to refetch
+      queryClient.invalidateQueries({ queryKey: ["schedules"] });
     },
     onError: (err: any) => {
-      showError(`Gagal menambahkan jadwal: ${err.message}`);
-      console.error("Error adding schedule:", err);
+      showError(`Gagal menyimpan jadwal: ${err.message}`);
+      console.error("Error saving schedule:", err);
     },
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    addScheduleMutation.mutate(values);
+    saveScheduleMutation.mutate(values);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Tambah Jadwal Baru</DialogTitle>
+          <DialogTitle>{initialData ? "Edit Jadwal" : "Tambah Jadwal Baru"}</DialogTitle>
           <DialogDescription>
-            Isi detail jadwal baru di sini. Klik simpan saat Anda selesai.
+            {initialData ? "Ubah detail jadwal di sini. Klik simpan saat Anda selesai." : "Isi detail jadwal baru di sini. Klik simpan saat Anda selesai."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -217,7 +264,6 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
                     </FormItem>
                   )}
                 />
-                {/* New: Product Category Field */}
                 <FormField
                   control={form.control}
                   name="product_category"
@@ -412,11 +458,11 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={addScheduleMutation.isPending}>
-                {addScheduleMutation.isPending ? (
+              <Button type="submit" disabled={saveScheduleMutation.isPending}>
+                {saveScheduleMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Simpan Jadwal"
+                  initialData ? "Simpan Perubahan" : "Simpan Jadwal"
                 )}
               </Button>
             </DialogFooter>
@@ -427,4 +473,4 @@ const AddScheduleForm: React.FC<AddScheduleFormProps> = ({ isOpen, onOpenChange,
   );
 };
 
-export default AddScheduleForm;
+export default AddEditScheduleForm;

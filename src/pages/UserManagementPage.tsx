@@ -50,7 +50,19 @@ const UserManagementPage = () => {
       if (data && data.error) {
         throw new Error(data.error);
       }
-      return (data as UserWithProfile[]).map((user, index) => ({ ...user, no: index + 1 }));
+      // Map the raw user data to UserWithProfile type
+      return (data as any[]).map((user: any) => ({
+        id: user.id,
+        email: user.email,
+        created_at: user.created_at,
+        last_sign_in_at: user.last_sign_in_at,
+        profiles: {
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+          phone_number: user.phone_number,
+        },
+      })) as UserWithProfile[];
     },
     enabled: !!session && profile?.role === 'admin',
   });
@@ -100,9 +112,9 @@ const UserManagementPage = () => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
     return (
       user.email.toLowerCase().includes(lowerCaseSearchTerm) ||
-      user.first_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      user.last_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      user.role.toLowerCase().includes(lowerCaseSearchTerm)
+      user.profiles?.first_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      user.profiles?.last_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      user.profiles?.role.toLowerCase().includes(lowerCaseSearchTerm)
     );
   }) || [];
 
@@ -215,12 +227,12 @@ const UserManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentItems.map((user) => (
+                  {currentItems.map((user, index) => (
                     <TableRow key={user.id}>
-                      <TableCell>{user.no}</TableCell>
+                      <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{`${user.first_name || ''} ${user.last_name || ''}`.trim() || '-'}</TableCell>
-                      <TableCell>{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</TableCell>
+                      <TableCell>{`${user.profiles?.first_name || ''} ${user.profiles?.last_name || ''}`.trim() || '-'}</TableCell>
+                      <TableCell>{user.profiles?.role.charAt(0).toUpperCase() + user.profiles?.role.slice(1)}</TableCell>
                       <TableCell>{format(new Date(user.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                       <TableCell>{user.last_sign_in_at ? format(new Date(user.last_sign_in_at), "dd-MM-yyyy HH:mm") : "-"}</TableCell>
                       <TableCell className="text-center flex items-center justify-center space-x-1">

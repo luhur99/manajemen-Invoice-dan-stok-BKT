@@ -24,15 +24,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar"; // Added import
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // Added import
+import { cn } from "@/lib/utils"; // Added import
+import { format } from "date-fns";
+import { CalendarIcon, Loader2 } from "lucide-react"; // Added CalendarIcon
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategoryEnum, WarehouseInventory, PurchaseRequestStatus, StockEventType } from "@/types/data"; // Fixed import
+import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategoryEnum, WarehouseInventory, PurchaseRequestStatus, StockEventType } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from "date-fns";
 
 const formSchema = z.object({
   pr_number: z.string().optional().nullable(),
@@ -82,7 +85,7 @@ interface EditPurchaseRequestFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  initialData: PurchaseRequestWithDetails; // Use PurchaseRequestWithDetails
+  initialData: PurchaseRequestWithDetails;
 }
 
 const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({

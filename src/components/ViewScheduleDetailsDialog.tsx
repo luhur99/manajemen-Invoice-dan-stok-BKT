@@ -40,7 +40,7 @@ const ViewScheduleDetailsDialog: React.FC<ViewScheduleDetailsDialogProps> = ({
           <p><strong>Alamat:</strong> {schedule.address || "-"}</p>
           <p><strong>Nomor Telepon:</strong> {schedule.phone_number || "-"}</p>
           <p><strong>Nama Teknisi:</strong> {schedule.technician_name || "-"}</p>
-          <p><strong>Nomor Invoice Terkait:</strong> {schedule.invoice_number || "-"}</p>
+          <p><strong>Nomor Invoice Terkait:</strong> {schedule.invoices?.invoice_number || "-"}</p>
           <p><strong>Layanan Kurir:</strong> {schedule.courier_service || "-"}</p>
           <p><strong>Status:</strong> {schedule.status}</p>
           <p><strong>Catatan:</strong> {schedule.notes || "-"}</p>

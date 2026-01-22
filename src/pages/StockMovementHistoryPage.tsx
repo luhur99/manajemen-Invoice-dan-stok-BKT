@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { StockLedgerWithProduct, StockEventType, WarehouseCategoryEnum } from "@/types/data"; // Updated imports
 import { showError } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
 
 const getEventTypeDisplay = (type: StockEventType) => {
@@ -78,8 +78,8 @@ const StockMovementHistoryPage = () => {
 
     return stockMovements.filter((movement) => {
       const matchesSearch =
-        movement.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
-        movement.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
+        movement.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
+        movement.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
         (movement.from_warehouse_category && getCategoryDisplayName(movement.from_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
         (movement.to_warehouse_category && getCategoryDisplayName(movement.to_warehouse_category).toLowerCase().includes(lowerCaseSearchTerm)) ||
         movement.notes?.toLowerCase().includes(lowerCaseSearchTerm);
@@ -144,7 +144,7 @@ const StockMovementHistoryPage = () => {
             <SelectContent>
               <SelectItem value="all">Semua Tipe</SelectItem>
               {Object.values(StockEventType).map((type) => (
-                <SelectItem key={type as string} value={type as string}> {/* Cast to string */}
+                <SelectItem key={type as string} value={type as string}>
                   {getEventTypeDisplay(type)}
                 </SelectItem>
               ))}
@@ -179,8 +179,8 @@ const StockMovementHistoryPage = () => {
               filteredStockMovements.map((movement) => (
                 <TableRow key={movement.id}>
                   <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                  <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell> {/* Fixed */}
-                  <TableCell>{movement.products?.kode_barang || "N/A"}</TableCell> {/* Fixed */}
+                  <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell>
+                  <TableCell>{movement.products?.kode_barang || "N/A"}</TableCell>
                   <TableCell>
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       movement.event_type === StockEventType.IN || movement.event_type === StockEventType.INITIAL ? "bg-green-100 text-green-800" :

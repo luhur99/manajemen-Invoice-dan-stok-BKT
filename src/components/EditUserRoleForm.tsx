@@ -40,14 +40,14 @@ const EditUserRoleForm: React.FC<EditUserRoleFormProps> = ({ user, isOpen, onOpe
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      role: user.role as "admin" | "staff" | "user",
+      role: user.profiles?.role as "admin" | "staff" | "user" || "user", // Access role from profiles
     },
   });
 
   useEffect(() => {
     if (isOpen && user) {
       form.reset({
-        role: user.role as "admin" | "staff" | "user",
+        role: user.profiles?.role as "admin" | "staff" | "user" || "user", // Access role from profiles
       });
     }
   }, [isOpen, user, form]);

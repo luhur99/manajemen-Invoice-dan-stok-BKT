@@ -214,20 +214,20 @@ const SchedulingRequestPage = () => {
 
   const filteredRequests = requests?.filter((request) => {
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    const customerName = request.customer_name_from_customers || request.customer_name;
-    const companyName = request.company_name_from_customers || request.company_name;
-    const phoneNumber = request.phone_number_from_customers || request.phone_number;
+    const customerName = request.customers?.customer_name || request.customer_name;
+    const companyName = request.customers?.company_name || request.company_name;
+    const phoneNumber = request.customers?.phone_number || request.phone_number;
 
     return (
       request.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-      customerName.toLowerCase().includes(lowerCaseSearchTerm) ||
+      customerName?.toLowerCase().includes(lowerCaseSearchTerm) ||
       companyName?.toLowerCase().includes(lowerCaseSearchTerm) ||
       getTypeDisplay(request.type).toLowerCase().includes(lowerCaseSearchTerm) ||
       getProductCategoryDisplay(request.product_category).toLowerCase().includes(lowerCaseSearchTerm) || // Include product category in search
       getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
       request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
-      phoneNumber.toLowerCase().includes(lowerCaseSearchTerm) ||
-      request.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      phoneNumber?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      request.invoices?.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
       request.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
       format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
     );
@@ -290,16 +290,16 @@ const SchedulingRequestPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredRequests?.map((request) => (
+            {filteredRequests?.map((request, index) => (
               <TableRow key={request.id}>
-                <TableCell>{request.no}</TableCell>
+                <TableCell>{index + 1}</TableCell>
                 <TableCell>{request.sr_number || "-"}</TableCell>
-                <TableCell>{request.customer_name_from_customers || request.customer_name}</TableCell>
+                <TableCell>{request.customers?.customer_name || request.customer_name}</TableCell>
                 <TableCell>{getTypeDisplay(request.type)}</TableCell>
                 <TableCell>{getProductCategoryDisplay(request.product_category)}</TableCell> {/* New TableCell */}
                 <TableCell>{format(new Date(request.requested_date), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{request.technician_name || "-"}</TableCell>
-                <TableCell>{request.invoice_number || "-"}</TableCell>
+                <TableCell>{request.invoices?.invoice_number || "-"}</TableCell>
                 <TableCell>{request.contact_person}</TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>

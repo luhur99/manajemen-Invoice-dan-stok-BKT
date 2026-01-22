@@ -162,8 +162,8 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
                     </FormControl>
                     <SelectContent>
                       {Object.values(CustomerTypeEnum).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
+                        <SelectItem key={type as string} value={type as string}>
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
                         </SelectItem>
                       ))}
                     </SelectContent>

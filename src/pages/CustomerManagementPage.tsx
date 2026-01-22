@@ -44,10 +44,7 @@ const CustomerManagementPage = () => {
         throw error;
       }
 
-      return data.map((cust, index) => ({
-        ...cust,
-        no: index + 1,
-      }));
+      return data as CustomerWithDetails[];
     },
   });
 
@@ -167,9 +164,9 @@ const CustomerManagementPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentItems.map((customer) => (
+                  {currentItems.map((customer, index) => (
                     <TableRow key={customer.id}>
-                      <TableCell>{customer.no}</TableCell>
+                      <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell>{customer.customer_name}</TableCell>
                       <TableCell>{customer.company_name || "-"}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{customer.address || "-"}</TableCell>
