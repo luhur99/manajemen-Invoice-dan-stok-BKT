@@ -14,15 +14,15 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Loader2, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
 import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
-import { useSession } from "@/components/SessionContextProvider"; // Import useSession
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/components/SessionContextProvider";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -192,11 +192,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Tambah Produk baru
-        </Button>
-      </DialogTrigger>
+      {/* Removed DialogTrigger asChild */}
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tambah Produk Baru</DialogTitle>

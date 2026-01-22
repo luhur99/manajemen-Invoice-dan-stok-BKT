@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Supplier } from "@/types/data"; // Changed from SupplierWithDetails
+import { Supplier } from "@/types/data";
 import {
   Table,
   TableBody,
@@ -17,6 +17,11 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye } from "lucide-react";
@@ -37,10 +42,10 @@ const SupplierManagementPage = () => {
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null); // Changed type
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const { data: suppliers, isLoading, error } = useQuery<Supplier[], Error>({ // Changed type
+  const { data: suppliers, isLoading, error } = useQuery<Supplier[], Error>({
     queryKey: ["suppliers"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -75,12 +80,12 @@ const SupplierManagementPage = () => {
     }
   };
 
-  const handleEdit = (supplier: Supplier) => { // Changed type
+  const handleEdit = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
     setIsEditFormOpen(true);
   };
 
-  const handleViewDetails = (supplier: Supplier) => { // Changed type
+  const handleViewDetails = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
     setIsViewDetailsOpen(true);
   };
@@ -140,6 +145,8 @@ const SupplierManagementPage = () => {
             </Button>
           </DialogTrigger>
           <AddSupplierForm
+            isOpen={isAddFormOpen}
+            onOpenChange={setIsAddFormOpen}
             onSuccess={() => setIsAddFormOpen(false)}
           />
         </Dialog>
@@ -149,13 +156,13 @@ const SupplierManagementPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>No.</TableHead>
-              <TableHead>Nama</TableHead>
-              <TableHead>Kontak Person</TableHead>
-              <TableHead>Telepon</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Alamat</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <TableHead className="w-[50px]">No.</TableHead>
+              <TableHead className="w-[150px]">Nama</TableHead>
+              <TableHead className="w-[150px]">Kontak Person</TableHead>
+              <TableHead className="w-[120px]">Telepon</TableHead>
+              <TableHead className="w-[200px]">Email</TableHead>
+              <TableHead className="min-w-[250px]">Alamat</TableHead>
+              <TableHead className="text-right w-[80px]">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -173,7 +180,7 @@ const SupplierManagementPage = () => {
                       <TableCell>{supplier.contact_person || "-"}</TableCell>
                       <TableCell>{supplier.phone_number || "-"}</TableCell>
                       <TableCell>{supplier.email || "-"}</TableCell>
-                      <TableCell>{supplier.address || "-"}</TableCell>
+                      <TableCell className="max-w-[250px] whitespace-normal">{supplier.address || "-"}</TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

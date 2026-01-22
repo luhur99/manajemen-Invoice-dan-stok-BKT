@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,13 +14,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
-import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -34,12 +34,13 @@ const formSchema = z.object({
 
 interface AddSupplierFormProps {
   onSuccess: () => void;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
+const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess, isOpen, onOpenChange }) => {
   const { session } = useSession();
-  const queryClient = useQueryClient(); // Initialize queryClient
-  const [isOpen, setIsOpen] = React.useState(false);
+  const queryClient = useQueryClient();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -51,6 +52,20 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
       notes: "",
     },
   });
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        name: "",
+        contact_person: "",
+        phone_number: "",
+        email: "",
+        address: "",
+        notes: "",
+      });
+    }
+  }, [isOpen, form]);
 
   // Define the mutation for adding a supplier
   const addSupplierMutation = useMutation({
@@ -79,8 +94,8 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
     onSuccess: () => {
       showSuccess("Pemasok berhasil ditambahkan!");
       form.reset();
-      setIsOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["suppliers"] }); // Invalidate and refetch suppliers
+      onOpenChange(false);
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       onSuccess();
     },
     onError: (error: any) => {
@@ -94,12 +109,8 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess }) => {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Tambah Supplier
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      {/* Removed DialogTrigger asChild */}
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tambah Pemasok Baru</DialogTitle>

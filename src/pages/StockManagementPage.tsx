@@ -29,7 +29,7 @@ import EditStockItemForm from "@/components/EditStockItemForm";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import StockAdjustmentForm from "@/components/StockAdjustmentForm";
-import { Product as ProductType, WarehouseInventory, WarehouseCategoryEnum, StockEventType } from "@/types/data"; // Fixed imports
+import { Product as ProductType, WarehouseInventory, WarehouseCategoryEnum, StockEventType } from "@/types/data";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DropdownMenu,
@@ -203,16 +203,16 @@ const StockManagementPage = () => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>No.</TableHead>
-              <TableHead>Kode Barang</TableHead>
-              <TableHead>Nama Barang</TableHead>
-              <TableHead>Satuan</TableHead>
-              <TableHead>Harga Beli</TableHead>
-              <TableHead>Harga Jual</TableHead>
-              <TableHead>Stok Aman</TableHead>
-              <TableHead>Total Stok</TableHead>
-              <TableHead>Stok per Gudang</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <TableHead className="w-[50px]">No.</TableHead>
+              <TableHead className="w-[120px]">Kode Barang</TableHead>
+              <TableHead className="w-[200px]">Nama Barang</TableHead>
+              <TableHead className="w-[80px]">Satuan</TableHead>
+              <TableHead className="w-[120px]">Harga Beli</TableHead>
+              <TableHead className="w-[120px]">Harga Jual</TableHead>
+              <TableHead className="w-[100px]">Stok Aman</TableHead>
+              <TableHead className="w-[100px]">Total Stok</TableHead>
+              <TableHead className="min-w-[250px]">Stok per Gudang</TableHead>
+              <TableHead className="text-right w-[80px]">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -227,22 +227,22 @@ const StockManagementPage = () => {
                 const totalStock = product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
                 const stockPerWarehouse = warehouseCategories?.map(category => {
                   const quantity = product.inventories?.find(inv => inv.warehouse_category === category)?.quantity || 0;
-                  return `${getCategoryDisplayName(category as WarehouseCategoryEnum)}: ${quantity}`; // Fixed casting
+                  return `${getCategoryDisplayName(category as WarehouseCategoryEnum)}: ${quantity}`;
                 }).join(", ") || "-";
 
                 return (
                   <TableRow key={product.id}>
                     <TableCell>{index + 1}</TableCell>
-                    <TableCell>{product.kode_barang}</TableCell>
+                    <TableCell className="font-medium">{product.kode_barang}</TableCell>
                     <TableCell>{product.nama_barang}</TableCell>
-                    <TableCell>{product.satuan || "-"}</TableCell>
+                    <TableCell>{product.satuan || '-'}</TableCell>
                     <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
                     <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
                     <TableCell>{product.safe_stock_limit || 0}</TableCell>
                     <TableCell className={totalStock < (product.safe_stock_limit || 0) ? "text-red-500 font-semibold" : ""}>
                       {totalStock}
                     </TableCell>
-                    <TableCell>{stockPerWarehouse}</TableCell>
+                    <TableCell className="max-w-[250px] whitespace-normal">{stockPerWarehouse}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -295,8 +295,8 @@ const StockManagementPage = () => {
             isOpen={isAddTransactionOpen}
             onOpenChange={setIsAddTransactionOpen}
             onSuccess={() => setIsAddTransactionOpen(false)}
-            products={products || []} // Pass all products
-            initialProductId={selectedProduct.id} // Pass selected product ID
+            products={products || []}
+            initialProductId={selectedProduct.id}
           />
           <StockAdjustmentForm
             isOpen={isAdjustmentOpen}
