@@ -31,15 +31,15 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory, Customer } from "@/types/data"; // Added Customer
+import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory, Customer } from "@/types/data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import TechnicianCombobox from "./TechnicianCombobox";
-import CustomerCombobox from "./CustomerCombobox"; // Added CustomerCombobox
+import CustomerCombobox from "./CustomerCombobox";
 import { useSession } from "@/components/SessionContextProvider";
 
 const formSchema = z.object({
-  customer_id: z.string().uuid().optional().nullable(), // Added customer_id
+  customer_id: z.string().uuid().optional().nullable(),
   customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
   address: z.string().optional().nullable(),
   phone_number: z.string().optional().nullable(),
@@ -85,14 +85,14 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
 
   const [activeTab, setActiveTab] = useState("basic");
   const [technicianSearchInput, setTechnicianSearchInput] = useState(initialData?.technician_name || "");
-  const [customerSearchInput, setCustomerSearchInput] = useState(initialData?.customer_name || ""); // Added customer search input
+  const [customerSearchInput, setCustomerSearchInput] = useState(initialData?.customer_name || "");
 
   const { data: technicians, isLoading: loadingTechnicians } = useQuery<Technician[], Error>({
     queryKey: ["technicians"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("id, name, type") // Select specific columns
+        .select("id, name, type")
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar teknisi.");
@@ -108,7 +108,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
-        .select("id, customer_name, company_name, address, phone_number, customer_type") // Select specific columns
+        .select("id, customer_name, company_name, address, phone_number, customer_type")
         .order("customer_name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar pelanggan.");
@@ -160,7 +160,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
       }
       setActiveTab("basic");
     }
-  }, [isOpen, initialData, form, technicians, customers]); // Added dependencies
+  }, [isOpen, initialData, form]);
 
   const handleCustomerSelect = (customer: Customer | undefined) => {
     if (customer) {
@@ -238,7 +238,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
       onOpenChange(false);
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
-      queryClient.invalidateQueries({ queryKey: ["technicianSchedules"] }); // Invalidate technician calendar
+      queryClient.invalidateQueries({ queryKey: ["technicianSchedules"] });
     },
     onError: (err: any) => {
       showError(`Gagal menyimpan jadwal: ${err.message}`);

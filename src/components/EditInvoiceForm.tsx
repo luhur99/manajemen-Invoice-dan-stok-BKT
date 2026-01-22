@@ -127,6 +127,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           harga_jual,
           safe_stock_limit,
           supplier_id,
+          created_at,
           warehouse_inventories (
             warehouse_category,
             quantity
@@ -205,7 +206,6 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     }
   }, [isOpen, invoiceItems, form]);
 
-  // Update itemSearchInputs when fields change (e.g., adding/removing items)
   React.useEffect(() => {
     setItemSearchInputs(fields.map(item => item.item_name || ""));
   }, [fields]);
@@ -240,7 +240,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     } else {
       update(index, {
         ...fields[index],
-        product_id: null,
+        product_id: "",
         item_name: "",
         item_code: "",
         unit_price: 0,
@@ -718,8 +718,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={addInvoiceMutation.isPending}>
-                {addInvoiceMutation.isPending ? (
+              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
+                {updateInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"
@@ -733,4 +733,4 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   );
 };
 
-export default AddInvoiceForm;
+export default EditInvoiceForm;

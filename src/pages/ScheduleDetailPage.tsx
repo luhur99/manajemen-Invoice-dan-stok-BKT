@@ -44,7 +44,8 @@ const ScheduleDetailPage = () => {
           product_category,
           customer_id,
           customers (customer_name, company_name, phone_number, address, customer_type),
-          invoices (invoice_number)
+          invoices (invoice_number),
+          scheduling_requests (sr_number)
         `)
         .eq("id", id)
         .single();
@@ -56,7 +57,15 @@ const ScheduleDetailPage = () => {
       if (!data) {
         throw new Error("Jadwal tidak ditemukan.");
       }
-      return data as ScheduleWithDetails;
+      // Cast the response to match ScheduleWithDetails, mapping joined fields
+      const formattedData: any = {
+        ...data,
+        sr_number: Array.isArray(data.scheduling_requests) ? data.scheduling_requests[0]?.sr_number : data.scheduling_requests?.sr_number,
+        payment_method: null, // Schedule table doesn't have payment_method directly, handled by invoice usually
+        // customers and invoices are already included in data structure from query
+      };
+      
+      return formattedData as ScheduleWithDetails;
     },
     enabled: !!id,
   });

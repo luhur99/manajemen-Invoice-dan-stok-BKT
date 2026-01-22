@@ -137,7 +137,11 @@ const PurchaseRequestPage = () => {
         showError("Gagal memuat pengajuan pembelian.");
         throw error;
       }
-      return data as PurchaseRequestWithDetails[];
+      return data.map((item: any) => ({
+        ...item,
+        products: Array.isArray(item.products) ? item.products[0] : item.products,
+        suppliers: Array.isArray(item.suppliers) ? item.suppliers[0] : item.suppliers,
+      })) as PurchaseRequestWithDetails[];
     },
   });
 
@@ -175,35 +179,6 @@ const PurchaseRequestPage = () => {
     setSelectedPurchaseRequest(request);
     setIsUploadDialogOpen(true);
   };
-
-  // No need for local filtering anymore
-  // const filteredPurchaseRequests = useMemo(() => {
-  //   if (!purchaseRequests) return [];
-  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
-
-  //   return purchaseRequests.filter((request) => {
-  //     const matchesSearch =
-  //       request.pr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       request.item_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       request.item_code.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       request.suppliers?.name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       request.notes?.toLowerCase().includes(lowerCaseSearchTerm);
-
-  //     const matchesStatus =
-  //       selectedStatus === "all" || request.status === selectedStatus;
-
-  //     const requestDate = parseISO(request.created_at);
-  //     const matchesDateRange = dateRange?.from
-  //       ? isWithinInterval(requestDate, {
-  //           start: startOfDay(dateRange.from),
-  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-  //         })
-  //       : true;
-
-  //     return matchesSearch && matchesStatus && matchesDateRange;
-  //   });
-  // }, [purchaseRequests, searchTerm, selectedStatus, dateRange]);
 
   if (isLoading) {
     return (

@@ -99,36 +99,12 @@ const StockHistoryPage = () => {
         showError("Gagal memuat riwayat stok.");
         throw error;
       }
-      return data as StockLedgerWithProduct[];
+      return data.map((item: any) => ({
+        ...item,
+        products: Array.isArray(item.products) ? item.products[0] : item.products,
+      })) as StockLedgerWithProduct[];
     },
   });
-
-  // No need for local filtering anymore
-  // const filteredStockHistory = useMemo(() => {
-  //   if (!stockHistory) return [];
-  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
-
-  //   return stockHistory.filter((item) => {
-  //     const matchesSearch =
-  //       item.products?.nama_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       item.products?.kode_barang?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       getEventTypeDisplay(item.event_type).toLowerCase().includes(lowerCaseSearchTerm) ||
-  //       item.notes?.toLowerCase().includes(lowerCaseSearchTerm);
-
-  //     const matchesEventType =
-  //       selectedEventType === "all" || item.event_type === selectedEventType;
-
-  //     const itemDate = parseISO(item.created_at);
-  //     const matchesDateRange = dateRange?.from
-  //       ? isWithinInterval(itemDate, {
-  //           start: startOfDay(dateRange.from),
-  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-  //         })
-  //       : true;
-
-  //     return matchesSearch && matchesEventType && matchesDateRange;
-  //   });
-  // }, [stockHistory, searchTerm, selectedEventType, dateRange]);
 
   if (isLoading) {
     return (

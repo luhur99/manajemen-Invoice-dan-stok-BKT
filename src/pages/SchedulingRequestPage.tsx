@@ -13,7 +13,7 @@ import ViewSchedulingRequestDetailsDialog from "@/components/ViewSchedulingReque
 import CancelRequestDialog from "@/components/CancelRequestDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician, ScheduleProductCategory } from "@/types/data"; // Import ScheduleProductCategory
+import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician, ScheduleProductCategory, CustomerTypeEnum } from "@/types/data"; // Import ScheduleProductCategory
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import TechnicianCombobox from "@/components/TechnicianCombobox";
@@ -120,23 +120,30 @@ const SchedulingRequestPage = () => {
 
       if (error) throw error;
 
-      return data.map((req, index) => ({
+      // Type assertion needed here because Supabase joins return arrays or single objects depending on query, but TS doesn't know for sure
+      return (data as any[]).map((req, index) => ({
         ...req,
         no: index + 1,
-        invoice_number: req.invoices?.invoice_number || undefined,
-        customer_name_from_customers: req.customers?.customer_name || undefined,
-        company_name_from_customers: req.customers?.company_name || undefined,
-        phone_number_from_customers: req.customers?.phone_number || undefined,
-        customer_type_from_customers: req.customers?.customer_type || undefined,
+        // Safe access to joined tables
+        invoice_number: Array.isArray(req.invoices) ? req.invoices[0]?.invoice_number : req.invoices?.invoice_number,
+        customer_name_from_customers: Array.isArray(req.customers) ? req.customers[0]?.customer_name : req.customers?.customer_name,
+        company_name_from_customers: Array.isArray(req.customers) ? req.customers[0]?.company_name : req.customers?.company_name,
+        phone_number_from_customers: Array.isArray(req.customers) ? req.customers[0]?.phone_number : req.customers?.phone_number,
+        customer_type_from_customers: Array.isArray(req.customers) ? req.customers[0]?.customer_type : req.customers?.customer_type,
+        
+        // Ensure default values matching SchedulingRequestWithDetails
         customer_name: req.customer_name || "",
         full_address: req.full_address || "",
         contact_person: req.contact_person || "",
         phone_number: req.phone_number || "",
         type: req.type || SchedulingRequestType.INSTALLATION,
-        product_category: req.product_category || undefined, // Include product_category
+        product_category: req.product_category || undefined, 
         status: req.status || SchedulingRequestStatus.PENDING,
         technician_name: req.technician_name || undefined,
-      }));
+        // Map joined data to expected structure for SchedulingRequestWithDetails
+        customers: Array.isArray(req.customers) ? req.customers[0] : req.customers,
+        invoices: Array.isArray(req.invoices) ? req.invoices[0] : req.invoices,
+      })) as SchedulingRequestWithDetails[];
     },
   });
 
@@ -242,28 +249,6 @@ const SchedulingRequestPage = () => {
       deleteRequestMutation.mutate(selectedRequest.id);
     }
   };
-
-  // No need for local filtering anymore
-  // const filteredRequests = requests?.filter((request) => {
-  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
-  //   const customerName = request.customers?.customer_name || request.customer_name;
-  //   const companyName = request.customers?.company_name || request.company_name;
-  //   const phoneNumber = request.customers?.phone_number || request.phone_number;
-
-  //   return (
-  //     request.sr_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     customerName?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     companyName?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     getTypeDisplay(request.type).toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     getProductCategoryDisplay(request.product_category).toLowerCase().includes(lowerCaseSearchTerm) || // Include product category in search
-  //     getStatusDisplay(request.status).toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     request.contact_person.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     phoneNumber?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     request.invoices?.invoice_number?.toLowerCase().includes(lowerCaseSearchTerm) || // Fixed
-  //     request.technician_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     format(new Date(request.requested_date), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
-  //   );
-  // });
 
   if (isLoading) {
     return (

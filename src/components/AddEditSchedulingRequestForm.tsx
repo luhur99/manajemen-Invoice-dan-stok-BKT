@@ -36,7 +36,7 @@ import { useSession } from "@/components/SessionContextProvider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
 import TechnicianCombobox from "./TechnicianCombobox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Import Tabs components
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formSchema = z.object({
   sr_number: z.string().optional().nullable(),
@@ -58,7 +58,6 @@ const formSchema = z.object({
   invoice_id: z.string().uuid().optional().nullable(),
   technician_name: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  // Custom validation for notes based on status
   if (['rescheduled', 'rejected', 'cancelled'].includes(data.status) && (!data.notes || data.notes.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -66,7 +65,6 @@ const formSchema = z.object({
       path: ['notes'],
     });
   }
-  // Custom validation for technician_name when approved
   if (data.status === 'approved' && (!data.technician_name || data.technician_name.trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -86,7 +84,6 @@ interface AddEditSchedulingRequestFormProps {
 const generateSrNumber = async (): Promise<string> => {
   const today = format(new Date(), "yyMMdd");
   const prefix = `SR${today}`;
-
   const { data, error } = await supabase
     .from("scheduling_requests")
     .select("sr_number")
@@ -142,23 +139,19 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     },
   });
 
-  const [activeTab, setActiveTab] = useState("basic"); // State to manage active tab
-
+  const [activeTab, setActiveTab] = useState("basic");
   const watchedRequestType = form.watch("type");
   const watchedCustomerId = form.watch("customer_id");
   const watchedStatus = form.watch("status");
   const [customerSearchInput, setCustomerSearchInput] = useState("");
   const [technicianSearchInput, setTechnicianSearchInput] = useState(initialData?.technician_name || "");
 
-  const { data: invoices, isLoading: loadingInvoices, error: invoicesError } = useQuery<Invoice[], Error>({
+  const { data: invoices, isLoading: loadingInvoices } = useQuery<Invoice[], Error>({
     queryKey: ["invoices"],
     queryFn: async (): Promise<Invoice[]> => {
       const { data, error } = await supabase
         .from("invoices")
-        .select(`
-          id,
-          invoice_number
-        `) // Select specific columns
+        .select(`id, invoice_number`)
         .order("invoice_number", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar invoice.");
@@ -169,12 +162,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     enabled: isOpen && watchedRequestType === SchedulingRequestType.SERVICE_UNBILL,
   });
 
-  const { data: customers, isLoading: loadingCustomers, error: customersError } = useQuery<Customer[], Error>({
+  const { data: customers, isLoading: loadingCustomers } = useQuery<Customer[], Error>({
     queryKey: ["customers"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
-        .select("id, customer_name, company_name, address, phone_number, customer_type") // Select specific columns
+        .select("id, customer_name, company_name, address, phone_number, customer_type")
         .order("customer_name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar pelanggan.");
@@ -185,12 +178,12 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
     enabled: isOpen,
   });
 
-  const { data: technicians, isLoading: loadingTechnicians, error: techniciansError } = useQuery<Technician[], Error>({
+  const { data: technicians, isLoading: loadingTechnicians } = useQuery<Technician[], Error>({
     queryKey: ["technicians"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("id, name, type") // Select specific columns
+        .select("id, name, type")
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar teknisi.");
@@ -218,12 +211,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           payment_method: initialData.payment_method || null,
           technician_name: initialData.technician_name || null,
         });
-        if (initialData.customer_name) {
-          setCustomerSearchInput(initialData.customer_name);
-        }
-        if (initialData.technician_name) {
-          setTechnicianSearchInput(initialData.technician_name);
-        }
+        if (initialData.customer_name) setCustomerSearchInput(initialData.customer_name);
+        if (initialData.technician_name) setTechnicianSearchInput(initialData.technician_name);
       } else {
         generateSrNumber().then(srNum => {
           form.reset({
@@ -250,7 +239,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
           setTechnicianSearchInput("");
         });
       }
-      setActiveTab("basic"); // Reset to first tab when dialog opens
+      setActiveTab("basic");
     } else {
       setCustomerSearchInput("");
       setTechnicianSearchInput("");
@@ -290,9 +279,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
   const saveSchedulingRequestMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const userId = session?.user?.id;
-      if (!userId) {
-        throw new Error("Pengguna tidak terautentikasi.");
-      }
+      if (!userId) throw new Error("Pengguna tidak terautentikasi.");
 
       const dataToSubmit = {
         user_id: userId,
@@ -324,7 +311,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             updated_at: new Date().toISOString(),
           })
           .eq("id", initialData.id);
-
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -333,7 +319,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
             ...dataToSubmit,
             user_id: userId,
           });
-
         if (error) throw error;
       }
     },
@@ -513,11 +498,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                                 !field.value && "text-muted-foreground"
                               )}
                             >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pilih tanggal</span>
-                              )}
+                              {field.value ? format(field.value, "PPP") : <span>Pilih tanggal</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                             </Button>
                           </FormControl>

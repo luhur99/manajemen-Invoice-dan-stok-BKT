@@ -116,6 +116,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
           harga_jual,
           safe_stock_limit,
           supplier_id,
+          created_at,
           warehouse_inventories (
             warehouse_category,
             quantity
@@ -170,13 +171,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       setItemSearchInputs(fields.map(item => item.item_name || ""));
       setActiveTab("basic_info");
     }
-  }, [isOpen, initialSchedule, form, fields]); // Added fields to dependency array
+  }, [isOpen, initialSchedule, form, fields]);
 
-  // Update itemSearchInputs when fields change (e.g., adding/removing items)
   React.useEffect(() => {
     setItemSearchInputs(fields.map(item => item.item_name || ""));
   }, [fields]);
-
 
   const calculateTotalAmount = React.useCallback(() => {
     const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
@@ -207,7 +206,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     } else {
       update(index, {
         ...fields[index],
-        product_id: "", // Set to empty string for consistency with defaultValues
+        product_id: "",
         item_name: "",
         item_code: "",
         unit_price: 0,
@@ -262,7 +261,6 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
       if (error) throw error;
       if (data && data.error) throw new Error(data.error);
-
       return data;
     },
     onSuccess: () => {

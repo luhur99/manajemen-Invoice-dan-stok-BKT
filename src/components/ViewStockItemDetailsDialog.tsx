@@ -79,6 +79,9 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
         .from("stock_ledger") // Changed table name
         .select(`
           id,
+          user_id,
+          product_id,
+          updated_at,
           event_type,
           quantity,
           from_warehouse_category,
@@ -91,10 +94,10 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
         .eq("product_id", product.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data.map(t => ({
+      // Map to ensure type compatibility
+      return data.map((t: any) => ({
         ...t,
-        product_name: t.products?.nama_barang || "N/A",
-        product_code: t.products?.kode_barang || "N/A",
+        products: Array.isArray(t.products) ? t.products[0] : t.products,
       })) as StockLedgerWithProduct[];
     },
     enabled: isOpen,

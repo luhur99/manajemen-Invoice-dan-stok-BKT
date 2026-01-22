@@ -118,6 +118,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
         .select(`
           id,
           user_id,
+          created_at,
           kode_barang,
           nama_barang,
           satuan,
@@ -157,7 +158,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("suppliers")
-        .select("*") // Select all columns to match Supplier interface
+        .select("id, name") // Select specific columns
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar supplier.");
@@ -174,7 +175,7 @@ const AddPurchaseRequestForm: React.FC<AddPurchaseRequestFormProps> = ({ isOpen,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*") // Select all columns to match WarehouseCategoryType interface
+        .select("id, name, code") // Select specific columns
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");

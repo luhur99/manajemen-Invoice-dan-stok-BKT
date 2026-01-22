@@ -147,6 +147,7 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
           harga_beli,
           harga_jual,
           safe_stock_limit,
+          created_at,
           supplier_id,
           warehouse_inventories (
             warehouse_category,
