@@ -128,11 +128,11 @@ const ScheduleDetailPage = () => {
           </div>
           <div>
             <h3 className="text-lg font-semibold mb-2">Detail Pelanggan</h3>
-            <p><strong>Nama Pelanggan:</strong> {schedule.customer_name}</p>
+            <p><strong>Nama Pelanggan:</strong> {schedule.customers?.customer_name || schedule.customer_name}</p>
             <p><strong>Perusahaan:</strong> {schedule.customers?.company_name || '-'}</p>
             <p><strong>Tipe Pelanggan:</strong> {schedule.customers?.customer_type ? schedule.customers.customer_type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : '-'}</p>
-            <p><strong>Nomor Telepon:</strong> {schedule.phone_number || '-'}</p>
-            <p><strong>Alamat:</strong> {schedule.address || '-'}</p>
+            <p><strong>Nomor Telepon:</strong> {schedule.customers?.phone_number || schedule.phone_number || '-'}</p>
+            <p><strong>Alamat:</strong> {schedule.customers?.address || schedule.address || '-'}</p>
           </div>
           <div className="md:col-span-2">
             <Separator className="my-4" />

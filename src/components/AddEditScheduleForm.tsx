@@ -31,24 +31,26 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory } from "@/types/data";
+import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory, Customer } from "@/types/data"; // Added Customer
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import TechnicianCombobox from "./TechnicianCombobox";
+import CustomerCombobox from "./CustomerCombobox"; // Added CustomerCombobox
 import { useSession } from "@/components/SessionContextProvider";
 
 const formSchema = z.object({
+  customer_id: z.string().uuid().optional().nullable(), // Added customer_id
+  customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
+  address: z.string().optional().nullable(),
+  phone_number: z.string().optional().nullable(),
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
   schedule_time: z.string().optional().nullable(),
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
   product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(),
-  customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
-  address: z.string().optional().nullable(),
   technician_name: z.string().optional().nullable(),
   invoice_id: z.string().optional().nullable(),
   status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
   notes: z.string().optional().nullable(),
-  phone_number: z.string().optional().nullable(),
   courier_service: z.string().optional().nullable(),
 });
 
@@ -65,23 +67,25 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      customer_id: null,
+      customer_name: "",
+      address: null,
+      phone_number: null,
       schedule_date: new Date(),
       schedule_time: null,
       type: ScheduleType.INSTALASI,
       product_category: null,
-      customer_name: "",
-      address: null,
       technician_name: null,
       invoice_id: null,
       status: ScheduleStatus.SCHEDULED,
       notes: null,
-      phone_number: null,
       courier_service: null,
     },
   });
 
   const [activeTab, setActiveTab] = useState("basic");
   const [technicianSearchInput, setTechnicianSearchInput] = useState(initialData?.technician_name || "");
+  const [customerSearchInput, setCustomerSearchInput] = useState(initialData?.customer_name || ""); // Added customer search input
 
   const { data: technicians, isLoading: loadingTechnicians } = useQuery<Technician[], Error>({
     queryKey: ["technicians"],
@@ -99,40 +103,60 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
     enabled: isOpen,
   });
 
+  const { data: customers, isLoading: loadingCustomers } = useQuery<Customer[], Error>({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("*")
+        .order("customer_name", { ascending: true });
+      if (error) {
+        showError("Gagal memuat daftar pelanggan.");
+        throw error;
+      }
+      return data;
+    },
+    enabled: isOpen,
+  });
+
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
         form.reset({
+          customer_id: initialData.customer_id || null,
+          customer_name: initialData.customer_name,
+          address: initialData.address || null,
+          phone_number: initialData.phone_number || null,
           schedule_date: new Date(initialData.schedule_date),
           schedule_time: initialData.schedule_time || null,
           type: initialData.type,
           product_category: initialData.product_category || null,
-          customer_name: initialData.customer_name,
-          address: initialData.address || null,
           technician_name: initialData.technician_name || null,
           invoice_id: initialData.invoice_id || null,
           status: initialData.status,
           notes: initialData.notes || null,
-          phone_number: initialData.phone_number || null,
           courier_service: initialData.courier_service || null,
         });
         setTechnicianSearchInput(initialData.technician_name || "");
+        setCustomerSearchInput(initialData.customer_name || "");
       } else {
         form.reset({
+          customer_id: null,
+          customer_name: "",
+          address: null,
+          phone_number: null,
           schedule_date: new Date(),
           schedule_time: null,
           type: ScheduleType.INSTALASI,
           product_category: null,
-          customer_name: "",
-          address: null,
           technician_name: null,
           invoice_id: null,
           status: ScheduleStatus.SCHEDULED,
           notes: null,
-          phone_number: null,
           courier_service: null,
         });
         setTechnicianSearchInput("");
+        setCustomerSearchInput("");
       }
       setActiveTab("basic");
     }
@@ -149,6 +173,23 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
     }
   };
 
+  const handleCustomerSelect = (customer: Customer | undefined) => {
+    if (customer) {
+      form.setValue("customer_id", customer.id);
+      form.setValue("customer_name", customer.customer_name);
+      form.setValue("address", customer.address || null);
+      form.setValue("phone_number", customer.phone_number || null);
+      setCustomerSearchInput(customer.customer_name);
+      form.clearErrors(["customer_id", "customer_name", "address", "phone_number"]);
+    } else {
+      form.setValue("customer_id", null);
+      form.setValue("customer_name", "");
+      form.setValue("address", null);
+      form.setValue("phone_number", null);
+      setCustomerSearchInput("");
+    }
+  };
+
   const saveScheduleMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const userId = session?.user?.id;
@@ -158,17 +199,18 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
 
       const dataToSubmit = {
         user_id: userId,
+        customer_id: values.customer_id, // Include customer_id
+        customer_name: values.customer_name,
+        address: values.address,
+        phone_number: values.phone_number,
         schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
         schedule_time: values.schedule_time,
         type: values.type,
         product_category: values.product_category,
-        customer_name: values.customer_name,
-        address: values.address,
         technician_name: values.technician_name,
         invoice_id: values.invoice_id,
         status: values.status,
         notes: values.notes,
-        phone_number: values.phone_number,
         courier_service: values.courier_service,
       };
 
@@ -207,6 +249,22 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
     saveScheduleMutation.mutate(values);
   };
 
+  if (loadingTechnicians || loadingCustomers) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{initialData ? "Edit Jadwal" : "Tambah Jadwal Baru"}</DialogTitle>
+            <DialogDescription>Memuat data...</DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center items-center h-32">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -226,6 +284,40 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
               </TabsList>
 
               <TabsContent value="basic" className="mt-4 space-y-4">
+                <FormField
+                  control={form.control}
+                  name="customer_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pilih Pelanggan</FormLabel>
+                      <FormControl>
+                        <CustomerCombobox
+                          customers={customers || []}
+                          value={field.value || undefined}
+                          onValueChange={handleCustomerSelect}
+                          inputValue={customerSearchInput}
+                          onInputValueChange={setCustomerSearchInput}
+                          disabled={loadingCustomers}
+                          loading={loadingCustomers}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="customer_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nama Pelanggan</FormLabel>
+                      <FormControl>
+                        <Input {...field} readOnly={!!form.watch("customer_id")} className={cn({ "bg-gray-100": !!form.watch("customer_id") })} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="schedule_date"
@@ -325,19 +417,6 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="customer_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nama Pelanggan</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </TabsContent>
 
               <TabsContent value="location" className="mt-4 space-y-4">
@@ -348,7 +427,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
                     <FormItem>
                       <FormLabel>Alamat (Opsional)</FormLabel>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Textarea {...field} readOnly={!!form.watch("customer_id")} className={cn({ "bg-gray-100": !!form.watch("customer_id") })} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -361,7 +440,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
                     <FormItem>
                       <FormLabel>Nomor Telepon (Opsional)</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} readOnly={!!form.watch("customer_id")} className={cn({ "bg-gray-100": !!form.watch("customer_id") })} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

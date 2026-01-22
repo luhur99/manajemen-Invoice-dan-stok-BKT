@@ -325,6 +325,7 @@ export interface Schedule {
   do_number: string | null;
   updated_at: string; // ISO date string
   product_category: ScheduleProductCategory | null;
+  customer_id: string | null; // Added customer_id
 }
 
 // Extend Schedule to include related customer and invoice details

@@ -42,7 +42,10 @@ const ScheduleManagementPage = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedules")
-        .select("*")
+        .select(`
+          *,
+          customers (customer_name, company_name, phone_number, address, customer_type)
+        `) // Join customers table
         .order("schedule_date", { ascending: false });
       if (error) {
         showError("Gagal memuat jadwal.");
@@ -86,9 +89,10 @@ const ScheduleManagementPage = () => {
     if (!schedules) return [];
     return schedules.filter((schedule) => {
       const searchLower = searchTerm.toLowerCase();
+      const customerName = (schedule as any).customers?.customer_name || schedule.customer_name; // Use joined data
       return (
         schedule.do_number?.toLowerCase().includes(searchLower) ||
-        schedule.customer_name.toLowerCase().includes(searchLower) ||
+        customerName.toLowerCase().includes(searchLower) ||
         schedule.technician_name?.toLowerCase().includes(searchLower) ||
         schedule.type.toLowerCase().includes(searchLower) ||
         schedule.status.toLowerCase().includes(searchLower) ||
@@ -140,7 +144,10 @@ const ScheduleManagementPage = () => {
           <AddEditScheduleForm
             isOpen={isAddEditFormOpen}
             onOpenChange={setIsAddEditFormOpen}
-            onSuccess={() => setIsAddEditFormOpen(false)}
+            onSuccess={() => {
+              setIsAddEditFormOpen(false);
+              setEditingSchedule(null);
+            }}
             initialData={editingSchedule}
           />
         </Dialog>
@@ -195,7 +202,7 @@ const ScheduleManagementPage = () => {
                   <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                   <TableCell>{schedule.product_category ? schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</TableCell>
                   <TableCell>{schedule.schedule_time || "-"}</TableCell>
-                  <TableCell>{schedule.customer_name}</TableCell>
+                  <TableCell>{(schedule as any).customers?.customer_name || schedule.customer_name}</TableCell> {/* Use joined data */}
                   <TableCell>{schedule.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</TableCell>
                   <TableCell>{schedule.technician_name || "-"}</TableCell>
                   <TableCell>{schedule.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</TableCell>
