@@ -83,6 +83,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("basic_info");
+  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]); // State for search inputs
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -186,9 +187,15 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       }));
       form.setValue("items", items);
       setInitialItems(items);
+      setItemSearchInputs(items.map(item => item.item_name || "")); // Initialize search inputs
       setActiveTab("basic_info");
     }
   }, [isOpen, invoiceItems, form]);
+
+  // Update itemSearchInputs when fields change (e.g., adding/removing items)
+  React.useEffect(() => {
+    setItemSearchInputs(fields.map(item => item.item_name || ""));
+  }, [fields]);
 
   const calculateTotalAmount = React.useCallback(() => {
     const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
@@ -212,6 +219,11 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         quantity: fields[index].quantity || 1,
         subtotal: selectedProduct.harga_jual * (fields[index].quantity || 1),
       });
+      setItemSearchInputs(prev => {
+        const newInputs = [...prev];
+        newInputs[index] = selectedProduct.nama_barang;
+        return newInputs;
+      });
     } else {
       update(index, {
         ...fields[index],
@@ -221,6 +233,11 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         unit_price: 0,
         unit_type: "",
         subtotal: 0,
+      });
+      setItemSearchInputs(prev => {
+        const newInputs = [...prev];
+        newInputs[index] = "";
+        return newInputs;
       });
     }
   };
@@ -586,9 +603,18 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         <FormLabel>Produk</FormLabel>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={item.product_id || ""} // Changed from selected_product_id
+                          selectedProductId={item.product_id || ""}
                           onSelectProduct={(productId) => handleProductSelect(index, productId)}
+                          inputValue={itemSearchInputs[index] || ""} // Pass inputValue
+                          onInputValueChange={(value) => { // Pass onInputValueChange
+                            setItemSearchInputs(prev => {
+                              const newInputs = [...prev];
+                              newInputs[index] = value;
+                              return newInputs;
+                            });
+                          }}
                           disabled={loadingProducts}
+                          loading={loadingProducts}
                         />
                         <FormMessage />
                       </FormItem>
@@ -645,7 +671,10 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })} // Changed from selected_product_id
+                  onClick={() => {
+                    append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
+                    setItemSearchInputs(prev => [...prev, ""]); // Add empty string for new item's search input
+                  }}
                   className="w-full"
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item
@@ -676,8 +705,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
-                {updateInvoiceMutation.isPending ? (
+              <Button type="submit" disabled={addInvoiceMutation.isPending}>
+                {addInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"
@@ -691,4 +720,4 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   );
 };
 
-export default EditInvoiceForm;
+export default AddInvoiceForm;

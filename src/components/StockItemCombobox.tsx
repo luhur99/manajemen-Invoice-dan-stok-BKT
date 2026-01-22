@@ -24,19 +24,25 @@ interface StockItemComboboxProps {
   products: Product[];
   selectedProductId: string | undefined;
   onSelectProduct: (productId: string | undefined) => void;
+  inputValue: string; // Added for external control of input value
+  onInputValueChange: (value: string) => void; // Added for external control of input value
   placeholder?: string;
   disabled?: boolean;
+  loading?: boolean; // Added loading prop
 }
 
 const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   products,
   selectedProductId,
   onSelectProduct,
+  inputValue, // Destructure new prop
+  onInputValueChange, // Destructure new prop
   placeholder = "Pilih produk...",
   disabled = false,
+  loading = false, // Default to false
 }) => {
   const [open, setOpen] = React.useState(false);
-  const [inputValue, setInputValue] = React.useState("");
+  // Removed internal inputValue state as it's now controlled externally
 
   const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
@@ -83,9 +89,9 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           role="combobox"
           aria-expanded={open}
           className="w-full justify-between"
-          disabled={disabled || loadingCategories}
+          disabled={disabled || loadingCategories || loading}
         >
-          {loadingCategories ? (
+          {loadingCategories || loading ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : selectedItem
             ? `${selectedItem.nama_barang} (${selectedItem.kode_barang}) - ${formatStockInventories(selectedItem.inventories)}`
@@ -97,8 +103,8 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
         <Command>
           <CommandInput
             placeholder="Cari produk..."
-            value={inputValue}
-            onValueChange={setInputValue}
+            value={inputValue} // Use external inputValue
+            onValueChange={onInputValueChange} // Use external onInputValueChange
           />
           <CommandList>
             <CommandEmpty>Produk tidak ditemukan.</CommandEmpty>
@@ -110,7 +116,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
                   onSelect={() => {
                     onSelectProduct(item.id === selectedProductId ? undefined : item.id);
                     setOpen(false);
-                    setInputValue(""); // Clear input after selection
+                    onInputValueChange(""); // Clear input after selection
                   }}
                 >
                   <Check

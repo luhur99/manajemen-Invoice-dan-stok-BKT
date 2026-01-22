@@ -82,6 +82,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("basic_info");
+  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]); // State for search inputs
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -167,9 +168,15 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
         items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
       });
+      setItemSearchInputs(fields.map(item => item.item_name || "")); // Initialize search inputs
       setActiveTab("basic_info");
     }
   }, [isOpen, initialSchedule, form]);
+
+  // Update itemSearchInputs when fields change (e.g., adding/removing items)
+  React.useEffect(() => {
+    setItemSearchInputs(fields.map(item => item.item_name || ""));
+  }, [fields]);
 
 
   const calculateTotalAmount = React.useCallback(() => {
@@ -193,6 +200,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         unit_type: selectedProduct.satuan,
         subtotal: selectedProduct.harga_jual * fields[index].quantity,
       });
+      setItemSearchInputs(prev => {
+        const newInputs = [...prev];
+        newInputs[index] = selectedProduct.nama_barang;
+        return newInputs;
+      });
     } else {
       update(index, {
         ...fields[index],
@@ -202,6 +214,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         unit_price: 0,
         unit_type: "",
         subtotal: 0,
+      });
+      setItemSearchInputs(prev => {
+        const newInputs = [...prev];
+        newInputs[index] = "";
+        return newInputs;
       });
     }
   };
@@ -507,9 +524,18 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                         <FormLabel>Produk</FormLabel>
                         <StockItemCombobox
                           products={products || []}
-                          selectedProductId={item.product_id || ""} // Changed from selected_product_id
+                          selectedProductId={item.product_id || ""}
                           onSelectProduct={(productId) => handleProductSelect(index, productId)}
+                          inputValue={itemSearchInputs[index] || ""} // Pass inputValue
+                          onInputValueChange={(value) => { // Pass onInputValueChange
+                            setItemSearchInputs(prev => {
+                              const newInputs = [...prev];
+                              newInputs[index] = value;
+                              return newInputs;
+                            });
+                          }}
                           disabled={loadingProducts}
+                          loading={loadingProducts}
                         />
                         <FormMessage />
                       </FormItem>
@@ -566,7 +592,10 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 })} // Changed from selected_product_id
+                  onClick={() => {
+                    append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
+                    setItemSearchInputs(prev => [...prev, ""]); // Add empty string for new item's search input
+                  }}
                   className="w-full"
                 >
                   <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item

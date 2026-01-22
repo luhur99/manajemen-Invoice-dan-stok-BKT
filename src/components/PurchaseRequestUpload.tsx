@@ -21,17 +21,17 @@ import { PurchaseRequestStatus } from "@/types/data"; // Import PurchaseRequestS
 interface PurchaseRequestUploadProps {
   purchaseRequestId: string;
   currentDocumentUrl?: string | null;
-  isOpen: boolean; // Added isOpen prop
-  onOpenChange: (open: boolean) => void; // Added onOpenChange prop
-  onSuccess: () => void; // Changed from onUploadSuccess
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: (url: string) => void; // Changed to accept url: string
 }
 
 const PurchaseRequestUpload: React.FC<PurchaseRequestUploadProps> = ({
   purchaseRequestId,
   currentDocumentUrl,
-  isOpen, // Destructure new prop
-  onOpenChange, // Destructure new prop
-  onSuccess, // Changed from onUploadSuccess
+  isOpen,
+  onOpenChange,
+  onSuccess,
 }) => {
   const queryClient = useQueryClient();
   const [file, setFile] = React.useState<File | null>(null);
@@ -84,10 +84,11 @@ const PurchaseRequestUpload: React.FC<PurchaseRequestUploadProps> = ({
         .eq("id", purchaseRequestId);
 
       if (updateError) throw updateError;
+      return publicUrl; // Return the URL on success
     },
-    onSuccess: () => {
+    onSuccess: (url) => { // Now receives 'url'
       showSuccess("Dokumen resi berhasil diunggah!");
-      onSuccess();
+      onSuccess(url); // Pass the URL to the parent's onSuccess
       onOpenChange(false);
       setFile(null);
       queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] }); // Invalidate purchase requests to refetch
@@ -126,7 +127,7 @@ const PurchaseRequestUpload: React.FC<PurchaseRequestUploadProps> = ({
     },
     onSuccess: () => {
       showSuccess("Dokumen resi berhasil dihapus!");
-      onSuccess();
+      onSuccess(""); // Pass an empty string or null as URL is removed
       onOpenChange(false);
       setFile(null);
       setPreviewUrl(null);

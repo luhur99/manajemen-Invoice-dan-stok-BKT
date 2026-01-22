@@ -16,10 +16,10 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogTrigger,
-  DialogContent, // Added import
-  DialogHeader, // Added import
-  DialogTitle, // Added import
-  DialogDescription, // Added import
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategoryEnum, Supplier, StockEventType, PurchaseRequestWithDetails } from "@/types/data";
@@ -28,7 +28,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm";
 import EditPurchaseRequestForm from "@/components/EditPurchaseRequestForm";
 import ViewPurchaseRequestDetailsDialog from "@/components/ViewPurchaseRequestDetailsDialog";
-import PurchaseRequestUpload from "@/components/PurchaseRequestUpload"; // Corrected import
+import PurchaseRequestUpload from "@/components/PurchaseRequestUpload";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   DropdownMenu,
@@ -181,157 +181,159 @@ const PurchaseRequestPage = () => {
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manajemen Pengajuan Pembelian</h1>
+    <React.Fragment>
+      <div className="container mx-auto p-4">
+        <h1 className="text-3xl font-bold mb-6">Manajemen Pengajuan Pembelian</h1>
 
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
-        <div className="flex items-center gap-2">
-          <div className="relative w-full max-w-sm">
-            <Input
-              type="text"
-              placeholder="Cari pengajuan..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+        <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
+          <div className="flex items-center gap-2">
+            <div className="relative w-full max-w-sm">
+              <Input
+                type="text"
+                placeholder="Cari pengajuan..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+            </div>
+            <Select
+              onValueChange={(value: PurchaseRequestStatus | "all") => setSelectedStatus(value)}
+              value={selectedStatus}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Status</SelectItem>
+                {Object.values(PurchaseRequestStatus).map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {getStatusDisplay(status)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
           </div>
-          <Select
-            onValueChange={(value: PurchaseRequestStatus | "all") => setSelectedStatus(value)}
-            value={selectedStatus}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Status</SelectItem>
-              {Object.values(PurchaseRequestStatus).map((status) => (
-                <SelectItem key={status} value={status}>
-                  {getStatusDisplay(status)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+          <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setIsAddFormOpen(true)}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Tambah Pengajuan
+              </Button>
+            </DialogTrigger>
+            <AddPurchaseRequestForm
+              isOpen={isAddFormOpen}
+              onOpenChange={setIsAddFormOpen}
+              onSuccess={() => setIsAddFormOpen(false)}
+            />
+          </Dialog>
         </div>
-        <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsAddFormOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Tambah Pengajuan
-            </Button>
-          </DialogTrigger>
-          <AddPurchaseRequestForm
-            isOpen={isAddFormOpen}
-            onOpenChange={setIsAddFormOpen}
-            onSuccess={() => setIsAddFormOpen(false)}
-          />
-        </Dialog>
-      </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>No.</TableHead>
-              <TableHead>Nomor PR</TableHead>
-              <TableHead>Item</TableHead>
-              <TableHead>Kode Item</TableHead>
-              <TableHead>Kuantitas</TableHead>
-              <TableHead>Supplier</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Tanggal Dibuat</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredPurchaseRequests.length === 0 ? (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={9} className="text-center">
-                  Tidak ada pengajuan pembelian ditemukan.
-                </TableCell>
+                <TableHead>No.</TableHead>
+                <TableHead>Nomor PR</TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead>Kode Item</TableHead>
+                <TableHead>Kuantitas</TableHead>
+                <TableHead>Supplier</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Tanggal Dibuat</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
-            ) : (
-              filteredPurchaseRequests.map((request, index) => (
-                <TableRow key={request.id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{request.pr_number || "-"}</TableCell>
-                  <TableCell>{request.item_name}</TableCell>
-                  <TableCell>{request.item_code}</TableCell>
-                  <TableCell>{request.quantity} {request.satuan || ""}</TableCell>
-                  <TableCell>{request.suppliers?.name || "-"}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(request.status)}`}>
-                      {getStatusDisplay(request.status)}
-                    </span>
-                  </TableCell>
-                  <TableCell>{format(parseISO(request.created_at), "dd-MM-yyyy")}</TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Buka menu</span>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewDetails(request)}>
-                          <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(request)}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleUploadDocument(request)}>
-                          <UploadCloud className="mr-2 h-4 w-4" /> Unggah Dokumen
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(request.id)} className="text-red-600">
-                          <Trash2 className="mr-2 h-4 w-4" /> Hapus
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+            </TableHeader>
+            <TableBody>
+              {filteredPurchaseRequests.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center">
+                    Tidak ada pengajuan pembelian ditemukan.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : (
+                filteredPurchaseRequests.map((request, index) => (
+                  <TableRow key={request.id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{request.pr_number || "-"}</TableCell>
+                    <TableCell>{request.item_name}</TableCell>
+                    <TableCell>{request.item_code}</TableCell>
+                    <TableCell>{request.quantity} {request.satuan || ""}</TableCell>
+                    <TableCell>{request.suppliers?.name || "-"}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(request.status)}`}>
+                        {getStatusDisplay(request.status)}
+                      </span>
+                    </TableCell>
+                    <TableCell>{format(parseISO(request.created_at), "dd-MM-yyyy")}</TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Buka menu</span>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(request)}>
+                            <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(request)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleUploadDocument(request)}>
+                            <UploadCloud className="mr-2 h-4 w-4" /> Unggah Dokumen
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDelete(request.id)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
-      {selectedPurchaseRequest && (
-        <>
-          <EditPurchaseRequestForm
-            isOpen={isEditFormOpen}
-            onOpenChange={setIsEditFormOpen}
-            onSuccess={() => setIsEditFormOpen(false)}
-            initialData={selectedPurchaseRequest}
-          />
-          <ViewPurchaseRequestDetailsDialog
-            isOpen={isViewDetailsOpen}
-            onClose={() => setIsViewDetailsOpen(false)} {/* Changed onOpenChange to onClose */}
-            request={selectedPurchaseRequest}
-          />
-          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Unggah Dokumen Pengajuan Pembelian</DialogTitle>
-                <DialogDescription>
-                  Unggah dokumen terkait untuk pengajuan pembelian {selectedPurchaseRequest.pr_number || selectedPurchaseRequest.item_name}.
-                </DialogDescription>
-              </DialogHeader>
-              <PurchaseRequestUpload
-                isOpen={isUploadDialogOpen} // Added isOpen
-                onOpenChange={setIsUploadDialogOpen} // Added onOpenChange
-                purchaseRequestId={selectedPurchaseRequest.id}
-                onSuccess={(url) => { // Changed onUploadSuccess to onSuccess
-                  setSelectedPurchaseRequest((prev) => prev ? { ...prev, document_url: url } : null);
-                  setIsUploadDialogOpen(false);
-                }}
-                currentDocumentUrl={selectedPurchaseRequest.document_url}
-              />
-            </DialogContent>
-          </Dialog>
-        </>
-      )}
-    </div>
+        {selectedPurchaseRequest && (
+          <React.Fragment>
+            <EditPurchaseRequestForm
+              isOpen={isEditFormOpen}
+              onOpenChange={setIsEditFormOpen}
+              onSuccess={() => setIsEditFormOpen(false)}
+              initialData={selectedPurchaseRequest}
+            />
+            <ViewPurchaseRequestDetailsDialog
+              isOpen={isViewDetailsOpen}
+              onClose={() => setIsViewDetailsOpen(false)}
+              request={selectedPurchaseRequest}
+            />
+            <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Unggah Dokumen Pengajuan Pembelian</DialogTitle>
+                  <DialogDescription>
+                    Unggah dokumen terkait untuk pengajuan pembelian {selectedPurchaseRequest.pr_number || selectedPurchaseRequest.item_name}.
+                  </DialogDescription>
+                </DialogHeader>
+                <PurchaseRequestUpload
+                  isOpen={isUploadDialogOpen}
+                  onOpenChange={setIsUploadDialogOpen}
+                  purchaseRequestId={selectedPurchaseRequest.id}
+                  onSuccess={(url) => {
+                    setSelectedPurchaseRequest((prev) => prev ? { ...prev, document_url: url } : null);
+                    setIsUploadDialogOpen(false);
+                  }}
+                  currentDocumentUrl={selectedPurchaseRequest.document_url}
+                />
+              </DialogContent>
+            </Dialog>
+          </React.Fragment>
+        )}
+      </div>
+    </React.Fragment>
   );
 };
 
