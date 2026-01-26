@@ -57,15 +57,21 @@ const ScheduleDetailPage = () => {
       if (!data) {
         throw new Error("Jadwal tidak ditemukan.");
       }
-      // Cast the response to match ScheduleWithDetails, mapping joined fields
-      const formattedData: any = {
+      
+      // Explicitly handle joined data which might be an array or single object
+      const customerData = Array.isArray(data.customers) ? data.customers[0] : data.customers;
+      const invoiceData = Array.isArray(data.invoices) ? data.invoices[0] : data.invoices;
+      const schedulingRequestData = Array.isArray(data.scheduling_requests) ? data.scheduling_requests[0] : data.scheduling_requests;
+
+      const formattedData: ScheduleWithDetails = {
         ...data,
-        sr_number: Array.isArray(data.scheduling_requests) ? data.scheduling_requests[0]?.sr_number : data.scheduling_requests?.sr_number,
+        customers: customerData || null,
+        invoices: invoiceData || null,
+        sr_number: schedulingRequestData?.sr_number || null,
         payment_method: null, // Schedule table doesn't have payment_method directly, handled by invoice usually
-        // customers and invoices are already included in data structure from query
       };
       
-      return formattedData as ScheduleWithDetails;
+      return formattedData;
     },
     enabled: !!id,
   });

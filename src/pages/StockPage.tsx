@@ -1,118 +1,167 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import React, { useState, useMemo } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Edit, Trash2, Eye } from "lucide-react";
-import { showSuccess, showError } from "@/utils/toast";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PlusCircle, Edit, Trash2, Search, Loader2, Eye, Warehouse } from "lucide-react";
+import { showError, showSuccess } from "@/utils/toast";
+import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
 import AddStockItemForm from "@/components/AddStockItemForm";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import EditStockItemForm from "@/components/EditStockItemForm";
-import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog"; // Keep this for comprehensive product details
-import { Product as ProductType } from "@/types/data"; // Only import ProductType, no WarehouseInventory needed here
-import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-
-interface ProductWithDetails extends ProductType {
-  // No need for current_stock or inventories here, as they are for stock management
-}
+import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
+import AddStockTransactionForm from "@/components/AddStockTransactionForm";
+import StockAdjustmentForm from "@/components/StockAdjustmentForm";
+import StockTransferForm from "@/components/StockTransferForm";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useDebounce } from "@/hooks/use-debounce";
 
 const StockPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false); // State for AddStockItemForm
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<ProductWithDetails | null>(null);
-
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Renamed from isEditFormOpen to avoid conflict
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [productToView, setProductToView] = useState<ProductWithDetails | null>(null);
+  const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
+  const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false);
+  const [isTransferStockOpen, setIsTransferStockOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [initialTransactionProductId, setInitialTransactionProductId] = useState<string | undefined>(undefined);
+  const [initialTransactionEventType, setInitialTransactionEventType] = useState<StockEventType | undefined>(undefined);
 
-  // Fetch only product metadata
-  const { data: products, isLoading, error, refetch: fetchProducts } = useQuery<ProductWithDetails[], Error>({
-    queryKey: ["productsMetadata", debouncedSearchTerm], // Include debounced search term in query key
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("id, name, code")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data as WarehouseCategoryType[];
+    },
+  });
+
+  const getCategoryDisplayName = (code: string) => {
+    const category = warehouseCategories?.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
+
+  const { data: productsWithInventories, isLoading, error, refetch } = useQuery<Product[], Error>({
+    queryKey: ["productsWithInventories", debouncedSearchTerm],
     queryFn: async () => {
       let query = supabase
         .from("products")
         .select(`
           id,
           user_id,
+          created_at,
           kode_barang,
           nama_barang,
           satuan,
           harga_beli,
           harga_jual,
           safe_stock_limit,
-          created_at,
-          supplier_id
+          supplier_id,
+          updated_at,
+          warehouse_inventories (
+            id,
+            product_id,
+            warehouse_category,
+            quantity
+          )
         `)
         .order("nama_barang", { ascending: true });
 
       if (debouncedSearchTerm) {
         query = query.or(
-          `nama_barang.ilike.%${debouncedSearchTerm}%,kode_barang.ilike.%${debouncedSearchTerm}%`
+          `kode_barang.ilike.%${debouncedSearchTerm}%,nama_barang.ilike.%${debouncedSearchTerm}%`
         );
       }
 
-      const { data: productsData, error: productsError } = await query;
+      const { data, error } = await query;
 
-      if (productsError) throw productsError;
-      return productsData;
+      if (error) {
+        showError("Gagal memuat data produk.");
+        throw error;
+      }
+
+      // Map the data to include inventories directly in the Product type
+      return data.map(product => ({
+        ...product,
+        inventories: product.warehouse_inventories as WarehouseInventory[],
+      })) as Product[];
     },
   });
 
   const deleteProductMutation = useMutation({
-    mutationFn: async (productId: string) => {
-      const { error } = await supabase
-        .from("products")
-        .delete()
-        .eq("id", productId);
-
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       showSuccess("Produk berhasil dihapus!");
-      setIsDeleteModalOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate and refetch
-      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Also invalidate stock management view
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] });
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] });
     },
-    onError: (err: any) => {
+    onError: (err) => {
       showError(`Gagal menghapus produk: ${err.message}`);
-      console.error("Error deleting product:", err);
     },
   });
 
-  const handleEditClick = (product: ProductWithDetails) => {
+  const handleDelete = (id: string) => {
+    if (window.confirm("Apakah Anda yakin ingin menghapus produk ini? Ini juga akan menghapus semua inventaris terkait.")) {
+      deleteProductMutation.mutate(id);
+    }
+  };
+
+  const handleEdit = (product: Product) => {
     setSelectedProduct(product);
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteClick = (product: ProductWithDetails) => {
+  const handleViewDetails = (product: Product) => {
     setSelectedProduct(product);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleViewDetails = (product: ProductWithDetails) => {
-    setProductToView(product);
     setIsViewDetailsOpen(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (selectedProduct) {
-      deleteProductMutation.mutate(selectedProduct.id);
-    }
+  const handleAddTransaction = (product?: Product, eventType?: StockEventType) => {
+    setInitialTransactionProductId(product?.id);
+    setInitialTransactionEventType(eventType);
+    setIsAddTransactionOpen(true);
   };
 
-  // No need for local filtering anymore, as the query itself is filtered by debouncedSearchTerm
-  // const filteredProducts = products?.filter((product) =>
-  //   product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
-  // );
+  const handleAdjustStock = (product: Product) => {
+    setSelectedProduct(product);
+    setIsAdjustStockOpen(true);
+  };
 
-  if (isLoading) {
+  const handleTransferStock = (product: Product) => {
+    setSelectedProduct(product);
+    setIsTransferStockOpen(true);
+  };
+
+  if (isLoading || loadingCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -120,107 +169,172 @@ const StockPage = () => {
     );
   }
 
-  if (error) {
-    return <div className="text-red-500">Error loading products: {error.message}</div>;
+  if (error || categoriesError) {
+    return (
+      <Alert variant="destructive">
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          Gagal memuat data: {error?.message || categoriesError?.message}
+        </AlertDescription>
+      </Alert>
+    );
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manajemen Produk</h1>
-      <p className="text-gray-600 dark:text-gray-300 mb-4">
-        Kelola metadata produk Anda seperti kode, nama, harga, dan batas stok aman.
-      </p>
+      <h1 className="text-3xl font-bold mb-6">Manajemen Stok</h1>
 
       <div className="flex justify-between items-center mb-6">
         <Input
-          placeholder="Cari produk..."
+          placeholder="Cari kode atau nama barang..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        <AddStockItemForm
-          isOpen={isAddModalOpen}
-          onOpenChange={setIsAddModalOpen}
-          onSuccess={fetchProducts}
-        />
+        <Button onClick={() => setIsAddFormOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Tambah Produk Baru
+        </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-md border">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">No</TableHead>
               <TableHead>Kode Barang</TableHead>
               <TableHead>Nama Barang</TableHead>
               <TableHead>Satuan</TableHead>
-              <TableHead>Harga Beli</TableHead>
-              <TableHead>Harga Jual</TableHead>
-              <TableHead>Batas Stok Aman</TableHead>
+              <TableHead className="text-right">Harga Beli</TableHead>
+              <TableHead className="text-right">Harga Jual</TableHead>
+              <TableHead className="text-right">Total Stok</TableHead>
+              <TableHead>Stok per Gudang</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products?.map((product) => ( // Use 'products' directly as it's already filtered
-              <TableRow key={product.id}>
-                <TableCell className="font-medium">{product.kode_barang}</TableCell>
-                <TableCell>{product.nama_barang}</TableCell>
-                <TableCell>{product.satuan || '-'}</TableCell>
-                <TableCell>Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
-                <TableCell>Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
-                <TableCell>{product.safe_stock_limit}</TableCell>
-                <TableCell className="flex space-x-2 justify-center">
-                  <Button variant="ghost" size="icon" onClick={() => handleViewDetails(product)} title="Lihat Detail">
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleEditClick(product)} title="Edit Produk">
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(product)} title="Hapus Produk">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+            {productsWithInventories?.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className="text-center">
+                  Tidak ada produk ditemukan.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              productsWithInventories?.map((product, index) => {
+                const totalStock = product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
+                const stockPerWarehouse = product.inventories?.map(inv => (
+                  `${getCategoryDisplayName(inv.warehouse_category)}: ${inv.quantity}`
+                )).join(", ") || "Tidak ada stok";
+
+                return (
+                  <TableRow key={product.id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{product.kode_barang}</TableCell>
+                    <TableCell>{product.nama_barang}</TableCell>
+                    <TableCell>{product.satuan || "-"}</TableCell>
+                    <TableCell className="text-right">Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
+                    <TableCell className="text-right">Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
+                    <TableCell className="text-right">{totalStock}</TableCell>
+                    <TableCell className="max-w-[250px] whitespace-normal">{stockPerWarehouse}</TableCell>
+                    <TableCell className="text-center">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Buka menu</span>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleViewDetails(product)}>
+                            <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleEdit(product)}>
+                            <Edit className="mr-2 h-4 w-4" /> Edit Produk
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAddTransaction(product, StockEventType.IN)}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Stok Masuk
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAddTransaction(product, StockEventType.OUT)}>
+                            <PlusCircle className="mr-2 h-4 w-4" /> Stok Keluar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAdjustStock(product)}>
+                            <Warehouse className="mr-2 h-4 w-4" /> Sesuaikan Stok
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleTransferStock(product)}>
+                            <Warehouse className="mr-2 h-4 w-4" /> Transfer Stok
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDelete(product.id)} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" /> Hapus Produk
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
 
-      {/* Add Product Modal */}
-      {/* This is now handled by the AddStockItemForm's internal DialogTrigger */}
+      <AddStockItemForm
+        isOpen={isAddFormOpen}
+        onOpenChange={setIsAddFormOpen}
+        onSuccess={refetch}
+      />
 
-      {/* Edit Product Modal */}
       {selectedProduct && (
         <EditStockItemForm
-          product={selectedProduct}
           isOpen={isEditModalOpen}
           onOpenChange={setIsEditModalOpen}
-          onSuccess={fetchProducts}
+          onSuccess={refetch}
+          initialData={selectedProduct}
         />
       )}
 
-      {/* View Stock Item Details Dialog */}
-      {productToView && (
+      {selectedProduct && (
         <ViewStockItemDetailsDialog
-          product={productToView}
           isOpen={isViewDetailsOpen}
           onOpenChange={setIsViewDetailsOpen}
+          product={selectedProduct}
         />
       )}
 
-      {/* Delete Product Confirmation Modal */}
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+      <AddStockTransactionForm
+        isOpen={isAddTransactionOpen}
+        onOpenChange={setIsAddTransactionOpen}
+        onSuccess={refetch}
+        products={productsWithInventories || []}
+        initialProductId={initialTransactionProductId}
+        initialEventType={initialTransactionEventType}
+      />
+
+      {selectedProduct && (
+        <StockAdjustmentForm
+          isOpen={isAdjustStockOpen}
+          onOpenChange={setIsAdjustStockOpen}
+          onSuccess={refetch}
+          product={selectedProduct}
+        />
+      )}
+
+      {selectedProduct && (
+        <StockTransferForm
+          isOpen={isTransferStockOpen}
+          onOpenChange={setIsTransferStockOpen}
+          onSuccess={refetch}
+          product={selectedProduct}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteProductMutation.isPending} onOpenChange={() => deleteProductMutation.reset()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Konfirmasi Hapus Produk</DialogTitle>
+            <DialogTitle>Menghapus Produk...</DialogTitle>
             <DialogDescription>
-              Apakah Anda yakin ingin menghapus produk "{selectedProduct?.nama_barang}"? Tindakan ini tidak dapat dibatalkan.
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sedang menghapus produk. Mohon tunggu.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteProductMutation.isPending}>
-              {deleteProductMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Hapus"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
