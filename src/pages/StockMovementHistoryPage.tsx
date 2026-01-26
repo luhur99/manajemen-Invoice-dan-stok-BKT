@@ -46,6 +46,7 @@ const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
     case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
     case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";
     case WarehouseCategoryEnum.GUDANG_RETUR: return "Gudang Retur";
+    case WarehouseCategoryEnum.SIAP_JUAL: return "Siap Jual"; // Added Siap Jual
     default: return code;
   }
 };
@@ -53,11 +54,11 @@ const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
 const StockMovementHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
-  const [selectedEventType, setSelectedEventType] = useState<StockEventType | "all">("all");
+  // Removed selectedEventType as this page is specifically for 'transfer'
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const { data: stockMovements, isLoading, error } = useQuery<StockLedgerWithProduct[], Error>({
-    queryKey: ["stockMovements", debouncedSearchTerm, selectedEventType, dateRange], // Include all filters
+    queryKey: ["stockMovements", debouncedSearchTerm, dateRange], // Removed selectedEventType from queryKey
     queryFn: async () => {
       let query = supabase
         .from("stock_ledger")
@@ -75,16 +76,13 @@ const StockMovementHistoryPage = () => {
           updated_at,
           products (nama_barang, kode_barang)
         `)
+        .eq("event_type", StockEventType.TRANSFER) // Filter only 'transfer' events
         .order("created_at", { ascending: false });
 
       if (debouncedSearchTerm) {
         query = query.or(
           `products.nama_barang.ilike.%${debouncedSearchTerm}%,products.kode_barang.ilike.%${debouncedSearchTerm}%,from_warehouse_category.ilike.%${debouncedSearchTerm}%,to_warehouse_category.ilike.%${debouncedSearchTerm}%,notes.ilike.%${debouncedSearchTerm}%`
         );
-      }
-
-      if (selectedEventType !== "all") {
-        query = query.eq("event_type", selectedEventType);
       }
 
       if (dateRange?.from) {
@@ -127,7 +125,7 @@ const StockMovementHistoryPage = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Riwayat Pergerakan Stok</h1>
+      <h1 className="text-3xl font-bold mb-6">Riwayat Perpindahan Produk</h1>
 
       <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
         <div className="flex items-center gap-2">
@@ -141,22 +139,7 @@ const StockMovementHistoryPage = () => {
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
           </div>
-          <Select
-            onValueChange={(value: StockEventType | "all") => setSelectedEventType(value)}
-            value={selectedEventType}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter Tipe Event" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Tipe</SelectItem>
-              {Object.values(StockEventType).map((type) => (
-                <SelectItem key={type as string} value={type as string}>
-                  {getEventTypeDisplay(type)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Removed Event Type filter as this page is specifically for 'transfer' */}
           <DateRangePicker date={dateRange} onDateChange={setDateRange} />
         </div>
       </div>
@@ -168,7 +151,6 @@ const StockMovementHistoryPage = () => {
               <TableHead>Tanggal & Waktu</TableHead>
               <TableHead>Nama Produk</TableHead>
               <TableHead>Kode Produk</TableHead>
-              <TableHead>Tipe Event</TableHead>
               <TableHead>Kuantitas</TableHead>
               <TableHead>Dari Gudang</TableHead>
               <TableHead>Ke Gudang</TableHead>
@@ -178,7 +160,7 @@ const StockMovementHistoryPage = () => {
           <TableBody>
             {stockMovements?.length === 0 ? ( // Use 'stockMovements' directly
               <TableRow>
-                <TableCell colSpan={8} className="text-center">
+                <TableCell colSpan={7} className="text-center">
                   Tidak ada pergerakan stok ditemukan.
                 </TableCell>
               </TableRow>
@@ -188,16 +170,6 @@ const StockMovementHistoryPage = () => {
                   <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                   <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell>
                   <TableCell>{movement.products?.kode_barang || "N/A"}</TableCell>
-                  <TableCell>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      movement.event_type === StockEventType.IN || movement.event_type === StockEventType.INITIAL ? "bg-green-100 text-green-800" :
-                      movement.event_type === StockEventType.OUT ? "bg-red-100 text-red-800" :
-                      movement.event_type === StockEventType.TRANSFER ? "bg-blue-100 text-blue-800" :
-                      "bg-gray-100 text-gray-800"
-                    }`}>
-                      {getEventTypeDisplay(movement.event_type)}
-                    </span>
-                  </TableCell>
                   <TableCell>{movement.quantity}</TableCell>
                   <TableCell>{movement.from_warehouse_category ? getCategoryDisplayName(movement.from_warehouse_category) : "-"}</TableCell>
                   <TableCell>{movement.to_warehouse_category ? getCategoryDisplayName(movement.to_warehouse_category) : "-"}</TableCell>

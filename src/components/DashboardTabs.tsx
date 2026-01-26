@@ -1,7 +1,7 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import StockPage from "@/pages/StockPage";
+import ProductManagementPage from "@/pages/ProductManagementPage"; // Changed import
 import SalesDetailsPage from "@/pages/SalesDetailsPage";
 
 const DashboardTabs = () => {
@@ -12,7 +12,7 @@ const DashboardTabs = () => {
         <TabsTrigger value="sales" className="text-lg">Detil Penjualan</TabsTrigger>
       </TabsList>
       <TabsContent value="products">
-        <StockPage />
+        <ProductManagementPage /> {/* Changed component */}
       </TabsContent>
       <TabsContent value="sales">
         <SalesDetailsPage />

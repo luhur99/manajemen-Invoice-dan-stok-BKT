@@ -144,6 +144,7 @@ const StockAdjustmentForm: React.FC<StockAdjustmentFormProps> = ({
       showSuccess("Stok berhasil disesuaikan!");
       onOpenChange(false);
       onSuccess();
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product list
       queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
       queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] }); // Invalidate stock history
       queryClient.invalidateQueries({ queryKey: ["productInventories", product.id] }); // Invalidate specific product inventories

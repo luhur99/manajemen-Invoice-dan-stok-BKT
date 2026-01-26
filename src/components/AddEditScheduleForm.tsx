@@ -236,7 +236,6 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
       showSuccess(initialData ? "Jadwal berhasil diperbarui!" : "Jadwal berhasil ditambahkan!");
       onSuccess();
       onOpenChange(false);
-      form.reset();
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
       queryClient.invalidateQueries({ queryKey: ["technicianSchedules"] });
     },

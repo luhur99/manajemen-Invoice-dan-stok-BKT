@@ -22,8 +22,8 @@ import {
 import { PlusCircle, Edit, Trash2, Search, Loader2, Eye, Warehouse } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
-import AddStockItemForm from "@/components/AddStockItemForm";
-import EditStockItemForm from "@/components/EditStockItemForm";
+import AddStockItemForm from "@/components/AddStockItemForm"; // Keep for reference, but won't be used directly here
+import EditStockItemForm from "@/components/EditStockItemForm"; // Keep for reference, but won't be used directly here
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
 import AddStockTransactionForm from "@/components/AddStockTransactionForm";
 import StockAdjustmentForm from "@/components/StockAdjustmentForm";
@@ -36,8 +36,7 @@ const StockManagementPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
-  const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  // Removed isAddFormOpen and isEditModalOpen as product metadata is managed elsewhere
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
   const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false);
@@ -67,6 +66,7 @@ const StockManagementPage = () => {
     return category ? category.name : code;
   };
 
+  // Fetch products with their inventories
   const { data: productsWithInventories, isLoading, error, refetch } = useQuery<Product[], Error>({
     queryKey: ["productsWithInventories", debouncedSearchTerm],
     queryFn: async () => {
@@ -114,31 +114,7 @@ const StockManagementPage = () => {
     },
   });
 
-  const deleteProductMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      showSuccess("Produk berhasil dihapus!");
-      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] });
-      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] });
-    },
-    onError: (err) => {
-      showError(`Gagal menghapus produk: ${err.message}`);
-    },
-  });
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus produk ini? Ini juga akan menghapus semua inventaris terkait.")) {
-      deleteProductMutation.mutate(id);
-    }
-  };
-
-  const handleEdit = (product: Product) => {
-    setSelectedProduct(product);
-    setIsEditFormOpen(true);
-  };
+  // Removed deleteProductMutation as product deletion is handled in ProductManagementPage
 
   const handleViewDetails = (product: Product) => {
     setSelectedProduct(product);
@@ -191,9 +167,7 @@ const StockManagementPage = () => {
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
         />
-        <Button onClick={() => setIsAddFormOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Tambah Produk Baru
-        </Button>
+        {/* Removed Add Product button as it's now in ProductManagementPage */}
       </div>
 
       <div className="rounded-md border">
@@ -203,9 +177,6 @@ const StockManagementPage = () => {
               <TableHead className="w-[50px]">No</TableHead>
               <TableHead>Kode Barang</TableHead>
               <TableHead>Nama Barang</TableHead>
-              <TableHead>Satuan</TableHead>
-              <TableHead className="text-right">Harga Beli</TableHead>
-              <TableHead className="text-right">Harga Jual</TableHead>
               <TableHead className="text-right">Total Stok</TableHead>
               <TableHead>Stok per Gudang</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
@@ -214,7 +185,7 @@ const StockManagementPage = () => {
           <TableBody>
             {productsWithInventories?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">
+                <TableCell colSpan={6} className="text-center">
                   Tidak ada produk ditemukan.
                 </TableCell>
               </TableRow>
@@ -230,9 +201,6 @@ const StockManagementPage = () => {
                     <TableCell>{index + 1}</TableCell>
                     <TableCell>{product.kode_barang}</TableCell>
                     <TableCell>{product.nama_barang}</TableCell>
-                    <TableCell>{product.satuan || "-"}</TableCell>
-                    <TableCell className="text-right">Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
-                    <TableCell className="text-right">Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="text-right">{totalStock}</TableCell>
                     <TableCell className="max-w-[250px] whitespace-normal">{stockPerWarehouse}</TableCell>
                     <TableCell className="text-center">
@@ -245,10 +213,7 @@ const StockManagementPage = () => {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => handleViewDetails(product)}>
-                            <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEdit(product)}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit Produk
+                            <Eye className="mr-2 h-4 w-4" /> Lihat Detail Inventaris
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleAddTransaction(product, StockEventType.IN)}>
                             <PlusCircle className="mr-2 h-4 w-4" /> Stok Masuk
@@ -262,9 +227,6 @@ const StockManagementPage = () => {
                           <DropdownMenuItem onClick={() => handleTransferStock(product)}>
                             <Warehouse className="mr-2 h-4 w-4" /> Transfer Stok
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(product.id)} className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" /> Hapus Produk
-                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -276,20 +238,8 @@ const StockManagementPage = () => {
         </Table>
       </div>
 
-      <AddStockItemForm
-        isOpen={isAddFormOpen}
-        onOpenChange={setIsAddFormOpen}
-        onSuccess={refetch}
-      />
-
-      {selectedProduct && (
-        <EditStockItemForm
-          isOpen={isEditFormOpen}
-          onOpenChange={setIsEditFormOpen}
-          onSuccess={refetch}
-          initialData={selectedProduct}
-        />
-      )}
+      {/* Removed AddStockItemForm as it's now in ProductManagementPage */}
+      {/* Removed EditStockItemForm as it's now in ProductManagementPage */}
 
       {selectedProduct && (
         <ViewStockItemDetailsDialog
@@ -325,18 +275,6 @@ const StockManagementPage = () => {
           product={selectedProduct}
         />
       )}
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={deleteProductMutation.isPending} onOpenChange={() => deleteProductMutation.reset()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Menghapus Produk...</DialogTitle>
-            <DialogDescription>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sedang menghapus produk. Mohon tunggu.
-            </DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

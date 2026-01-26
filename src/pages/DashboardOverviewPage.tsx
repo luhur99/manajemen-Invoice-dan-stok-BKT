@@ -203,7 +203,7 @@ const DashboardOverviewPage = () => {
               {lowStockItems > 0 ? `${lowStockItems} item stok rendah` : "Semua stok aman"}
             </p>
             {lowStockItems > 0 && (
-              <Link to="/stock" className="text-sm text-blue-500 hover:underline mt-2 block">
+              <Link to="/product-management" className="text-sm text-blue-500 hover:underline mt-2 block">
                 Lihat Item Stok Rendah
               </Link>
             )}

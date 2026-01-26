@@ -121,10 +121,11 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       showSuccess("Transaksi stok berhasil ditambahkan!");
       form.reset();
       onOpenChange(false);
-      onSuccess();
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product list
       queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
       queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] }); // Invalidate stock history
       queryClient.invalidateQueries({ queryKey: ["productInventories", form.getValues("product_id")] }); // Invalidate specific product inventories
+      onSuccess();
     },
     onError: (error: any) => {
       showError(`Gagal menambahkan transaksi stok: ${error.message}`);

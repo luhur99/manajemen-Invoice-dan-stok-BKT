@@ -46,6 +46,7 @@ const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
     case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
     case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";
     case WarehouseCategoryEnum.GUDANG_RETUR: return "Gudang Retur";
+    case WarehouseCategoryEnum.SIAP_JUAL: return "Siap Jual"; // Added Siap Jual
     default: return code;
   }
 };
@@ -127,7 +128,7 @@ const StockHistoryPage = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Riwayat Stok</h1>
+      <h1 className="text-3xl font-bold mb-6">Riwayat Transaksi Produk</h1>
 
       <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
         <div className="flex items-center gap-2">

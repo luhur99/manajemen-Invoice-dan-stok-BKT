@@ -139,8 +139,8 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detail Produk Stok: {product.nama_barang}</DialogTitle>
-          <DialogDescription>Informasi lengkap mengenai produk stok ini.</DialogDescription>
+          <DialogTitle>Detail Produk: {product.nama_barang}</DialogTitle>
+          <DialogDescription>Informasi lengkap mengenai produk ini.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 gap-4">

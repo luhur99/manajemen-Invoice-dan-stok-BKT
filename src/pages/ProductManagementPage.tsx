@@ -19,56 +19,28 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PlusCircle, Edit, Trash2, Search, Loader2, Eye, Warehouse } from "lucide-react";
+import { PlusCircle, Edit, Trash2, Search, Loader2, Eye } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
+import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data";
 import AddStockItemForm from "@/components/AddStockItemForm";
 import EditStockItemForm from "@/components/EditStockItemForm";
 import ViewStockItemDetailsDialog from "@/components/ViewStockItemDetailsDialog";
-import AddStockTransactionForm from "@/components/AddStockTransactionForm";
-import StockAdjustmentForm from "@/components/StockAdjustmentForm";
-import StockTransferForm from "@/components/StockTransferForm";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useDebounce } from "@/hooks/use-debounce";
 
-const StockPage = () => {
+const ProductManagementPage = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false); // Renamed from isEditFormOpen to avoid conflict
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [isAddTransactionOpen, setIsAddTransactionOpen] = useState(false);
-  const [isAdjustStockOpen, setIsAdjustStockOpen] = useState(false);
-  const [isTransferStockOpen, setIsTransferStockOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [initialTransactionProductId, setInitialTransactionProductId] = useState<string | undefined>(undefined);
-  const [initialTransactionEventType, setInitialTransactionEventType] = useState<StockEventType | undefined>(undefined);
 
-  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
-    queryKey: ["warehouseCategories"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_categories")
-        .select("id, name, code")
-        .order("name", { ascending: true });
-
-      if (error) {
-        showError("Gagal memuat kategori gudang.");
-        throw error;
-      }
-      return data as WarehouseCategoryType[];
-    },
-  });
-
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories?.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
-  const { data: productsWithInventories, isLoading, error, refetch } = useQuery<Product[], Error>({
-    queryKey: ["productsWithInventories", debouncedSearchTerm],
+  // Fetch product metadata (without inventories for the main table)
+  const { data: products, isLoading, error, refetch } = useQuery<Product[], Error>({
+    queryKey: ["productsMetadata", debouncedSearchTerm],
     queryFn: async () => {
       let query = supabase
         .from("products")
@@ -83,13 +55,7 @@ const StockPage = () => {
           harga_jual,
           safe_stock_limit,
           supplier_id,
-          updated_at,
-          warehouse_inventories (
-            id,
-            product_id,
-            warehouse_category,
-            quantity
-          )
+          updated_at
         `)
         .order("nama_barang", { ascending: true });
 
@@ -106,11 +72,7 @@ const StockPage = () => {
         throw error;
       }
 
-      // Map the data to include inventories directly in the Product type
-      return data.map(product => ({
-        ...product,
-        inventories: product.warehouse_inventories as WarehouseInventory[],
-      })) as Product[];
+      return data as Product[];
     },
   });
 
@@ -121,8 +83,8 @@ const StockPage = () => {
     },
     onSuccess: () => {
       showSuccess("Produk berhasil dihapus!");
-      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] });
       queryClient.invalidateQueries({ queryKey: ["productsMetadata"] });
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
     },
     onError: (err) => {
       showError(`Gagal menghapus produk: ${err.message}`);
@@ -145,23 +107,7 @@ const StockPage = () => {
     setIsViewDetailsOpen(true);
   };
 
-  const handleAddTransaction = (product?: Product, eventType?: StockEventType) => {
-    setInitialTransactionProductId(product?.id);
-    setInitialTransactionEventType(eventType);
-    setIsAddTransactionOpen(true);
-  };
-
-  const handleAdjustStock = (product: Product) => {
-    setSelectedProduct(product);
-    setIsAdjustStockOpen(true);
-  };
-
-  const handleTransferStock = (product: Product) => {
-    setSelectedProduct(product);
-    setIsTransferStockOpen(true);
-  };
-
-  if (isLoading || loadingCategories) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -169,12 +115,12 @@ const StockPage = () => {
     );
   }
 
-  if (error || categoriesError) {
+  if (error) {
     return (
       <Alert variant="destructive">
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>
-          Gagal memuat data: {error?.message || categoriesError?.message}
+          Gagal memuat data: {error?.message}
         </AlertDescription>
       </Alert>
     );
@@ -182,7 +128,7 @@ const StockPage = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manajemen Stok</h1>
+      <h1 className="text-3xl font-bold mb-6">Manajemen Produk</h1>
 
       <div className="flex justify-between items-center mb-6">
         <Input
@@ -206,25 +152,19 @@ const StockPage = () => {
               <TableHead>Satuan</TableHead>
               <TableHead className="text-right">Harga Beli</TableHead>
               <TableHead className="text-right">Harga Jual</TableHead>
-              <TableHead className="text-right">Total Stok</TableHead>
-              <TableHead>Stok per Gudang</TableHead>
+              <TableHead className="text-right">Batas Stok Aman</TableHead>
               <TableHead className="text-center">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {productsWithInventories?.length === 0 ? (
+            {products?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center">
+                <TableCell colSpan={8} className="text-center">
                   Tidak ada produk ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              productsWithInventories?.map((product, index) => {
-                const totalStock = product.inventories?.reduce((sum, inv) => sum + inv.quantity, 0) || 0;
-                const stockPerWarehouse = product.inventories?.map(inv => (
-                  `${getCategoryDisplayName(inv.warehouse_category)}: ${inv.quantity}`
-                )).join(", ") || "Tidak ada stok";
-
+              products?.map((product, index) => {
                 return (
                   <TableRow key={product.id}>
                     <TableCell>{index + 1}</TableCell>
@@ -233,8 +173,7 @@ const StockPage = () => {
                     <TableCell>{product.satuan || "-"}</TableCell>
                     <TableCell className="text-right">Rp {product.harga_beli.toLocaleString('id-ID')}</TableCell>
                     <TableCell className="text-right">Rp {product.harga_jual.toLocaleString('id-ID')}</TableCell>
-                    <TableCell className="text-right">{totalStock}</TableCell>
-                    <TableCell className="max-w-[250px] whitespace-normal">{stockPerWarehouse}</TableCell>
+                    <TableCell className="text-right">{product.safe_stock_limit || 0}</TableCell>
                     <TableCell className="text-center">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -249,18 +188,6 @@ const StockPage = () => {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleEdit(product)}>
                             <Edit className="mr-2 h-4 w-4" /> Edit Produk
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAddTransaction(product, StockEventType.IN)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Stok Masuk
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAddTransaction(product, StockEventType.OUT)}>
-                            <PlusCircle className="mr-2 h-4 w-4" /> Stok Keluar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAdjustStock(product)}>
-                            <Warehouse className="mr-2 h-4 w-4" /> Sesuaikan Stok
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleTransferStock(product)}>
-                            <Warehouse className="mr-2 h-4 w-4" /> Transfer Stok
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleDelete(product.id)} className="text-red-600">
                             <Trash2 className="mr-2 h-4 w-4" /> Hapus Produk
@@ -299,33 +226,6 @@ const StockPage = () => {
         />
       )}
 
-      <AddStockTransactionForm
-        isOpen={isAddTransactionOpen}
-        onOpenChange={setIsAddTransactionOpen}
-        onSuccess={refetch}
-        products={productsWithInventories || []}
-        initialProductId={initialTransactionProductId}
-        initialEventType={initialTransactionEventType}
-      />
-
-      {selectedProduct && (
-        <StockAdjustmentForm
-          isOpen={isAdjustStockOpen}
-          onOpenChange={setIsAdjustStockOpen}
-          onSuccess={refetch}
-          product={selectedProduct}
-        />
-      )}
-
-      {selectedProduct && (
-        <StockTransferForm
-          isOpen={isTransferStockOpen}
-          onOpenChange={setIsTransferStockOpen}
-          onSuccess={refetch}
-          product={selectedProduct}
-        />
-      )}
-
       {/* Delete Confirmation Modal */}
       <Dialog open={deleteProductMutation.isPending} onOpenChange={() => deleteProductMutation.reset()}>
         <DialogContent>
@@ -341,4 +241,4 @@ const StockPage = () => {
   );
 };
 
-export default StockPage;
+export default ProductManagementPage;

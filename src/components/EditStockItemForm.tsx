@@ -119,8 +119,8 @@ const EditStockItemForm: React.FC<EditStockItemFormProps> = ({ onSuccess, isOpen
     onSuccess: () => {
       showSuccess("Produk berhasil diperbarui!");
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate product list
-      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product metadata
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product list
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
       queryClient.invalidateQueries({ queryKey: ["productInventories", initialData.id] }); // Invalidate specific product inventories
       onSuccess(); // Call parent's onSuccess
     },

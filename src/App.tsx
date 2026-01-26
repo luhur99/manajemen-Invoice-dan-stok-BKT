@@ -15,7 +15,7 @@ import { Loader2 } from "lucide-react";
 const DashboardOverviewPage = React.lazy(() => import("./pages/DashboardOverviewPage"));
 const InvoiceManagementPage = React.lazy(() => import("./pages/InvoiceManagementPage"));
 const ScheduleManagementPage = React.lazy(() => import("./pages/ScheduleManagementPage"));
-const StockPage = React.lazy(() => import("./pages/StockPage"));
+const ProductManagementPage = React.lazy(() => import("./pages/ProductManagementPage")); // Changed import
 const SalesDetailsPage = React.lazy(() => import("./pages/SalesDetailsPage"));
 const ProfilePage = React.lazy(() => import("./pages/ProfilePage"));
 const StockHistoryPage = React.lazy(() => import("./pages/StockHistoryPage"));
@@ -67,7 +67,7 @@ const App = () => (
               <Route path="/invoices" element={<ErrorBoundary><MainLayout><InvoiceManagementPage /></MainLayout></ErrorBoundary>} />
               <Route path="/schedules" element={<ErrorBoundary><MainLayout><ScheduleManagementPage /></MainLayout></ErrorBoundary>} />
               <Route path="/schedules/:id" element={<ErrorBoundary><MainLayout><ScheduleDetailPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/stock" element={<ErrorBoundary><MainLayout><StockPage /></MainLayout></ErrorBoundary>} />
+              <Route path="/product-management" element={<ErrorBoundary><MainLayout><ProductManagementPage /></MainLayout></ErrorBoundary>} /> {/* Changed route and component */}
               <Route path="/stock-management" element={<ErrorBoundary><MainLayout><StockManagementPage /></MainLayout></ErrorBoundary>} />
               <Route path="/sales-details" element={<ErrorBoundary><MainLayout><SalesDetailsPage /></MainLayout></ErrorBoundary>} />
               <Route path="/profile" element={<ErrorBoundary><MainLayout><ProfilePage /></MainLayout></ErrorBoundary>} />

@@ -112,8 +112,9 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
   const [initialItems, setInitialItems] = React.useState<InvoiceItem[]>([]);
 
+  // Fetch product metadata (without inventories for invoice items)
   const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
-    queryKey: ["products"],
+    queryKey: ["productsMetadata"], // Changed query key
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
@@ -127,29 +128,13 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           harga_jual,
           safe_stock_limit,
           supplier_id,
-          created_at,
-          warehouse_inventories (
-            warehouse_category,
-            quantity
-          )
+          created_at
         `);
       if (error) {
         showError("Gagal memuat daftar produk.");
         throw error;
       }
-      return data.map(item => ({
-        id: item.id,
-        user_id: item.user_id,
-        created_at: item.created_at,
-        kode_barang: item.kode_barang,
-        nama_barang: item.nama_barang,
-        harga_jual: item.harga_jual,
-        harga_beli: item.harga_beli,
-        satuan: item.satuan,
-        safe_stock_limit: item.safe_stock_limit,
-        supplier_id: item.supplier_id,
-        inventories: item.warehouse_inventories as WarehouseInventory[],
-      }));
+      return data as Product[];
     },
     enabled: isOpen,
   });
@@ -343,7 +328,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       showSuccess("Invoice berhasil diperbarui!");
       onOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["invoiceItems", invoice.id] });
+      queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
       onSuccess();
     },
     onError: (err: any) => {
@@ -628,6 +613,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                           }}
                           disabled={loadingProducts}
                           loading={loadingProducts}
+                          showInventory={false} // Do not show inventory in invoice item selection
                         />
                         <FormMessage />
                       </FormItem>

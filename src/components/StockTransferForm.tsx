@@ -151,6 +151,7 @@ const StockTransferForm: React.FC<StockTransferFormProps> = ({
       showSuccess("Stok berhasil ditransfer!");
       onOpenChange(false);
       onSuccess();
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product list
       queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] });
       queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] });
       queryClient.invalidateQueries({ queryKey: ["productInventories", product.id] });

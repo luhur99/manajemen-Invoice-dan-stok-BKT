@@ -29,6 +29,7 @@ interface StockItemComboboxProps {
   placeholder?: string;
   disabled?: boolean;
   loading?: boolean; // Added loading prop
+  showInventory?: boolean; // New prop to control inventory display
 }
 
 const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
@@ -40,6 +41,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   placeholder = "Pilih produk...",
   disabled = false,
   loading = false,
+  showInventory = true, // Default to true for backward compatibility
 }) => {
   const [open, setOpen] = React.useState(false);
 
@@ -48,7 +50,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("*") // Select all columns to match WarehouseCategoryType
+        .select(`id, name, code`) // Select all columns to match WarehouseCategoryType
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");
@@ -64,6 +66,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
   };
 
   const formatStockInventories = (inventories?: WarehouseInventory[]) => {
+    if (!showInventory) return ""; // If showInventory is false, return empty string
     if (loadingCategories) return "Memuat stok...";
     if (categoriesError) return "Error memuat kategori";
 
@@ -93,7 +96,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
           {loadingCategories || loading ? (
             <Loader2 className="h-4 w-4 animate-spin mr-2" />
           ) : selectedItem
-            ? `${selectedItem.nama_barang} (${selectedItem.kode_barang}) - ${formatStockInventories(selectedItem.inventories)}`
+            ? `${selectedItem.nama_barang} (${selectedItem.kode_barang}) ${showInventory ? `- ${formatStockInventories(selectedItem.inventories)}` : ''}`
             : inputValue || placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -124,7 +127,7 @@ const StockItemCombobox: React.FC<StockItemComboboxProps> = ({
                       selectedProductId === item.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  {item.nama_barang} ({item.kode_barang}) - {formatStockInventories(item.inventories)}
+                  {item.nama_barang} ({item.kode_barang}) {showInventory ? `- ${formatStockInventories(item.inventories)}` : ''}
                 </CommandItem>
               ))}
             </CommandGroup>

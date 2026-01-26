@@ -36,23 +36,23 @@ const navItems = [
     icon: ListTodo,
   },
   {
-    title: "Manajemen Produk",
-    href: "/stock",
+    title: "Manajemen Produk", // Changed title
+    href: "/product-management", // Changed href
     icon: Package,
   },
   {
-    title: "Manajemen Stok",
-    href: "/stock-management",
+    title: "Manajemen Stok", // Changed title
+    href: "/stock-management", // Changed href
     icon: Boxes,
   },
   {
-    title: "Riwayat Transaksi Produk",
+    title: "Riwayat Transaksi Produk", // Changed title
     href: "/stock-history",
     icon: History,
   },
   {
-    title: "Riwayat Perpindahan Produk",
-    href: "/stock-movement-history",
+    title: "Riwayat Perpindahan Produk", // Changed title
+    href: "/stock-movement-history", // Changed href
     icon: ArrowRightLeft,
   },
   {
