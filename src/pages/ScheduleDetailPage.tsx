@@ -23,26 +23,7 @@ const ScheduleDetailPage = () => {
       const { data, error } = await supabase
         .from("schedules")
         .select(`
-          id,
-          user_id,
-          schedule_date,
-          schedule_time,
-          type,
-          customer_name,
-          address,
-          technician_name,
-          invoice_id,
-          status,
-          notes,
-          created_at,
-          phone_number,
-          courier_service,
-          document_url,
-          scheduling_request_id,
-          do_number,
-          updated_at,
-          product_category,
-          customer_id,
+          *,
           customers (customer_name, company_name, phone_number, address, customer_type),
           invoices (invoice_number),
           scheduling_requests (sr_number)
@@ -57,15 +38,19 @@ const ScheduleDetailPage = () => {
       if (!data) {
         throw new Error("Jadwal tidak ditemukan.");
       }
-      // Cast the response to match ScheduleWithDetails, mapping joined fields
-      const formattedData: any = {
+      
+      // Supabase returns joined data as objects, not arrays, when using .single()
+      // and specifying columns for the join.
+      const result: ScheduleWithDetails = {
         ...data,
-        sr_number: Array.isArray(data.scheduling_requests) ? data.scheduling_requests[0]?.sr_number : data.scheduling_requests?.sr_number,
-        payment_method: null, // Schedule table doesn't have payment_method directly, handled by invoice usually
-        // customers and invoices are already included in data structure from query
+        // Explicitly map joined data to match ScheduleWithDetails interface
+        customers: data.customers || null,
+        invoices: data.invoices || null,
+        sr_number: data.scheduling_requests?.sr_number || null, // Corrected access
+        payment_method: null, // As per comment, not directly from schedule table
       };
       
-      return formattedData as ScheduleWithDetails;
+      return result;
     },
     enabled: !!id,
   });
