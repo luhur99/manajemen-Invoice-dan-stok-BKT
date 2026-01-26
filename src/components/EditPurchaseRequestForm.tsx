@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategoryEnum, WarehouseInventory, PurchaseRequestStatus, StockEventType } from "@/types/data";
+import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategoryEnum, WarehouseInventory, PurchaseRequestStatus, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
@@ -191,18 +191,19 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
     enabled: isOpen,
   });
 
-  const { data: warehouseCategories, isLoading: loadingWarehouseCategories } = useQuery<WarehouseCategoryEnum[], Error>({
+  // --- MODIFIED: Fetch full WarehouseCategoryType objects ---
+  const { data: warehouseCategories, isLoading: loadingWarehouseCategories } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("code")
+        .select("id, name, code") // Select all relevant columns
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data.map(item => item.code as WarehouseCategoryEnum);
+      return data as WarehouseCategoryType[]; // Return array of objects
     },
     enabled: isOpen,
   });
@@ -595,11 +596,17 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {warehouseCategories?.map((category) => (
-                                <SelectItem key={category} value={category}>
-                                  {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                              {loadingWarehouseCategories ? (
+                                <SelectItem value="loading" disabled>
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Memuat...
                                 </SelectItem>
-                              ))}
+                              ) : (
+                                warehouseCategories?.map((category) => (
+                                  <SelectItem key={category.id} value={category.code}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))
+                              )}
                             </SelectContent>
                           </Select>
                           <FormMessage />
