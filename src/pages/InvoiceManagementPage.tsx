@@ -60,16 +60,26 @@ const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
 
 const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
   switch (status) {
+    case InvoiceDocumentStatus.COMPLETED: return "Completed";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV: return "Waiting Document";
+    case InvoiceDocumentStatus.DOCUMENT_INV_SENT: return "Document Sent";
+    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED: return "Document Received";
+    default: return "Unknown";
+  }
+};
+
+// New helper function for document status badge class
+const getDocumentStatusBadgeClass = (status: InvoiceDocumentStatus) => {
+  switch (status) {
     case InvoiceDocumentStatus.COMPLETED:
-      return "Completed";
-    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
-      return "Waiting Document";
-    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
-      return "Document Sent";
     case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED:
-      return "Document Received";
+      return "bg-green-100 text-green-800";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
+      return "bg-yellow-100 text-yellow-800";
+    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
+      return "bg-blue-100 text-blue-800";
     default:
-      return "Unknown";
+      return "bg-gray-100 text-gray-800";
   }
 };
 

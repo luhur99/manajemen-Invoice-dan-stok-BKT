@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Loader2, PlusCircle, Edit, Trash2, MoreHorizontal } from "lucide-react";
 import { useDebounce } from "react-use";
 import AddUserForm from "@/components/AddUserForm"; // Corrected import path
-import EditUserForm from "@/components/EditUserForm"; // Corrected import path
+import { EditUserForm } from "@/components/EditUserForm"; // Corrected to named import
 import PaginationControls from "@/components/PaginationControls";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
@@ -68,7 +68,7 @@ const UserManagementPage = () => {
         );
       }
 
-      const { data, error, count } = await query.range(start, end);
+      const { data, error } = await query.range(start, end);
 
       if (error) throw error;
 
@@ -181,7 +181,9 @@ const UserManagementPage = () => {
                     <TableCell>{user.role}</TableCell>
                     <TableCell>{user.phone_number || "-"}</TableCell>
                     <TableCell>
-                      {formatDateSafely(user.updated_at, "dd MMM yyyy, HH:mm")}
+                      {user.updated_at
+                        ? format(new Date(user.updated_at), "dd MMM yyyy, HH:mm", { locale: idLocale })
+                        : "-"}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
