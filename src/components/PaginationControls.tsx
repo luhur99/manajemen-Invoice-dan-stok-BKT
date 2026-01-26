@@ -1,118 +1,44 @@
-"use client";
-
 import React from "react";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-  PaginationEllipsis,
-} from "@/components/ui/pagination";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-interface PaginationControlsProps {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}
-
-const PaginationControls: React.FC<PaginationControlsProps> = ({
-  currentPage,
-  totalPages,
-  onPageChange,
-}) => {
-  const renderPageNumbers = () => {
-    const pages = [];
-    const maxPagesToShow = 5; // Number of page links to show directly
-
-    if (totalPages <= maxPagesToShow) {
-      for (let i = 1; i <= totalPages; i++) {
-        pages.push(
-          <PaginationItem key={i}>
-            <PaginationLink
-              isActive={currentPage === i}
-              onClick={() => onPageChange(i)}
-            >
-              {i}
-            </PaginationLink>
-          </PaginationItem>
-        );
-      }
-    } else {
-      // Always show first page
-      pages.push(
-        <PaginationItem key={1}>
-          <PaginationLink
-            isActive={currentPage === 1}
-            onClick={() => onPageChange(1)}
-          >
-            1
-          </PaginationLink>
-        </PaginationItem>
-      );
-
-      // Show ellipsis if current page is far from the beginning
-      if (currentPage > 2 + Math.floor(maxPagesToShow / 2) - 1) {
-        pages.push(<PaginationEllipsis key="start-ellipsis" />);
-      }
-
-      // Show pages around the current page
-      const startPage = Math.max(2, currentPage - Math.floor(maxPagesToShow / 2) + 1);
-      const endPage = Math.min(totalPages - 1, currentPage + Math.floor(maxPagesToShow / 2) - 1);
-
-      for (let i = startPage; i <= endPage; i++) {
-        pages.push(
-          <PaginationItem key={i}>
-            <PaginationLink
-              isActive={currentPage === i}
-              onClick={() => onPageChange(i)}
-            >
-              {i}
-            </PaginationLink>
-          </PaginationItem>
-        );
-      }
-
-      // Show ellipsis if current page is far from the end
-      if (currentPage < totalPages - 1 - Math.floor(maxPagesToShow / 2) + 1) {
-        pages.push(<PaginationEllipsis key="end-ellipsis" />);
-      }
-
-      // Always show last page
-      pages.push(
-        <PaginationItem key={totalPages}>
-          <PaginationLink
-            isActive={currentPage === totalPages}
-            onClick={() => onPageChange(totalPages)}
-          >
-            {totalPages}
-          </PaginationLink>
-        </PaginationItem>
-      );
+const PaginationControls = ({ currentPage, pageCount, onPageChange }) => {
+  const handlePrevious = () => {
+    if (currentPage > 1) {
+      onPageChange(currentPage - 1);
     }
+  };
 
-    return pages;
+  const handleNext = () => {
+    if (currentPage < pageCount) {
+      onPageChange(currentPage + 1);
+    }
   };
 
   return (
-    <Pagination>
-      <PaginationContent>
-        <PaginationItem>
-          <PaginationPrevious
-            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-            isActive={currentPage > 1}
-          />
-        </PaginationItem>
-        {renderPageNumbers()}
-        <PaginationItem>
-          <PaginationNext
-            onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-            isActive={currentPage < totalPages}
-          />
-        </PaginationItem>
-      </PaginationContent>
-    </Pagination>
+    <div className="flex items-center justify-end space-x-2 py-4">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handlePrevious}
+        disabled={currentPage === 1}
+      >
+        <ChevronLeft className="h-4 w-4 mr-2" />
+        Sebelumnya
+      </Button>
+      <span className="text-sm font-medium">
+        Halaman {currentPage} dari {pageCount}
+      </span>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleNext}
+        disabled={currentPage === pageCount}
+      >
+        Berikutnya
+        <ChevronRight className="h-4 w-4 ml-2" />
+      </Button>
+    </div>
   );
 };
 

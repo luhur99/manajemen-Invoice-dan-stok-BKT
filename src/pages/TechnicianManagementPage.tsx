@@ -1,44 +1,51 @@
-"use client";
-
 import React, { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Edit, Trash2, PlusCircle, Eye } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { showError, showSuccess } from "@/utils/toast";
-import { TechnicianWithDetails, TechnicianType } from "@/types/data";
-import AddEditTechnicianForm from "@/components/AddEditTechnicianForm";
-import PaginationControls from "@/components/PaginationControls";
-import { format } from "date-fns";
-import ViewNotesDialog from "@/components/ViewNotesDialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
+import { Loader2, PlusCircle, Edit, Trash2, Eye, MoreHorizontal } from "lucide-react";
+import { useDebounce } from "react-use";
+import { AddTechnicianForm } from "@/components/technicians/AddTechnicianForm";
+import { EditTechnicianForm } from "@/components/technicians/EditTechnicianForm";
+import { ViewTechnicianDetailsDialog } from "@/components/technicians/ViewTechnicianDetailsDialog";
+import PaginationControls from "@/components/PaginationControls";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { format } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+
+const ITEMS_PER_PAGE = 10;
 
 const TechnicianManagementPage = () => {
-  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
-
-  const [isAddEditFormOpen, setIsAddEditFormOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedTechnician, setSelectedTechnician] = useState<TechnicianWithDetails | null>(null);
-
-  const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [detailsToView, setDetailsToView] = useState<string>("");
-  const [viewDetailsTitle, setViewDetailsTitle] = useState<string>("");
-
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const [isAddTechnicianDialogOpen, setIsAddTechnicianDialogOpen] = useState(false);
+  const [isEditTechnicianDialogOpen, setIsEditTechnicianDialogOpen] = useState(false);
+  const [isViewTechnicianDetailsDialogOpen, setIsViewTechnicianDetailsDialogOpen] = useState(false);
+  const [selectedTechnician, setSelectedTechnician] = useState(null);
 
-  const { data: technicians = [], isLoading, error, refetch: fetchTechnicians } = useQuery<TechnicianWithDetails[], Error>({
-    queryKey: ["technicians", debouncedSearchTerm], // Include debounced search term
+  useDebounce(() => {
+    setDebouncedSearchTerm(searchTerm);
+    setCurrentPage(1);
+  }, 500, [searchTerm]);
+
+  const queryClient = useQueryClient();
+
+  const { data: techniciansData, isLoading, isError, error } = useQuery({
+    queryKey: ["technicians", debouncedSearchTerm, currentPage],
     queryFn: async () => {
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const end = start + ITEMS_PER_PAGE - 1;
+
       let query = supabase
         .from("technicians")
-        .select(`
+        .select(
+          `
           id,
           name,
           phone_number,
@@ -48,211 +55,203 @@ const TechnicianManagementPage = () => {
           province,
           created_at,
           updated_at
-        `) // Optimized select statement
-        .order("name", { ascending: true });
+        `,
+          { count: "exact" }
+        );
 
       if (debouncedSearchTerm) {
         query = query.or(
-          `name.ilike.%${debouncedSearchTerm}%,phone_number.ilike.%${debouncedSearchTerm}%,type.ilike.%${debouncedSearchTerm}%,address.ilike.%${debouncedSearchTerm}%,city.ilike.%${debouncedSearchTerm}%,province.ilike.%${debouncedSearchTerm}%`
+          `name.ilike.%${debouncedSearchTerm}%,phone_number.ilike.%${debouncedSearchTerm}%`
         );
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query.range(start, end);
 
       if (error) throw error;
-
-      return data as TechnicianWithDetails[];
+      return { data, count };
     },
   });
 
   const deleteTechnicianMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from("technicians")
-        .delete()
-        .eq("id", id);
-
+    mutationFn: async (id) => {
+      const { error } = await supabase.from("technicians").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      showSuccess("Teknisi berhasil dihapus!");
-      setIsDeleteModalOpen(false);
       queryClient.invalidateQueries({ queryKey: ["technicians"] });
+      toast.success("Teknisi berhasil dihapus.");
     },
-    onError: (err: any) => {
-      showError(`Gagal menghapus teknisi: ${err.message}`);
+    onError: (error) => {
+      toast.error(`Gagal menghapus teknisi: ${error.message}`);
     },
   });
 
-  const handleDeleteTechnician = () => {
-    if (selectedTechnician) {
-      deleteTechnicianMutation.mutate(selectedTechnician.id);
-    }
-  };
-
-  const handleAddClick = () => {
-    setSelectedTechnician(null);
-    setIsAddEditFormOpen(true);
-  };
-
-  const handleEditClick = (technician: TechnicianWithDetails) => {
-    setSelectedTechnician(technician);
-    setIsAddEditFormOpen(true);
-  };
-
-  const handleDeleteClick = (technician: TechnicianWithDetails) => {
-    setSelectedTechnician(technician);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleViewAddress = (technician: TechnicianWithDetails) => {
-    setDetailsToView(`${technician.address || ''}\n${technician.city || ''}, ${technician.province || ''}`.trim());
-    setViewDetailsTitle(`Alamat Teknisi: ${technician.name}`);
-    setIsViewDetailsOpen(true);
-  };
-
-  const totalPages = Math.ceil(technicians.length / itemsPerPage); // Use 'technicians' directly
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentItems = technicians.slice(startIndex, endIndex); // Use 'technicians' directly
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handleSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ["technicians"] });
+  const handleDeleteTechnician = (id) => {
+    deleteTechnicianMutation.mutate(id);
   };
 
   if (isLoading) {
     return (
-      <Card className="border shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-2xl font-semibold">Manajemen Teknisi</CardTitle>
-          <CardDescription>Memuat daftar teknisi...</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-center items-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex justify-center items-center h-full">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
     );
   }
 
+  if (isError) {
+    return <div className="text-red-500">Error: {error.message}</div>;
+  }
+
+  const technicians = techniciansData?.data || [];
+  const totalCount = techniciansData?.count || 0;
+  const pageCount = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
   return (
-    <Card className="border shadow-sm">
-      <CardHeader>
-        <div className="flex justify-between items-center mb-4">
-          <CardTitle className="text-2xl font-semibold">Manajemen Teknisi</CardTitle>
-          <Button onClick={handleAddClick}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Tambah Teknisi
-          </Button>
-        </div>
-        <CardDescription>Kelola semua informasi teknisi Anda di sini.</CardDescription>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-2xl font-bold">Manajemen Teknisi</CardTitle>
+        <Dialog open={isAddTechnicianDialogOpen} onOpenChange={setIsAddTechnicianDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="h-8 gap-1">
+              <PlusCircle className="h-3.5 w-3.5" />
+              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">Tambah Teknisi</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Tambah Teknisi Baru</DialogTitle>
+            </DialogHeader>
+            <AddTechnicianForm onSuccess={() => setIsAddTechnicianDialogOpen(false)} />
+          </DialogContent>
+        </Dialog>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {error && <p className="text-red-500 dark:text-red-400 mb-4">Error: {error.message}</p>}
-        <Input
-          type="text"
-          placeholder="Cari berdasarkan nama, telepon, tipe, atau alamat..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="flex-grow"
-        />
-        {technicians.length > 0 ? ( // Use 'technicians' directly
-          <>
-            <div className="overflow-x-auto">
-              <Table className="min-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No</TableHead>
-                    <TableHead>Nama</TableHead>
-                    <TableHead>No. Telepon</TableHead>
-                    <TableHead>Tipe</TableHead>
-                    <TableHead>Alamat</TableHead>
-                    <TableHead>Dibuat Pada</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {currentItems.map((technician, index) => (
-                    <TableRow key={technician.id}>
-                      <TableCell>{startIndex + index + 1}</TableCell>
-                      <TableCell>{technician.name}</TableCell>
-                      <TableCell>{technician.phone_number || "-"}</TableCell>
-                      <TableCell>{technician.type.charAt(0).toUpperCase() + technician.type.slice(1)}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">
-                        {technician.type === TechnicianType.EXTERNAL && (technician.address || technician.city || technician.province) ? (
-                          <Button variant="outline" size="sm" onClick={() => handleViewAddress(technician)} className="h-7 px-2">
-                            <Eye className="h-3 w-3 mr-1" /> Lihat Alamat
+      <CardContent>
+        <div className="mb-4">
+          <Input
+            placeholder="Cari teknisi..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Nama</TableHead>
+                <TableHead>Nomor Telepon</TableHead>
+                <TableHead>Tipe</TableHead>
+                <TableHead>Kota</TableHead>
+                <TableHead>Dibuat Pada</TableHead>
+                <TableHead className="text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {technicians.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center">
+                    Tidak ada teknisi ditemukan.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                technicians.map((technician) => (
+                  <TableRow key={technician.id}>
+                    <TableCell className="font-medium">{technician.name}</TableCell>
+                    <TableCell>{technician.phone_number || "-"}</TableCell>
+                    <TableCell>{technician.type}</TableCell>
+                    <TableCell>{technician.city || "-"}</TableCell>
+                    <TableCell>
+                      {technician.created_at
+                        ? format(new Date(technician.created_at), "dd MMM yyyy", { locale: idLocale })
+                        : "-"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Buka menu</span>
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>{format(new Date(technician.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
-                      <TableCell className="text-center flex items-center justify-center space-x-1">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditClick(technician)} title="Edit Teknisi">
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(technician)} title="Hapus Teknisi">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {totalPages > 1 && (
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedTechnician(technician);
+                              setIsViewTechnicianDetailsDialogOpen(true);
+                            }}
+                          >
+                            <Eye className="mr-2 h-4 w-4" /> Lihat
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedTechnician(technician);
+                              setIsEditTechnicianDialogOpen(true);
+                            }}
+                          >
+                            <Edit className="mr-2 h-4 w-4" /> Edit
+                          </DropdownMenuItem>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                              </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Apakah Anda yakin?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tindakan ini tidak dapat dibatalkan. Ini akan menghapus teknisi secara permanen.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Batal</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteTechnician(technician.id)}>
+                                  Hapus
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        <PaginationControls
+          currentPage={currentPage}
+          pageCount={pageCount} // Corrected prop name
+          onPageChange={setCurrentPage}
+        />
+
+        {/* Edit Technician Dialog */}
+        <Dialog open={isEditTechnicianDialogOpen} onOpenChange={setIsEditTechnicianDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Edit Teknisi</DialogTitle>
+            </DialogHeader>
+            {selectedTechnician && (
+              <EditTechnicianForm
+                technician={selectedTechnician}
+                onSuccess={() => setIsEditTechnicianDialogOpen(false)}
               />
             )}
-          </>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">Tidak ada data teknisi yang tersedia atau cocok dengan pencarian Anda.</p>
-        )}
+          </DialogContent>
+        </Dialog>
+
+        {/* View Technician Details Dialog */}
+        <Dialog open={isViewTechnicianDetailsDialogOpen} onOpenChange={setIsViewTechnicianDetailsDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Detail Teknisi</DialogTitle>
+            </DialogHeader>
+            {selectedTechnician && <ViewTechnicianDetailsDialog technician={selectedTechnician} />}
+          </DialogContent>
+        </Dialog>
       </CardContent>
-
-      <AddEditTechnicianForm
-        isOpen={isAddEditFormOpen}
-        onOpenChange={setIsAddEditFormOpen}
-        onSuccess={handleSuccess}
-        initialData={selectedTechnician}
-      />
-
-      <ViewNotesDialog
-        notes={detailsToView}
-        isOpen={isViewDetailsOpen}
-        onOpenChange={setIsViewDetailsOpen}
-        title={viewDetailsTitle}
-      />
-
-      {/* Delete Confirmation Modal */}
-      <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Konfirmasi Hapus Teknisi</DialogTitle>
-            <DialogDescription>
-              Apakah Anda yakin ingin menghapus teknisi "{selectedTechnician?.name}"? Tindakan ini tidak dapat dibatalkan.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteModalOpen(false)}>Batal</Button>
-            <Button variant="destructive" onClick={handleDeleteTechnician} disabled={deleteTechnicianMutation.isPending}>
-              {deleteTechnicianMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                "Hapus"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </Card>
   );
 };
