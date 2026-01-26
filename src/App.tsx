@@ -1,4 +1,4 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react"; // Added useEffect
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client"; // Import supabase client
 
 // Lazy-loaded page components
 const DashboardOverviewPage = React.lazy(() => import("./pages/DashboardOverviewPage"));
@@ -43,51 +44,68 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <SessionContextProvider>
-          <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            </div>
-          }>
-            <Routes>
-              <Route path="/auth" element={<AuthPage />} />
-              
-              {/* Print Routes (No Layout) */}
-              <Route path="/print/invoice/:id" element={<PrintInvoicePage />} />
-              <Route path="/print/schedule/:id" element={<PrintSchedulePage />} />
+const App = () => {
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      console.log("Checking Supabase connection...");
+      const { data, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error("Supabase connection error:", error.message);
+      } else if (data.session) {
+        console.log("Supabase connected. User session:", data.session.user.email);
+      } else {
+        console.log("Supabase connected, no active session.");
+      }
+    };
+    checkSupabaseConnection();
+  }, []);
 
-              {/* Main App Routes wrapped with ErrorBoundary */}
-              <Route path="/" element={<ErrorBoundary><MainLayout><DashboardOverviewPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/invoices" element={<ErrorBoundary><MainLayout><InvoiceManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/schedules" element={<ErrorBoundary><MainLayout><ScheduleManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/schedules/:id" element={<ErrorBoundary><MainLayout><ScheduleDetailPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/stock" element={<ErrorBoundary><MainLayout><StockPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/stock-management" element={<ErrorBoundary><MainLayout><StockManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/sales-details" element={<ErrorBoundary><MainLayout><SalesDetailsPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/profile" element={<ErrorBoundary><MainLayout><ProfilePage /></MainLayout></ErrorBoundary>} />
-              <Route path="/stock-history" element={<ErrorBoundary><MainLayout><StockHistoryPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/stock-movement-history" element={<ErrorBoundary><MainLayout><StockMovementHistoryPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/purchase-requests" element={<ErrorBoundary><MainLayout><PurchaseRequestPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/suppliers" element={<ErrorBoundary><MainLayout><SupplierManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/warehouse-categories" element={<ErrorBoundary><MainLayout><WarehouseCategoryPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/scheduling-requests" element={<ErrorBoundary><MainLayout><SchedulingRequestPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/customers" element={<ErrorBoundary><MainLayout><CustomerManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/technicians" element={<ErrorBoundary><MainLayout><TechnicianManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="/technician-calendar" element={<ErrorBoundary><MainLayout><TechnicianScheduleCalendar /></MainLayout></ErrorBoundary>} />
-              <Route path="/users" element={<ErrorBoundary><MainLayout><UserManagementPage /></MainLayout></ErrorBoundary>} />
-              <Route path="*" element={<ErrorBoundary><MainLayout><NotFound /></MainLayout></ErrorBoundary>} />
-            </Routes>
-          </Suspense>
-        </SessionContextProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <SessionContextProvider>
+            <Suspense fallback={
+              <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              </div>
+            }>
+              <Routes>
+                <Route path="/auth" element={<AuthPage />} />
+                
+                {/* Print Routes (No Layout) */}
+                <Route path="/print/invoice/:id" element={<PrintInvoicePage />} />
+                <Route path="/print/schedule/:id" element={<PrintSchedulePage />} />
+
+                {/* Main App Routes wrapped with ErrorBoundary */}
+                <Route path="/" element={<ErrorBoundary><MainLayout><DashboardOverviewPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/invoices" element={<ErrorBoundary><MainLayout><InvoiceManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/schedules" element={<ErrorBoundary><MainLayout><ScheduleManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/schedules/:id" element={<ErrorBoundary><MainLayout><ScheduleDetailPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/stock" element={<ErrorBoundary><MainLayout><StockPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/stock-management" element={<ErrorBoundary><MainLayout><StockManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/sales-details" element={<ErrorBoundary><MainLayout><SalesDetailsPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/profile" element={<ErrorBoundary><MainLayout><ProfilePage /></MainLayout></ErrorBoundary>} />
+                <Route path="/stock-history" element={<ErrorBoundary><MainLayout><StockHistoryPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/stock-movement-history" element={<ErrorBoundary><MainLayout><StockMovementHistoryPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/purchase-requests" element={<ErrorBoundary><MainLayout><PurchaseRequestPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/suppliers" element={<ErrorBoundary><MainLayout><SupplierManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/warehouse-categories" element={<ErrorBoundary><MainLayout><WarehouseCategoryPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/scheduling-requests" element={<ErrorBoundary><MainLayout><SchedulingRequestPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/customers" element={<ErrorBoundary><MainLayout><CustomerManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/technicians" element={<ErrorBoundary><MainLayout><TechnicianManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="/technician-calendar" element={<ErrorBoundary><MainLayout><TechnicianScheduleCalendar /></MainLayout></ErrorBoundary>} />
+                <Route path="/users" element={<ErrorBoundary><MainLayout><UserManagementPage /></MainLayout></ErrorBoundary>} />
+                <Route path="*" element={<ErrorBoundary><MainLayout><NotFound /></MainLayout></ErrorBoundary>} />
+              </Routes>
+            </Suspense>
+          </SessionContextProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
