@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
-import { format, parseISO, subMonths, startOfMonth, endOfMonth, startOfDay } from 'https://esm.sh/date-fns@2.30.0';
+import { format, parseISO, startOfMonth, endOfMonth } from 'https://esm.sh/date-fns@2.30.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,10 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    // Create a Supabase client with the service role key for admin operations
     const supabaseAdminClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // Use service role key
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       {
         auth: {
           autoRefreshToken: false,
@@ -35,12 +34,9 @@ serve(async (req) => {
       });
     }
 
-    // Extract the token
     const token = authHeader.replace('Bearer ', '');
-    
-    // Verify user using Admin client + token explicitly
-    // This avoids issues with client-side session handling in Edge Runtime
-    console.log('Verifying user token...');
+
+    // Verify user - this must be sequential
     const { data: { user }, error: userError } = await supabaseAdminClient.auth.getUser(token);
 
     if (userError || !user) {
@@ -51,8 +47,7 @@ serve(async (req) => {
       });
     }
 
-    // Check user role directly from profiles table using Admin Client
-    // We can do this safely because we just verified the user's identity via getUser(token)
+    // Check user role - this must be sequential after auth
     const { data: profileData, error: profileError } = await supabaseAdminClient
       .from('profiles')
       .select('role')
@@ -66,41 +61,138 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-    console.log(`User ${user.id} with role ${profileData?.role} is authorized.`);
 
-    // --- Fetch Dashboard Data using Service Role Key (bypassing RLS) ---
+    // Prepare date constants
+    const now = new Date();
+    const today = format(now, "yyyy-MM-dd");
+    const startOfCurrentMonth = format(startOfMonth(now), "yyyy-MM-dd");
+    const endOfCurrentMonth = format(endOfMonth(now), "yyyy-MM-dd");
 
-    // Fetch Pending Invoices
-    console.log('Fetching pending invoices...');
-    const { count: invoicesCount, error: invoicesError } = await supabaseAdminClient
-      .from("invoices")
-      .select("id", { count: "exact" })
-      .eq("payment_status", "pending");
-    if (invoicesError) { console.error('Error fetching invoices:', invoicesError); throw invoicesError; }
+    // --- PARALLELIZED QUERIES: Run all 12 independent queries at once ---
+    console.log('Fetching all dashboard data in parallel...');
+    const startTime = Date.now();
 
-    // Fetch Today's Schedules
-    console.log('Fetching today schedules...');
-    const today = format(new Date(), "yyyy-MM-dd");
-    const { count: schedulesCount, error: schedulesError } = await supabaseAdminClient
-      .from("schedules")
-      .select("id", { count: "exact" })
-      .eq("schedule_date", today);
-    if (schedulesError) { console.error('Error fetching schedules:', schedulesError); throw schedulesError; }
+    const [
+      pendingInvoicesResult,
+      todaySchedulesResult,
+      allProductsResult,
+      allInventoriesResult,
+      pendingPurchaseRequestsResult,
+      recentInvoicesResult,
+      recentSchedulesResult,
+      recentStockLedgerResult,
+      recentPurchaseRequestsResult,
+      warehouseCategoriesResult,
+      currentMonthInvoicesResult,
+      currentMonthStockLedgerResult,
+    ] = await Promise.all([
+      // 1. Pending Invoices Count
+      supabaseAdminClient
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .eq("payment_status", "pending"),
 
-    // Fetch Low Stock Items (Optimized)
-    console.log('Fetching all products for low stock check...');
-    const { data: allProducts, error: allProductsError } = await supabaseAdminClient
-      .from("products")
-      .select("id, safe_stock_limit");
-    if (allProductsError) { console.error('Error fetching all products:', allProductsError); throw allProductsError; }
+      // 2. Today's Schedules Count
+      supabaseAdminClient
+        .from("schedules")
+        .select("id", { count: "exact", head: true })
+        .eq("schedule_date", today),
 
-    console.log('Fetching all warehouse inventories...');
-    const { data: allInventories, error: allInventoriesError } = await supabaseAdminClient
-      .from("warehouse_inventories")
-      .select("product_id, quantity");
-    if (allInventoriesError) { console.error('Error fetching all inventories:', allInventoriesError); throw allInventoriesError; }
+      // 3. All Products (for low stock calculation)
+      supabaseAdminClient
+        .from("products")
+        .select("id, safe_stock_limit"),
 
-    // Aggregate quantities per product in Deno
+      // 4. All Warehouse Inventories (for low stock calculation)
+      supabaseAdminClient
+        .from("warehouse_inventories")
+        .select("product_id, quantity"),
+
+      // 5. Pending Purchase Requests Count
+      supabaseAdminClient
+        .from("purchase_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+
+      // 6. Recent Invoices (for activities)
+      supabaseAdminClient
+        .from("invoices")
+        .select("id, invoice_number, customer_name, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+
+      // 7. Recent Schedules (for activities)
+      supabaseAdminClient
+        .from("schedules")
+        .select("id, customer_name, type, schedule_date, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+
+      // 8. Recent Stock Ledger (for activities)
+      supabaseAdminClient
+        .from("stock_ledger")
+        .select("id, event_type, quantity, notes, created_at, from_warehouse_category, to_warehouse_category, products(nama_barang)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+
+      // 9. Recent Purchase Requests (for activities)
+      supabaseAdminClient
+        .from("purchase_requests")
+        .select("id, item_name, quantity, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(5),
+
+      // 10. Warehouse Categories (for display names)
+      supabaseAdminClient
+        .from("warehouse_categories")
+        .select("code, name"),
+
+      // 11. Current Month Invoices Count
+      supabaseAdminClient
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", startOfCurrentMonth)
+        .lte("created_at", endOfCurrentMonth),
+
+      // 12. Current Month Stock Ledger
+      supabaseAdminClient
+        .from("stock_ledger")
+        .select("event_type, quantity, from_warehouse_category, to_warehouse_category")
+        .gte("created_at", startOfCurrentMonth)
+        .lte("created_at", endOfCurrentMonth),
+    ]);
+
+    console.log(`All queries completed in ${Date.now() - startTime}ms`);
+
+    // Check for errors in any of the parallel queries
+    if (pendingInvoicesResult.error) throw pendingInvoicesResult.error;
+    if (todaySchedulesResult.error) throw todaySchedulesResult.error;
+    if (allProductsResult.error) throw allProductsResult.error;
+    if (allInventoriesResult.error) throw allInventoriesResult.error;
+    if (pendingPurchaseRequestsResult.error) throw pendingPurchaseRequestsResult.error;
+    if (recentInvoicesResult.error) throw recentInvoicesResult.error;
+    if (recentSchedulesResult.error) throw recentSchedulesResult.error;
+    if (recentStockLedgerResult.error) throw recentStockLedgerResult.error;
+    if (recentPurchaseRequestsResult.error) throw recentPurchaseRequestsResult.error;
+    if (warehouseCategoriesResult.error) throw warehouseCategoriesResult.error;
+    if (currentMonthInvoicesResult.error) throw currentMonthInvoicesResult.error;
+    if (currentMonthStockLedgerResult.error) throw currentMonthStockLedgerResult.error;
+
+    // Extract data from results
+    const invoicesCount = pendingInvoicesResult.count;
+    const schedulesCount = todaySchedulesResult.count;
+    const allProducts = allProductsResult.data;
+    const allInventories = allInventoriesResult.data;
+    const purchaseRequestsCount = pendingPurchaseRequestsResult.count;
+    const recentInvoices = recentInvoicesResult.data || [];
+    const recentSchedules = recentSchedulesResult.data || [];
+    const recentStockLedgerData = recentStockLedgerResult.data || [];
+    const recentPurchaseRequestsData = recentPurchaseRequestsResult.data || [];
+    const warehouseCategories = warehouseCategoriesResult.data || [];
+    const totalInvoicesThisMonth = currentMonthInvoicesResult.count;
+    const currentMonthStockLedger = currentMonthStockLedgerResult.data || [];
+
+    // Calculate low stock count
     const productStockMap = new Map<string, number>();
     if (allInventories) {
       allInventories.forEach(inv => {
@@ -118,60 +210,14 @@ serve(async (req) => {
         }
       });
     }
-    console.log('Finished calculating low stock items.');
 
-    // Fetch Pending Purchase Requests
-    console.log('Fetching pending purchase requests...');
-    const { count: purchaseRequestsCount, error: purchaseRequestsError } = await supabaseAdminClient
-      .from("purchase_requests")
-      .select("id", { count: "exact" })
-      .eq("status", "pending");
-    if (purchaseRequestsError) { console.error('Error fetching purchase requests:', purchaseRequestsError); throw purchaseRequestsError; }
-
-    // Fetch Latest Activities
-    console.log('Fetching recent invoices...');
-    const { data: recentInvoices, error: recentInvoicesError } = await supabaseAdminClient
-      .from("invoices")
-      .select("id, invoice_number, customer_name, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (recentInvoicesError) { console.error('Error fetching recent invoices:', recentInvoicesError); throw recentInvoicesError; }
-
-    console.log('Fetching recent schedules...');
-    const { data: recentSchedules, error: recentSchedulesError } = await supabaseAdminClient
-      .from("schedules")
-      .select("id, customer_name, type, schedule_date, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (recentSchedulesError) { console.error('Error fetching recent schedules:', recentSchedulesError); throw recentSchedulesError; }
-
-    console.log('Fetching recent stock ledger data...');
-    const { data: recentStockLedgerData, error: recentStockLedgerError } = await supabaseAdminClient
-      .from("stock_ledger")
-      .select("id, event_type, quantity, notes, created_at, from_warehouse_category, to_warehouse_category, products(nama_barang)")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (recentStockLedgerError) { console.error('Error fetching recent stock ledger:', recentStockLedgerError); throw recentStockLedgerError; }
-
-    console.log('Fetching recent purchase requests data...');
-    const { data: recentPurchaseRequestsData, error: recentPurchaseRequestsError } = await supabaseAdminClient
-      .from("purchase_requests")
-      .select("id, item_name, quantity, status, created_at")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (recentPurchaseRequestsError) { console.error('Error fetching recent purchase requests:', recentPurchaseRequestsError); throw recentPurchaseRequestsError; }
-
-    // Fetch warehouse categories for display names
-    console.log('Fetching warehouse categories...');
-    const { data: warehouseCategories, error: categoriesError } = await supabaseAdminClient
-      .from("warehouse_categories")
-      .select("code, name");
-    if (categoriesError) { console.error('Error fetching warehouse categories:', categoriesError); throw categoriesError; }
+    // Build category display name map
     const categoryMap = new Map(warehouseCategories.map(cat => [cat.code, cat.name]));
     const getCategoryDisplayName = (code: string) => categoryMap.get(code) || code;
 
-    console.log('Processing all activities...');
-    const allActivities = [];
+    // Process all activities
+    const allActivities: Array<{id: string, type: string, description: string, date: string}> = [];
+
     recentInvoices.forEach(inv => {
       allActivities.push({
         id: inv.id,
@@ -180,6 +226,7 @@ serve(async (req) => {
         date: inv.created_at,
       });
     });
+
     recentSchedules.forEach(sch => {
       allActivities.push({
         id: sch.id,
@@ -188,6 +235,7 @@ serve(async (req) => {
         date: sch.created_at,
       });
     });
+
     recentStockLedgerData.forEach(entry => {
       const itemName = entry.products?.[0]?.nama_barang || "Item Tidak Dikenal";
       let desc = "";
@@ -205,13 +253,16 @@ serve(async (req) => {
         const category = (entry.from_warehouse_category || entry.to_warehouse_category) ? ` di ${getCategoryDisplayName(entry.from_warehouse_category || entry.to_warehouse_category || "")}` : "";
         desc = `Penyesuaian stok ${entry.quantity} unit untuk ${itemName}${category}`;
       }
-      allActivities.push({
-        id: entry.id,
-        type: 'stock_ledger',
-        description: desc,
-        date: entry.created_at,
-      });
+      if (desc) {
+        allActivities.push({
+          id: entry.id,
+          type: 'stock_ledger',
+          description: desc,
+          date: entry.created_at,
+        });
+      }
     });
+
     recentPurchaseRequestsData.forEach(req => {
       allActivities.push({
         id: req.id,
@@ -220,57 +271,30 @@ serve(async (req) => {
         date: req.created_at,
       });
     });
+
     allActivities.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const latestActivities = allActivities.slice(0, 5);
-    console.log('Finished processing all activities.');
 
-    // --- New: Fetch data for current month summaries ---
-    console.log('Fetching current month summaries...');
-    const now = new Date();
-    const startOfCurrentMonth = format(startOfMonth(now), "yyyy-MM-dd");
-    const endOfCurrentMonth = format(endOfMonth(now), "yyyy-MM-dd");
-
-    // Total Invoices This Month
-    const { count: totalInvoicesThisMonth, error: currentMonthInvoicesError } = await supabaseAdminClient
-      .from("invoices")
-      .select("id", { count: "exact" })
-      .gte("created_at", startOfCurrentMonth)
-      .lte("created_at", endOfCurrentMonth);
-    if (currentMonthInvoicesError) { console.error('Error fetching current month invoices:', currentMonthInvoicesError); throw currentMonthInvoicesError; }
-
-    // Total Stock In/Out This Month
-    const { data: currentMonthStockLedger, error: currentMonthStockLedgerError } = await supabaseAdminClient
-      .from("stock_ledger")
-      .select("event_type, quantity, from_warehouse_category, to_warehouse_category")
-      .gte("created_at", startOfCurrentMonth)
-      .lte("created_at", endOfCurrentMonth);
-    if (currentMonthStockLedgerError) { console.error('Error fetching current month stock ledger:', currentMonthStockLedgerError); throw currentMonthStockLedgerError; }
-
+    // Calculate stock in/out for current month
     let totalStockInThisMonth = 0;
     let totalStockOutThisMonth = 0;
-    if (currentMonthStockLedger) {
-      currentMonthStockLedger.forEach(entry => {
-        if (['in', 'initial'].includes(entry.event_type) && entry.quantity > 0) {
+    currentMonthStockLedger.forEach(entry => {
+      if (['in', 'initial'].includes(entry.event_type) && entry.quantity > 0) {
+        totalStockInThisMonth += entry.quantity;
+      } else if (entry.event_type === 'out' && entry.quantity > 0) {
+        totalStockOutThisMonth += entry.quantity;
+      } else if (entry.event_type === 'adjustment') {
+        if (entry.to_warehouse_category && !entry.from_warehouse_category) {
           totalStockInThisMonth += entry.quantity;
-        } else if (entry.event_type === 'out' && entry.quantity > 0) {
+        } else if (entry.from_warehouse_category && !entry.to_warehouse_category) {
           totalStockOutThisMonth += entry.quantity;
-        } else if (entry.event_type === 'adjustment') {
-          // If `to_warehouse_category` is present and `from_warehouse_category` is null, it's an increase.
-          // If `from_warehouse_category` is present and `to_warehouse_category` is null, it's a decrease.
-          if (entry.to_warehouse_category && !entry.from_warehouse_category) {
-              totalStockInThisMonth += entry.quantity;
-          } else if (entry.from_warehouse_category && !entry.to_warehouse_category) {
-              totalStockOutThisMonth += entry.quantity;
-          } else {
-              // For ambiguous adjustments (e.g., both from/to or neither),
-              // we'll default to counting as 'in' for simplicity in this summary.
-              // A more precise dashboard might require a 'delta' column in stock_ledger.
-              totalStockInThisMonth += entry.quantity;
-          }
+        } else {
+          totalStockInThisMonth += entry.quantity;
         }
-      });
-    }
-    console.log('Finished fetching current month summaries.');
+      }
+    });
+
+    console.log(`Total processing time: ${Date.now() - startTime}ms`);
 
     return new Response(JSON.stringify({
       pendingInvoices: invoicesCount,
