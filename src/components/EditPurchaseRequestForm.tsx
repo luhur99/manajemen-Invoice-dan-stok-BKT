@@ -191,7 +191,6 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
     enabled: isOpen,
   });
 
-  // --- MODIFIED: Fetch full WarehouseCategoryType objects ---
   const { data: warehouseCategories, isLoading: loadingWarehouseCategories } = useQuery<WarehouseCategoryType[], Error>({
     queryKey: ["warehouseCategories"],
     queryFn: async () => {
@@ -236,50 +235,55 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
         throw new Error("Pengguna tidak terautentikasi.");
       }
 
-      const dataToSubmit = {
-        item_name: values.item_name.trim(),
-        item_code: values.item_code.trim(),
-        product_id: values.product_id || null,
-        quantity: values.quantity,
-        unit_price: values.unit_price,
-        suggested_selling_price: values.suggested_selling_price,
-        total_price: values.total_price,
-        satuan: values.satuan?.trim() || null,
-        supplier_id: values.supplier_id || null,
-        notes: values.notes?.trim() || null,
-        status: values.status,
-        document_url: values.document_url || null,
-        received_quantity: values.received_quantity || 0,
-        returned_quantity: values.returned_quantity || 0,
-        damaged_quantity: values.damaged_quantity || 0,
-        target_warehouse_category: values.target_warehouse_category || null,
-        received_notes: values.received_notes?.trim() || null,
-        received_at: values.received_at ? format(values.received_at, "yyyy-MM-dd") : null,
-        updated_at: new Date().toISOString(),
-      };
+      const isClosingAction = values.status === PurchaseRequestStatus.CLOSED && initialData.status !== PurchaseRequestStatus.CLOSED;
 
-      const { error } = await supabase
-        .from("purchase_requests")
-        .update(dataToSubmit)
-        .eq("id", initialData.id);
-
-      if (error) throw error;
-
-      // If status changes to 'closed' and received_quantity > 0, create stock ledger entry
-      if (values.status === PurchaseRequestStatus.CLOSED && values.received_quantity && values.received_quantity > 0) {
-        const { error: stockError } = await supabase.from("stock_ledger").insert({
-          user_id: userId,
-          product_id: values.product_id,
-          event_type: StockEventType.IN,
-          quantity: values.received_quantity,
-          to_warehouse_category: values.target_warehouse_category,
-          notes: `Penerimaan dari PR #${values.pr_number || initialData.pr_number} - ${values.received_notes || ''}`,
-          event_date: format(new Date(), "yyyy-MM-dd"),
+      if (isClosingAction) {
+        // Call the Edge Function to close the PR and update stock
+        const { data, error } = await supabase.functions.invoke('close-purchase-request', {
+          body: JSON.stringify({
+            request_id: initialData.id,
+            received_quantity: values.received_quantity,
+            returned_quantity: values.returned_quantity,
+            damaged_quantity: values.damaged_quantity,
+            target_warehouse_category: values.target_warehouse_category,
+            received_notes: values.received_notes,
+          }),
+          headers: { 'Content-Type': 'application/json' },
         });
-        if (stockError) {
-          console.error("Error creating stock ledger entry:", stockError);
-          throw new Error("Gagal membuat entri buku besar stok.");
-        }
+
+        if (error) throw error;
+        if (data && data.error) throw new Error(data.error);
+
+      } else {
+        // For any other updates (including status changes to non-CLOSED states, or other field edits)
+        const dataToUpdate = {
+          item_name: values.item_name.trim(),
+          item_code: values.item_code.trim(),
+          product_id: values.product_id || null,
+          quantity: values.quantity,
+          unit_price: values.unit_price,
+          suggested_selling_price: values.suggested_selling_price,
+          total_price: values.total_price,
+          satuan: values.satuan?.trim() || null,
+          supplier_id: values.supplier_id || null,
+          notes: values.notes?.trim() || null,
+          status: values.status,
+          document_url: values.document_url || null,
+          received_quantity: values.received_quantity || 0,
+          returned_quantity: values.returned_quantity || 0,
+          damaged_quantity: values.damaged_quantity || 0,
+          target_warehouse_category: values.target_warehouse_category || null,
+          received_notes: values.received_notes?.trim() || null,
+          received_at: values.received_at ? format(values.received_at, "yyyy-MM-dd") : null,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from("purchase_requests")
+          .update(dataToUpdate)
+          .eq("id", initialData.id);
+
+        if (error) throw error;
       }
     },
     onSuccess: () => {
@@ -289,6 +293,7 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
       queryClient.invalidateQueries({ queryKey: ["purchaseRequests"] });
       queryClient.invalidateQueries({ queryKey: ["stockHistory"] });
       queryClient.invalidateQueries({ queryKey: ["stockMovements"] });
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
     },
     onError: (err: any) => {
       showError(`Gagal memperbarui pengajuan pembelian: ${err.message}`);
