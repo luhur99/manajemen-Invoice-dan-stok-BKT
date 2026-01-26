@@ -40,6 +40,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const getStatusBadgeClass = (status: PurchaseRequestStatus) => {
   switch (status) {
@@ -269,7 +270,7 @@ const PurchaseRequestPage = () => {
                         {getStatusDisplay(request.status)}
                       </span>
                     </TableCell>
-                    <TableCell>{format(parseISO(request.created_at), "dd-MM-yyyy")}</TableCell>
+                    <TableCell>{formatDateSafely(request.created_at, "dd-MM-yyyy")}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

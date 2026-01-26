@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { Technician } from "@/types/data"; // Import Technician type
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const ITEMS_PER_PAGE = 10;
 
@@ -161,9 +162,7 @@ const TechnicianManagementPage = () => {
                     <TableCell>{technician.type}</TableCell>
                     <TableCell>{technician.city || "-"}</TableCell>
                     <TableCell>
-                      {technician.created_at
-                        ? format(new Date(technician.created_at), "dd MMM yyyy", { locale: idLocale })
-                        : "-"}
+                      {formatDateSafely(technician.created_at, "dd MMM yyyy")}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

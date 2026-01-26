@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { Profile } from "@/types/data"; // Import Profile type
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const ITEMS_PER_PAGE = 10;
 
@@ -180,9 +181,7 @@ const UserManagementPage = () => {
                     <TableCell>{user.role}</TableCell>
                     <TableCell>{user.phone_number || "-"}</TableCell>
                     <TableCell>
-                      {user.updated_at
-                        ? format(new Date(user.updated_at), "dd MMM yyyy, HH:mm", { locale: idLocale })
-                        : "-"}
+                      {formatDateSafely(user.updated_at, "dd MMM yyyy, HH:mm")}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>

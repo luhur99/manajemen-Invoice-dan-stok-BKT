@@ -1,8 +1,7 @@
 import React from "react";
 import { DialogDescription } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 export const ViewProductDetailsDialog = ({ product }) => {
   if (!product) {
@@ -55,13 +54,13 @@ export const ViewProductDetailsDialog = ({ product }) => {
         <div>
           <p className="text-sm font-medium text-gray-500">Dibuat Pada</p>
           <p className="text-base">
-            {product.created_at ? format(new Date(product.created_at), "dd MMMM yyyy, HH:mm", { locale: idLocale }) : "-"}
+            {formatDateSafely(product.created_at, "dd MMMM yyyy, HH:mm")}
           </p>
         </div>
         <div>
           <p className="text-sm font-medium text-gray-500">Diperbarui Pada</p>
           <p className="text-base">
-            {product.updated_at ? format(new Date(product.updated_at), "dd MMMM yyyy, HH:mm", { locale: idLocale }) : "-"}
+            {formatDateSafely(product.updated_at, "dd MMMM yyyy, HH:mm")}
           </p>
         </div>
       </div>

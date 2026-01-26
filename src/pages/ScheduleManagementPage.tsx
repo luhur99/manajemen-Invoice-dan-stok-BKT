@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const ScheduleManagementPage = () => {
   const queryClient = useQueryClient();
@@ -226,7 +227,7 @@ const ScheduleManagementPage = () => {
                         size="icon"
                         onClick={() => {
                           const scheduleUrl = `${window.location.origin}/schedules/${schedule.id}`;
-                          const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${format(new Date(schedule.schedule_date), 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
+                          const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${formatDateSafely(schedule.schedule_date, 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
                           window.open(`https://wa.me/?text=${whatsappText}`, '_blank');
                         }}
                         className="h-7 w-7"
@@ -235,7 +236,7 @@ const ScheduleManagementPage = () => {
                       </Button>
                     </div>
                   </TableCell>
-                  <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
+                  <TableCell>{formatDateSafely(schedule.schedule_date, "dd-MM-yyyy")}</TableCell>
                   <TableCell>{schedule.product_category ? schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</TableCell>
                   <TableCell>{schedule.schedule_time || "-"}</TableCell>
                   <TableCell>{schedule.customer_name}</TableCell> {/* Use schedule.customer_name directly */}

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Supplier } from "@/types/data";
-import { format } from "date-fns";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 interface ViewSupplierDetailsDialogProps {
   isOpen: boolean;
@@ -62,12 +62,12 @@ const ViewSupplierDetailsDialog: React.FC<ViewSupplierDetailsDialogProps> = ({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Dibuat Pada:</p>
-            <p>{format(new Date(supplier.created_at), "dd-MM-yyyy HH:mm")}</p>
+            <p>{formatDateSafely(supplier.created_at, "dd-MM-yyyy HH:mm")}</p>
           </div>
           {supplier.updated_at && (
             <div className="grid grid-cols-2 gap-2">
               <p className="font-medium">Terakhir Diperbarui:</p>
-              <p>{format(new Date(supplier.updated_at), "dd-MM-yyyy HH:mm")}</p>
+              <p>{formatDateSafely(supplier.updated_at, "dd-MM-yyyy HH:mm")}</p>
             </div>
           )}
         </div>

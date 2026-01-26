@@ -37,6 +37,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
 import TechnicianCombobox from "./TechnicianCombobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const formSchema = z.object({
   sr_number: z.string().optional().nullable(),
@@ -253,7 +254,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       form.setValue("company_name", customer.company_name || null);
       form.setValue("full_address", customer.address || "");
       form.setValue("phone_number", customer.phone_number || "");
-      setCustomerSearchInput(customer.customer_name);
       form.clearErrors(["customer_name", "company_name", "full_address", "phone_number"]);
     } else {
       form.setValue("customer_id", null);
@@ -292,7 +292,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
         vehicle_details: values.vehicle_details?.trim() || null,
         full_address: values.full_address.trim(),
         landmark: values.landmark?.trim() || null,
-        requested_date: format(values.requested_date, "yyyy-MM-dd"),
+        requested_date: formatDateSafely(values.requested_date, "yyyy-MM-dd"),
         requested_time: values.requested_time?.trim() || null,
         contact_person: values.contact_person.trim(),
         phone_number: values.phone_number.trim(),
@@ -498,7 +498,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                                 !field.value && "text-muted-foreground"
                               )}
                             >
-                              {field.value ? format(field.value, "PPP") : <span>Pilih tanggal</span>}
+                              {field.value ? formatDateSafely(field.value, "PPP") : <span>Pilih tanggal</span>}
                               <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                             </Button>
                           </FormControl>

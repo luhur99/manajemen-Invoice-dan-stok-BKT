@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { showError } from "@/utils/toast";
-import { format } from "date-fns";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 interface ViewStockItemDetailsDialogProps {
   product: Product;
@@ -204,7 +204,7 @@ const ViewStockItemDetailsDialog: React.FC<ViewStockItemDetailsDialogProps> = ({
                 ) : (
                   ledgerEntries?.map((entry) => ( // Changed to entry
                     <TableRow key={entry.id}>
-                      <TableCell>{format(new Date(entry.event_date), "dd-MM-yyyy")}</TableCell>
+                      <TableCell>{formatDateSafely(entry.event_date, "dd-MM-yyyy")}</TableCell>
                       <TableCell>{getEventTypeDisplay(entry.event_type)}</TableCell>
                       <TableCell>{entry.from_warehouse_category ? getCategoryDisplayName(entry.from_warehouse_category) : "-"}</TableCell>
                       <TableCell>{entry.to_warehouse_category ? getCategoryDisplayName(entry.to_warehouse_category) : "-"}</TableCell>

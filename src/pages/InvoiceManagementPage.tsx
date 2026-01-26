@@ -39,6 +39,7 @@ import {
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   switch (status) {
@@ -57,28 +58,18 @@ const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   }
 };
 
-const getDocumentStatusBadgeClass = (status: InvoiceDocumentStatus) => {
-  switch (status) {
-    case InvoiceDocumentStatus.COMPLETED:
-      return "bg-green-100 text-green-800";
-    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
-      return "bg-yellow-100 text-yellow-800";
-    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
-      return "bg-blue-100 text-blue-800";
-    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED:
-      return "bg-purple-100 text-purple-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
-
 const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
   switch (status) {
-    case InvoiceDocumentStatus.COMPLETED: return "Completed";
-    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV: return "Waiting Document";
-    case InvoiceDocumentStatus.DOCUMENT_INV_SENT: return "Document Sent";
-    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED: return "Document Received";
-    default: return "Unknown";
+    case InvoiceDocumentStatus.COMPLETED:
+      return "Completed";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
+      return "Waiting Document";
+    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
+      return "Document Sent";
+    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED:
+      return "Document Received";
+    default:
+      return "Unknown";
   }
 };
 
@@ -98,7 +89,8 @@ const InvoiceManagementPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("invoices")
-        .select(`
+        .select(
+          `
           id,
           invoice_number,
           invoice_date,
@@ -251,7 +243,7 @@ const InvoiceManagementPage = () => {
               invoices?.map((invoice) => ( // Use 'invoices' directly
                 <TableRow key={invoice.id}>
                   <TableCell>{invoice.invoice_number}</TableCell>
-                  <TableCell>{format(parseISO(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
+                  <TableCell>{formatDateSafely(invoice.invoice_date, "dd-MM-yyyy")}</TableCell>
                   <TableCell>{invoice.customer_name}</TableCell>
                   <TableCell>{invoice.company_name || "-"}</TableCell>
                   <TableCell>Rp {invoice.total_amount.toLocaleString('id-ID')}</TableCell>

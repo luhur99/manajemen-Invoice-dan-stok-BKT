@@ -19,6 +19,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 interface ViewInvoiceDetailsDialogProps {
   isOpen: boolean;
@@ -137,8 +138,8 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
           <div>
             <p><strong>Nomor Invoice:</strong> {invoice.invoice_number}</p>
-            <p><strong>Tanggal Invoice:</strong> {format(parseISO(invoice.invoice_date), "dd MMMM yyyy")}</p>
-            <p><strong>Tanggal Jatuh Tempo:</strong> {invoice.due_date ? format(parseISO(invoice.due_date), "dd MMMM yyyy") : "-"}</p>
+            <p><strong>Tanggal Invoice:</strong> {formatDateSafely(invoice.invoice_date, "dd MMMM yyyy")}</p>
+            <p><strong>Tanggal Jatuh Tempo:</strong> {formatDateSafely(invoice.due_date, "dd MMMM yyyy")}</p>
             <p><strong>Nama Pelanggan:</strong> {invoice.customer_name}</p>
             <p><strong>Nama Perusahaan:</strong> {invoice.company_name || "-"}</p>
             <p><strong>Tipe Invoice:</strong> {invoice.type ? invoice.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</p>
@@ -160,8 +161,8 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
                 {getDocumentStatusDisplay(invoice.invoice_status)}
               </span>
             </p>
-            <p><strong>Dibuat Pada:</strong> {format(parseISO(invoice.created_at), "dd MMMM yyyy HH:mm")}</p>
-            <p><strong>Terakhir Diperbarui:</strong> {format(parseISO(invoice.updated_at), "dd MMMM yyyy HH:mm")}</p>
+            <p><strong>Dibuat Pada:</strong> {formatDateSafely(invoice.created_at, "dd MMMM yyyy HH:mm")}</p>
+            <p><strong>Terakhir Diperbarui:</strong> {formatDateSafely(invoice.updated_at, "dd MMMM yyyy HH:mm")}</p>
             {invoice.document_url && (
               <p className="mt-2">
                 <strong>Dokumen:</strong>{" "}

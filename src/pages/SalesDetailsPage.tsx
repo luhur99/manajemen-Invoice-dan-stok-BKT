@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { format } from "date-fns";
 import { SalesDetail } from "@/types/data"; // Corrected import
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const SalesDetailsPage = () => {
   const queryClient = useQueryClient();
@@ -166,7 +167,7 @@ const SalesDetailsPage = () => {
             {salesDetails?.map((detail, index) => ( // Use 'salesDetails' directly
               <TableRow key={detail.id}>
                 <TableCell>{index + 1}</TableCell>
-                <TableCell>{format(new Date(detail.tanggal), "dd-MM-yyyy")}</TableCell>
+                <TableCell>{formatDateSafely(detail.tanggal, "dd-MM-yyyy")}</TableCell>
                 <TableCell>{detail.no_transaksi}</TableCell>
                 <TableCell>{detail.invoice_number}</TableCell>
                 <TableCell>{detail.customer}</TableCell>

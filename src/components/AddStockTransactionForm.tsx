@@ -23,6 +23,7 @@ import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { WarehouseCategory as WarehouseCategoryType, StockEventType, Product } from "@/types/data"; // Added Product
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -64,7 +65,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
       quantity: 1,
       warehouse_category: "",
       notes: "",
-      event_date: format(new Date(), "yyyy-MM-dd"),
+      event_date: formatDateSafely(new Date(), "yyyy-MM-dd"),
     },
   });
 
@@ -93,7 +94,7 @@ const AddStockTransactionForm: React.FC<AddStockTransactionFormProps> = ({
         quantity: 1,
         warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
         notes: "",
-        event_date: format(new Date(), "yyyy-MM-dd"),
+        event_date: formatDateSafely(new Date(), "yyyy-MM-dd"),
       });
     }
   }, [isOpen, initialProductId, initialEventType, form, warehouseCategories]);

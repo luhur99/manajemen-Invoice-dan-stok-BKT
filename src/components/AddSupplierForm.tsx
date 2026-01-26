@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { useSession } from "@/components/SessionContextProvider";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -197,7 +198,7 @@ const AddSupplierForm: React.FC<AddSupplierFormProps> = ({ onSuccess, isOpen, on
               )}
             />
             <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={addSupplierMutation.isPending}>
+              <Button type="submit" className="w-full" disabled={addSupplierMutation.isPending}>
                 {addSupplierMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (

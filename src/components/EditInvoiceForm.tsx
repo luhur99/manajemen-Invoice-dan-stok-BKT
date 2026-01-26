@@ -45,6 +45,7 @@ import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const formSchema = z.object({
   invoice_number: z.string().min(1, "Nomor Invoice harus diisi."),
@@ -284,8 +285,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         .from("invoices")
         .update({
           invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"),
-          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null,
+          invoice_date: formatDateSafely(values.invoice_date, "yyyy-MM-dd"),
+          due_date: values.due_date ? formatDateSafely(values.due_date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -423,7 +424,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                               )}
                             >
                               {field.value ? (
-                                format(field.value, "PPP")
+                                formatDateSafely(field.value, "PPP")
                               ) : (
                                 <span>Pilih tanggal</span>
                               )}
@@ -461,7 +462,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                               )}
                             >
                               {field.value ? (
-                                format(field.value, "PPP")
+                                formatDateSafely(field.value, "PPP")
                               ) : (
                                 <span>Pilih tanggal</span>
                               )}
@@ -718,8 +719,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
-                {updateInvoiceMutation.isPending ? (
+              <Button type="submit" disabled={addInvoiceMutation.isPending}>
+                {addInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   "Simpan Invoice"
@@ -733,4 +734,4 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
   );
 };
 
-export default EditInvoiceForm;
+export default AddInvoiceForm;

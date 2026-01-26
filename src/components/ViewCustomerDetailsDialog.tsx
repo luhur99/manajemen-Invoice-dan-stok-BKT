@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Customer, CustomerTypeEnum } from "@/types/data";
-import { format } from "date-fns";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 interface ViewCustomerDetailsDialogProps {
   isOpen: boolean;
@@ -58,12 +58,12 @@ const ViewCustomerDetailsDialog: React.FC<ViewCustomerDetailsDialogProps> = ({
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Dibuat Pada:</p>
-            <p>{format(new Date(customer.created_at), "dd-MM-yyyy HH:mm")}</p>
+            <p>{formatDateSafely(customer.created_at, "dd-MM-yyyy HH:mm")}</p>
           </div>
           {customer.updated_at && (
             <div className="grid grid-cols-2 gap-2">
               <p className="font-medium">Terakhir Diperbarui:</p>
-              <p>{format(new Date(customer.updated_at), "dd-MM-yyyy HH:mm")}</p>
+              <p>{formatDateSafely(customer.updated_at, "dd-MM-yyyy HH:mm")}</p>
             </div>
           )}
         </div>

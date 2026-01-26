@@ -11,6 +11,7 @@ import { Loader2, ArrowLeft, Share2, Printer } from "lucide-react";
 import { showError } from "@/utils/toast";
 import { format, parseISO } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const ScheduleDetailPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -97,7 +98,7 @@ const ScheduleDetailPage = () => {
   }
 
   const scheduleUrl = `${window.location.origin}/schedules/${schedule.id}`;
-  const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${format(new Date(schedule.schedule_date), 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nTeknisi: ${schedule.technician_name || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
+  const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${formatDateSafely(schedule.schedule_date, 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nTeknisi: ${schedule.technician_name || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
 
   return (
     <div className="space-y-6 p-4">
@@ -132,7 +133,7 @@ const ScheduleDetailPage = () => {
             <p><strong>DO Number:</strong> {schedule.do_number || '-'}</p>
             <p><strong>Tipe:</strong> {schedule.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
             <p><strong>Kategori Produk:</strong> {schedule.product_category ? schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : '-'}</p>
-            <p><strong>Tanggal Jadwal:</strong> {format(new Date(schedule.schedule_date), "dd MMMM yyyy")}</p>
+            <p><strong>Tanggal Jadwal:</strong> {formatDateSafely(schedule.schedule_date, "dd MMMM yyyy")}</p>
             <p><strong>Waktu Jadwal:</strong> {schedule.schedule_time || '-'}</p>
             <p><strong>Status:</strong> {schedule.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
             <p><strong>Teknisi:</strong> {schedule.technician_name || '-'}</p>
@@ -164,8 +165,8 @@ const ScheduleDetailPage = () => {
             )}
           </div>
           <div className="md:col-span-2 text-sm text-muted-foreground mt-4">
-            <p>Dibuat pada: {format(parseISO(schedule.created_at), 'dd MMMM yyyy HH:mm')}</p>
-            <p>Terakhir diperbarui: {format(parseISO(schedule.updated_at), 'dd MMMM yyyy HH:mm')}</p>
+            <p>Dibuat pada: {formatDateSafely(schedule.created_at, 'dd MMMM yyyy HH:mm')}</p>
+            <p>Terakhir diperbarui: {formatDateSafely(schedule.updated_at, 'dd MMMM yyyy HH:mm')}</p>
           </div>
         </CardContent>
       </Card>

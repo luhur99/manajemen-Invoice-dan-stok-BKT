@@ -19,6 +19,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -262,7 +263,7 @@ const DashboardOverviewPage = () => {
               {latestActivities.map((activity) => (
                 <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
                   <span>{activity.description}</span>
-                  <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
+                  <span className="text-xs text-muted-foreground">{formatDateSafely(activity.date, 'dd MMM yyyy HH:mm')}</span>
                 </li>
               ))}
             </ul>

@@ -37,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const SupplierManagementPage = () => {
   const queryClient = useQueryClient();
