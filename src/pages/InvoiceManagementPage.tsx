@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -21,8 +19,8 @@ import {
   DialogTitle, // Added import
   DialogDescription, // Added import
 } from "@/components/ui/dialog";
-import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, Invoice } from "@/types/data"; // Changed InvoiceWithDetails to Invoice for main list
+import { format, startOfDay, endOfDay, parseISO } from "date-fns";
+import { InvoicePaymentStatus, InvoiceDocumentStatus, Invoice } from "@/types/data";
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
@@ -100,6 +98,7 @@ const InvoiceManagementPage = () => {
         .from("invoices")
         .select(`
           id,
+          user_id,
           invoice_number,
           invoice_date,
           customer_name,
@@ -108,6 +107,7 @@ const InvoiceManagementPage = () => {
           payment_status,
           invoice_status,
           document_url,
+          created_at,
           updated_at,
           due_date,
           type,
@@ -115,7 +115,7 @@ const InvoiceManagementPage = () => {
           payment_method,
           notes,
           courier_service
-        `) // Optimized select statement
+        `)
         .order("invoice_date", { ascending: false });
 
       if (debouncedSearchTerm) {

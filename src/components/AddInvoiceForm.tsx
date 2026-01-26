@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useEffect, useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -146,8 +144,12 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
   const watchedInvoiceType = form.watch("type");
 
+  // Track if dialog just opened to initialize search inputs
+  const prevIsOpenRef = useRef(isOpen);
+
   React.useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
+      // Dialog just opened - reset form
       let defaultNotes = "";
       if (initialSchedule?.do_number) {
         defaultNotes = `DO Number: ${initialSchedule.do_number}`;
@@ -168,23 +170,27 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
         items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
       });
-      setItemSearchInputs(fields.map(item => item.item_name || ""));
+      setItemSearchInputs([""]);
       setActiveTab("basic_info");
     }
-  }, [isOpen, initialSchedule, form, fields]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialSchedule, form]);
 
+  // Update search inputs when fields length changes (item added/removed)
   React.useEffect(() => {
-    setItemSearchInputs(fields.map(item => item.item_name || ""));
-  }, [fields]);
+    setItemSearchInputs(prev => {
+      if (prev.length !== fields.length) {
+        return fields.map((item, i) => prev[i] ?? item.item_name ?? "");
+      }
+      return prev;
+    });
+  }, [fields.length]);
 
-  const calculateTotalAmount = React.useCallback(() => {
-    const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
+  // Calculate total amount when fields change
+  React.useEffect(() => {
+    const total = fields.reduce((sum, item) => sum + (item.subtotal || 0), 0);
     form.setValue("total_amount", total);
   }, [fields, form]);
-
-  React.useEffect(() => {
-    calculateTotalAmount();
-  }, [fields, calculateTotalAmount]);
 
   const handleProductSelect = (index: number, productId: string | undefined) => {
     const selectedProduct = products?.find(p => p.id === productId);

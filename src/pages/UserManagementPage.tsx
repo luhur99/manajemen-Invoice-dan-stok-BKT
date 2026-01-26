@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Terminal, Edit, Trash2, Loader2, KeyRound } from "lucide-react"; // Added KeyRound icon
@@ -73,7 +71,7 @@ const UserManagementPage = () => {
           user.email.toLowerCase().includes(lowerCaseSearchTerm) ||
           user.profiles?.first_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
           user.profiles?.last_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-          user.profiles?.role.toLowerCase().includes(lowerCaseSearchTerm)
+          user.profiles?.role?.toLowerCase().includes(lowerCaseSearchTerm)
         );
       }
       return allUsers;
@@ -249,7 +247,7 @@ const UserManagementPage = () => {
                       <TableCell>{startIndex + index + 1}</TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>{`${user.profiles?.first_name || ''} ${user.profiles?.last_name || ''}`.trim() || '-'}</TableCell>
-                      <TableCell>{user.profiles?.role.charAt(0).toUpperCase() + user.profiles?.role.slice(1)}</TableCell>
+                      <TableCell>{user.profiles?.role ? user.profiles.role.charAt(0).toUpperCase() + user.profiles.role.slice(1) : '-'}</TableCell>
                       <TableCell>{user.created_at ? format(new Date(user.created_at), "dd-MM-yyyy HH:mm") : "-"}</TableCell>
                       <TableCell>{user.last_sign_in_at ? format(new Date(user.last_sign_in_at), "dd-MM-yyyy HH:mm") : "-"}</TableCell>
                       <TableCell className="text-center flex items-center justify-center space-x-1">

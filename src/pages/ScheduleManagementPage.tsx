@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Schedule, ScheduleProductCategory, ScheduleType, ScheduleStatus } from "@/types/data";
@@ -269,16 +267,6 @@ const ScheduleManagementPage = () => {
           </TableBody>
         </Table>
       </div>
-
-      <AddEditScheduleForm
-        isOpen={isAddEditFormOpen}
-        onOpenChange={setIsAddEditFormOpen}
-        onSuccess={() => {
-          setIsAddEditFormOpen(false);
-          setEditingSchedule(null);
-        }}
-        initialData={editingSchedule}
-      />
     </div>
   );
 };

@@ -1,17 +1,8 @@
-"use client";
-
-import React, { useEffect, useState, useMemo } from "react";
+import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReceiptText, CalendarDays, Package, ShoppingCart, Terminal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartConfig,
-} from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -27,22 +18,6 @@ interface LatestActivity {
   description: string;
   date: string; // ISO date string
 }
-
-// Chart configuration (kept for potential future use or other charts, but not used for monthly summaries anymore)
-const chartConfig = {
-  invoices: {
-    label: "Invoices",
-    color: "hsl(var(--primary))",
-  },
-  stock_in: {
-    label: "Stok Masuk",
-    color: "hsl(142.1 76.2% 36.3%)", // Green
-  },
-  stock_out: {
-    label: "Stok Keluar",
-    color: "hsl(0 84.2% 60.2%)", // Red
-  },
-} satisfies ChartConfig;
 
 const DashboardOverviewPage = () => {
   const { session } = useSession();

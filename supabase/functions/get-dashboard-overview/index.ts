@@ -189,7 +189,7 @@ serve(async (req) => {
       });
     });
     recentStockLedgerData.forEach(entry => {
-      const itemName = entry.products?.[0]?.nama_barang || "Item Tidak Dikenal";
+      const itemName = entry.products?.nama_barang || "Item Tidak Dikenal";
       let desc = "";
       if (['in', 'initial'].includes(entry.event_type) && entry.quantity > 0) {
         const toCategory = entry.to_warehouse_category ? ` di ${getCategoryDisplayName(entry.to_warehouse_category)}` : "";
@@ -227,8 +227,11 @@ serve(async (req) => {
     // --- New: Fetch data for current month summaries ---
     console.log('Fetching current month summaries...');
     const now = new Date();
-    const startOfCurrentMonth = format(startOfMonth(now), "yyyy-MM-dd");
-    const endOfCurrentMonth = format(endOfMonth(now), "yyyy-MM-dd");
+    const startOfCurrentMonthDate = startOfMonth(now);
+    const endOfCurrentMonthDate = endOfMonth(now);
+    // Use ISO string format for proper timestamp comparison
+    const startOfCurrentMonth = startOfCurrentMonthDate.toISOString();
+    const endOfCurrentMonth = endOfCurrentMonthDate.toISOString();
 
     // Total Invoices This Month
     const { count: totalInvoicesThisMonth, error: currentMonthInvoicesError } = await supabaseAdminClient
