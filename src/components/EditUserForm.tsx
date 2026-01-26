@@ -20,6 +20,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Profile } from "@/types/data"; // Import Profile type
+import { useMutation, useQueryClient } from "@tanstack/react-query"; // Added imports
 
 // Define UserProfileWithAuth type as it's used in UserManagementPage
 interface UserProfileWithAuth extends Profile {
@@ -43,7 +44,7 @@ interface EditUserFormProps {
 }
 
 const EditUserForm: React.FC<EditUserFormProps> = ({ user, isOpen, onOpenChange, onSuccess }) => {
-  const queryClient = useQueryClient();
+  const queryClient = useQueryClient(); // Corrected
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -65,7 +66,7 @@ const EditUserForm: React.FC<EditUserFormProps> = ({ user, isOpen, onOpenChange,
     }
   }, [isOpen, user, form]);
 
-  const updateProfileMutation = useMutation({
+  const updateProfileMutation = useMutation({ // Corrected
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       // Update the role in the profiles table
       const { error: updateProfileError } = await supabase

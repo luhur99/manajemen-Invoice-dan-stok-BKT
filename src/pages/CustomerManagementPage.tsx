@@ -121,7 +121,7 @@ const CustomerManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Tambah Pelanggan Baru</DialogTitle>
             </DialogHeader>
-            <AddCustomerForm onSuccess={() => setIsAddCustomerDialogOpen(false)} isOpen={isAddCustomerDialogOpen} onOpenChange={setIsAddCustomerDialogOpen} />
+            <AddCustomerForm onSuccess={() => setIsAddCustomerDialogOpen(false)} /> {/* Removed isOpen and onOpenChange */}
           </DialogContent>
         </Dialog>
       </CardHeader>
