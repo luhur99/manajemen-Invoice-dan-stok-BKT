@@ -10,13 +10,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { toast } from "sonner";
 import { Loader2, PlusCircle, Edit, Trash2, Eye, MoreHorizontal } from "lucide-react";
 import { useDebounce } from "react-use";
-import { AddTechnicianForm } from "@/components/technicians/AddTechnicianForm";
-import { EditTechnicianForm } from "@/components/technicians/EditTechnicianForm";
-import { ViewTechnicianDetailsDialog } from "@/components/technicians/ViewTechnicianDetailsDialog";
+import AddEditTechnicianForm from "@/components/AddEditTechnicianForm"; // Corrected import path
+import ViewTechnicianDetailsDialog from "@/components/ViewTechnicianDetailsDialog"; // Corrected import path
 import PaginationControls from "@/components/PaginationControls";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { Technician } from "@/types/data"; // Import Technician type
 
 const ITEMS_PER_PAGE = 10;
 
@@ -27,7 +27,7 @@ const TechnicianManagementPage = () => {
   const [isAddTechnicianDialogOpen, setIsAddTechnicianDialogOpen] = useState(false);
   const [isEditTechnicianDialogOpen, setIsEditTechnicianDialogOpen] = useState(false);
   const [isViewTechnicianDetailsDialogOpen, setIsViewTechnicianDetailsDialogOpen] = useState(false);
-  const [selectedTechnician, setSelectedTechnician] = useState(null);
+  const [selectedTechnician, setSelectedTechnician] = useState<Technician | null>(null); // Use Technician type
 
   useDebounce(() => {
     setDebouncedSearchTerm(searchTerm);
@@ -36,7 +36,7 @@ const TechnicianManagementPage = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: techniciansData, isLoading, isError, error } = useQuery({
+  const { data: techniciansData, isLoading, isError, error } = useQuery<{ data: Technician[]; count: number }, Error>({
     queryKey: ["technicians", debouncedSearchTerm, currentPage],
     queryFn: async () => {
       const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -68,12 +68,12 @@ const TechnicianManagementPage = () => {
       const { data, error, count } = await query.range(start, end);
 
       if (error) throw error;
-      return { data, count };
+      return { data: data as Technician[], count };
     },
   });
 
   const deleteTechnicianMutation = useMutation({
-    mutationFn: async (id) => {
+    mutationFn: async (id: string) => { // Explicitly type id
       const { error } = await supabase.from("technicians").delete().eq("id", id);
       if (error) throw error;
     },
@@ -86,7 +86,7 @@ const TechnicianManagementPage = () => {
     },
   });
 
-  const handleDeleteTechnician = (id) => {
+  const handleDeleteTechnician = (id: string) => { // Explicitly type id
     deleteTechnicianMutation.mutate(id);
   };
 
@@ -121,7 +121,7 @@ const TechnicianManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Tambah Teknisi Baru</DialogTitle>
             </DialogHeader>
-            <AddTechnicianForm onSuccess={() => setIsAddTechnicianDialogOpen(false)} />
+            <AddEditTechnicianForm onSuccess={() => setIsAddTechnicianDialogOpen(false)} isOpen={isAddTechnicianDialogOpen} onOpenChange={setIsAddTechnicianDialogOpen} />
           </DialogContent>
         </Dialog>
       </CardHeader>
@@ -223,7 +223,7 @@ const TechnicianManagementPage = () => {
         </div>
         <PaginationControls
           currentPage={currentPage}
-          pageCount={pageCount} // Corrected prop name
+          pageCount={pageCount}
           onPageChange={setCurrentPage}
         />
 
@@ -234,9 +234,11 @@ const TechnicianManagementPage = () => {
               <DialogTitle>Edit Teknisi</DialogTitle>
             </DialogHeader>
             {selectedTechnician && (
-              <EditTechnicianForm
-                technician={selectedTechnician}
+              <AddEditTechnicianForm // Re-using AddEditTechnicianForm for editing
+                initialData={selectedTechnician}
                 onSuccess={() => setIsEditTechnicianDialogOpen(false)}
+                isOpen={isEditTechnicianDialogOpen}
+                onOpenChange={setIsEditTechnicianDialogOpen}
               />
             )}
           </DialogContent>
@@ -248,7 +250,7 @@ const TechnicianManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Detail Teknisi</DialogTitle>
             </DialogHeader>
-            {selectedTechnician && <ViewTechnicianDetailsDialog technician={selectedTechnician} />}
+            {selectedTechnician && <ViewTechnicianDetailsDialog technician={selectedTechnician} isOpen={isViewTechnicianDetailsDialogOpen} onOpenChange={setIsViewTechnicianDetailsDialogOpen} />}
           </DialogContent>
         </Dialog>
       </CardContent>

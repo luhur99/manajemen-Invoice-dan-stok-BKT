@@ -10,13 +10,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { toast } from "sonner";
 import { Loader2, PlusCircle, Edit, Trash2, Eye, MoreHorizontal } from "lucide-react";
 import { useDebounce } from "react-use";
-import { AddCustomerForm } from "@/components/customers/AddCustomerForm";
-import { EditCustomerForm } from "@/components/customers/EditCustomerForm";
-import { ViewCustomerDetailsDialog } from "@/components/customers/ViewCustomerDetailsDialog";
+import AddCustomerForm from "@/components/AddCustomerForm"; // Corrected import path
+import EditCustomerForm from "@/components/EditCustomerForm"; // Corrected import path
+import ViewCustomerDetailsDialog from "@/components/ViewCustomerDetailsDialog"; // Corrected import path
 import PaginationControls from "@/components/PaginationControls";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
+import { Customer } from "@/types/data"; // Import Customer type
 
 const ITEMS_PER_PAGE = 10;
 
@@ -27,7 +28,7 @@ const CustomerManagementPage = () => {
   const [isAddCustomerDialogOpen, setIsAddCustomerDialogOpen] = useState(false);
   const [isEditCustomerDialogOpen, setIsEditCustomerDialogOpen] = useState(false);
   const [isViewCustomerDetailsDialogOpen, setIsViewCustomerDetailsDialogOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null); // Use Customer type
 
   useDebounce(() => {
     setDebouncedSearchTerm(searchTerm);
@@ -36,7 +37,7 @@ const CustomerManagementPage = () => {
 
   const queryClient = useQueryClient();
 
-  const { data: customersData, isLoading, isError, error } = useQuery({
+  const { data: customersData, isLoading, isError, error } = useQuery<{ data: Customer[]; count: number }, Error>({
     queryKey: ["customers", debouncedSearchTerm, currentPage],
     queryFn: async () => {
       const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -67,12 +68,12 @@ const CustomerManagementPage = () => {
       const { data, error, count } = await query.range(start, end);
 
       if (error) throw error;
-      return { data, count };
+      return { data: data as Customer[], count };
     },
   });
 
   const deleteCustomerMutation = useMutation({
-    mutationFn: async (id) => {
+    mutationFn: async (id: string) => { // Explicitly type id
       const { error } = await supabase.from("customers").delete().eq("id", id);
       if (error) throw error;
     },
@@ -85,7 +86,7 @@ const CustomerManagementPage = () => {
     },
   });
 
-  const handleDeleteCustomer = (id) => {
+  const handleDeleteCustomer = (id: string) => { // Explicitly type id
     deleteCustomerMutation.mutate(id);
   };
 
@@ -120,7 +121,7 @@ const CustomerManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Tambah Pelanggan Baru</DialogTitle>
             </DialogHeader>
-            <AddCustomerForm onSuccess={() => setIsAddCustomerDialogOpen(false)} />
+            <AddCustomerForm onSuccess={() => setIsAddCustomerDialogOpen(false)} isOpen={isAddCustomerDialogOpen} onOpenChange={setIsAddCustomerDialogOpen} />
           </DialogContent>
         </Dialog>
       </CardHeader>
@@ -222,7 +223,7 @@ const CustomerManagementPage = () => {
         </div>
         <PaginationControls
           currentPage={currentPage}
-          pageCount={pageCount} // Corrected prop name
+          pageCount={pageCount}
           onPageChange={setCurrentPage}
         />
 
@@ -236,6 +237,8 @@ const CustomerManagementPage = () => {
               <EditCustomerForm
                 customer={selectedCustomer}
                 onSuccess={() => setIsEditCustomerDialogOpen(false)}
+                isOpen={isEditCustomerDialogOpen}
+                onOpenChange={setIsEditCustomerDialogOpen}
               />
             )}
           </DialogContent>
@@ -247,7 +250,7 @@ const CustomerManagementPage = () => {
             <DialogHeader>
               <DialogTitle>Detail Pelanggan</DialogTitle>
             </DialogHeader>
-            {selectedCustomer && <ViewCustomerDetailsDialog customer={selectedCustomer} />}
+            {selectedCustomer && <ViewCustomerDetailsDialog customer={selectedCustomer} isOpen={isViewCustomerDetailsDialogOpen} onClose={() => setIsViewCustomerDetailsDialogOpen(false)} />}
           </DialogContent>
         </Dialog>
       </CardContent>
