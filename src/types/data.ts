@@ -68,6 +68,7 @@ export enum WarehouseCategoryEnum {
   GUDANG_TRANSIT = "gudang_transit",
   GUDANG_TEKNISI = "gudang_teknisi",
   GUDANG_RETUR = "gudang_retur",
+  SIAP_JUAL = "siap_jual", // Added 'siap_jual'
 }
 
 export enum EventTypeEnum {
