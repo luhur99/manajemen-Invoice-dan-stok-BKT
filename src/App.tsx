@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from "react"; // Added useEffect
+import React, { Suspense } from "react"; 
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +10,7 @@ import AuthPage from "./pages/AuthPage";
 import { SessionContextProvider } from "./components/SessionContextProvider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client"; // Import supabase client
+// import { supabase } from "@/integrations/supabase/client"; // Removed temporary import
 
 // Lazy-loaded page components
 const DashboardOverviewPage = React.lazy(() => import("./pages/DashboardOverviewPage"));
@@ -45,20 +45,7 @@ const queryClient = new QueryClient({
 });
 
 const App = () => {
-  useEffect(() => {
-    const checkSupabaseConnection = async () => {
-      console.log("Checking Supabase connection...");
-      const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error("Supabase connection error:", error.message);
-      } else if (data.session) {
-        console.log("Supabase connected. User session:", data.session.user.email);
-      } else {
-        console.log("Supabase connected, no active session.");
-      }
-    };
-    checkSupabaseConnection();
-  }, []);
+  // Removed temporary useEffect for Supabase connection check
 
   return (
     <QueryClientProvider client={queryClient}>
