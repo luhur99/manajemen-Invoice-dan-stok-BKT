@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { SalesDetail } from "@/types/data";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
+import { format } from "date-fns";
 
 interface ViewSalesDetailDialogProps {
   salesDetail: SalesDetail;
@@ -37,7 +37,7 @@ const ViewSalesDetailDialog: React.FC<ViewSalesDetailDialogProps> = ({
             <p><strong>No. Invoice:</strong> {salesDetail.invoice_number}</p>
             <p><strong>Baru/Lama:</strong> {salesDetail.new_old || "-"}</p>
             <p><strong>Perusahaan:</strong> {salesDetail.perusahaan || "-"}</p>
-            <p><strong>Tanggal:</strong> {formatDateSafely(salesDetail.tanggal, "dd-MM-yyyy")}</p>
+            <p><strong>Tanggal:</strong> {format(new Date(salesDetail.tanggal), "dd-MM-yyyy")}</p>
             <p><strong>Hari:</strong> {salesDetail.hari || "-"}</p>
             <p><strong>Jam:</strong> {salesDetail.jam || "-"}</p>
             <p><strong>Pelanggan:</strong> {salesDetail.customer}</p>

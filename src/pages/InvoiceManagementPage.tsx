@@ -22,7 +22,7 @@ import {
   DialogDescription, // Added import
 } from "@/components/ui/dialog";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, Invoice } from "@/types/data"; // Changed InvoiceWithDetails to Invoice for main list
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data";
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
@@ -39,7 +39,6 @@ import {
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   switch (status) {
@@ -58,6 +57,21 @@ const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   }
 };
 
+const getDocumentStatusBadgeClass = (status: InvoiceDocumentStatus) => {
+  switch (status) {
+    case InvoiceDocumentStatus.COMPLETED:
+      return "bg-green-100 text-green-800";
+    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
+      return "bg-yellow-100 text-yellow-800";
+    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
+      return "bg-blue-100 text-blue-800";
+    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED:
+      return "bg-purple-100 text-purple-800";
+    default:
+      return "bg-gray-100 text-gray-800";
+  }
+};
+
 const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
   switch (status) {
     case InvoiceDocumentStatus.COMPLETED: return "Completed";
@@ -68,56 +82,51 @@ const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
   }
 };
 
-// New helper function for document status badge class
-const getDocumentStatusBadgeClass = (status: InvoiceDocumentStatus) => {
-  switch (status) {
-    case InvoiceDocumentStatus.COMPLETED:
-    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED:
-      return "bg-green-100 text-green-800";
-    case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
-      return "bg-yellow-100 text-yellow-800";
-    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
-      return "bg-blue-100 text-blue-800";
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-};
-
 const InvoiceManagementPage = () => {
   const queryClient = useQueryClient();
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null); // Changed to Invoice
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const { data: invoices, isLoading, error } = useQuery<Invoice[], Error>({ // Changed to Invoice[]
+  const { data: invoices, isLoading, error } = useQuery<InvoiceWithDetails[], Error>({
     queryKey: ["invoices", debouncedSearchTerm, dateRange], // Include debounced search term and date range
     queryFn: async () => {
       let query = supabase
         .from("invoices")
-        .select(
-          `
+        .select(`
           id,
+          user_id,
           invoice_number,
           invoice_date,
+          due_date,
           customer_name,
           company_name,
           total_amount,
           payment_status,
-          invoice_status,
-          document_url,
-          updated_at,
-          due_date,
+          created_at,
           type,
           customer_type,
           payment_method,
           notes,
-          courier_service
-        `) // Optimized select statement
+          document_url,
+          courier_service,
+          invoice_status,
+          updated_at,
+          invoice_items (
+            id,
+            item_name,
+            item_code,
+            quantity,
+            unit_price,
+            subtotal,
+            unit_type
+          )
+        `)
         .order("invoice_date", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -138,7 +147,7 @@ const InvoiceManagementPage = () => {
         showError("Gagal memuat invoice.");
         throw error;
       }
-      return data as Invoice[]; // Cast to Invoice[]
+      return data as InvoiceWithDetails[];
     },
   });
 
@@ -162,20 +171,44 @@ const InvoiceManagementPage = () => {
     }
   };
 
-  const handleEdit = (invoice: Invoice) => { // Changed to Invoice
+  const handleEdit = (invoice: InvoiceWithDetails) => {
     setSelectedInvoice(invoice);
     setIsEditFormOpen(true);
   };
 
-  const handleViewDetails = (invoice: Invoice) => { // Changed to Invoice
+  const handleViewDetails = (invoice: InvoiceWithDetails) => {
     setSelectedInvoice(invoice);
     setIsViewDetailsOpen(true);
   };
 
-  const handleUploadDocument = (invoice: Invoice) => { // Changed to Invoice
+  const handleUploadDocument = (invoice: InvoiceWithDetails) => {
     setSelectedInvoice(invoice);
     setIsUploadDialogOpen(true);
   };
+
+  // No need for local filtering anymore, as the query itself is filtered
+  // const filteredInvoices = useMemo(() => {
+  //   if (!invoices) return [];
+  //   return invoices.filter((invoice) => {
+  //     const searchLower = searchTerm.toLowerCase();
+  //     const matchesSearch =
+  //       invoice.invoice_number.toLowerCase().includes(searchLower) ||
+  //       invoice.customer_name.toLowerCase().includes(searchLower) ||
+  //       invoice.company_name?.toLowerCase().includes(searchLower) ||
+  //       invoice.payment_status.toLowerCase().includes(searchLower) ||
+  //       invoice.type?.toLowerCase().includes(searchLower);
+
+  //     const invoiceDate = parseISO(invoice.invoice_date);
+  //     const matchesDateRange = dateRange?.from
+  //       ? isWithinInterval(invoiceDate, {
+  //           start: startOfDay(dateRange.from),
+  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
+  //         })
+  //       : true;
+
+  //     return matchesSearch && matchesDateRange;
+  //   });
+  // }, [invoices, searchTerm, dateRange]);
 
   if (isLoading) {
     return (
@@ -253,7 +286,7 @@ const InvoiceManagementPage = () => {
               invoices?.map((invoice) => ( // Use 'invoices' directly
                 <TableRow key={invoice.id}>
                   <TableCell>{invoice.invoice_number}</TableCell>
-                  <TableCell>{formatDateSafely(invoice.invoice_date, "dd-MM-yyyy")}</TableCell>
+                  <TableCell>{format(parseISO(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
                   <TableCell>{invoice.customer_name}</TableCell>
                   <TableCell>{invoice.company_name || "-"}</TableCell>
                   <TableCell>Rp {invoice.total_amount.toLocaleString('id-ID')}</TableCell>
@@ -310,7 +343,7 @@ const InvoiceManagementPage = () => {
             onSuccess={() => setIsEditFormOpen(false)}
           />
           <ViewInvoiceDetailsDialog
-            invoiceId={selectedInvoice.id} // Pass only ID
+            invoice={selectedInvoice}
             isOpen={isViewDetailsOpen}
             onOpenChange={setIsViewDetailsOpen}
           />

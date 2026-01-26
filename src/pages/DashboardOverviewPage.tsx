@@ -19,7 +19,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -80,7 +79,7 @@ const DashboardOverviewPage = () => {
       }
     },
     enabled: !!session, // Only fetch when session is available!
-    retry: 1, // Limit retries to 1 attempt
+    retry: 1, // Limit retries to prevent endless loops on error
     staleTime: 5 * 60 * 1000, // Data is considered fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Cache data for 10 minutes
   });
@@ -263,7 +262,7 @@ const DashboardOverviewPage = () => {
               {latestActivities.map((activity) => (
                 <li key={activity.id} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
                   <span>{activity.description}</span>
-                  <span className="text-xs text-muted-foreground">{formatDateSafely(activity.date, 'dd MMM yyyy HH:mm')}</span>
+                  <span className="text-xs text-muted-foreground">{format(parseISO(activity.date), 'dd MMM yyyy HH:mm')}</span>
                 </li>
               ))}
             </ul>

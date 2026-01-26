@@ -15,7 +15,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { format } from "date-fns";
 import { SalesDetail } from "@/types/data"; // Corrected import
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const SalesDetailsPage = () => {
   const queryClient = useQueryClient();
@@ -33,37 +32,7 @@ const SalesDetailsPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("sales_details")
-        .select(`
-          id,
-          user_id,
-          no,
-          kirim_install,
-          no_transaksi,
-          invoice_number,
-          new_old,
-          perusahaan,
-          tanggal,
-          hari,
-          jam,
-          customer,
-          alamat_install,
-          no_hp,
-          type,
-          qty_unit,
-          stock,
-          harga,
-          web,
-          qty_web,
-          kartu,
-          qty_kartu,
-          paket,
-          pulsa,
-          teknisi,
-          payment,
-          catatan,
-          created_at,
-          updated_at
-        `) // Select all fields as they are used in ViewSalesDetailDialog and EditSalesDetailForm
+        .select("*")
         .order("tanggal", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -75,7 +44,7 @@ const SalesDetailsPage = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data as SalesDetail[];
+      return data;
     },
   });
 
@@ -119,6 +88,19 @@ const SalesDetailsPage = () => {
       deleteSalesDetailMutation.mutate(selectedSalesDetail.id);
     }
   };
+
+  // No need for local filtering anymore
+  // const filteredSalesDetails = salesDetails?.filter((item) => {
+  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  //   return (
+  //     item.customer.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.no_transaksi.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.perusahaan?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     item.teknisi?.toLowerCase().includes(lowerCaseSearchTerm) ||
+  //     format(new Date(item.tanggal), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
+  //   );
+  // });
 
   if (isLoading) {
     return (
@@ -167,7 +149,7 @@ const SalesDetailsPage = () => {
             {salesDetails?.map((detail, index) => ( // Use 'salesDetails' directly
               <TableRow key={detail.id}>
                 <TableCell>{index + 1}</TableCell>
-                <TableCell>{formatDateSafely(detail.tanggal, "dd-MM-yyyy")}</TableCell>
+                <TableCell>{format(new Date(detail.tanggal), "dd-MM-yyyy")}</TableCell>
                 <TableCell>{detail.no_transaksi}</TableCell>
                 <TableCell>{detail.invoice_number}</TableCell>
                 <TableCell>{detail.customer}</TableCell>

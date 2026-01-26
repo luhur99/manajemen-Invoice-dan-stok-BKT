@@ -3,15 +3,14 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay, isValid } from "date-fns"; // Pastikan isValid diimpor
+import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } from "date-fns";
 import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
 import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician } from "@/types/data";
-import { Loader2, User, Clock, MapPin, Info, AlertTriangle, Package } from "lucide-react";
+import { Loader2, User, Clock, MapPin, Info, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { formatDateSafely } from "@/lib/utils";
 
 interface TechnicianScheduleCalendarProps {
   // No props needed for now
@@ -37,13 +36,13 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     queryFn: async () => {
       const { data, error } = await supabase
         .from("technicians")
-        .select("*") // Select all columns to match Technician interface
+        .select("*")
         .order("name", { ascending: true });
       if (error) {
         showError("Gagal memuat daftar teknisi.");
         throw error;
       }
-      return data as Technician[];
+      return data;
     },
   });
 
@@ -78,14 +77,14 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     queryFn: async () => {
       const { data, error } = await supabase
         .from("warehouse_categories")
-        .select("id, name, code") // Select specific columns
+        .select("*")
         .order("name", { ascending: true });
 
       if (error) {
         showError("Gagal memuat kategori gudang.");
         throw error;
       }
-      return data as WarehouseCategoryType[];
+      return data;
     },
   });
 
@@ -97,7 +96,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
 
       const { data, error } = await supabase
         .from("schedules")
-        .select("*") // Select all columns for Schedule interface
+        .select("*")
         .gte("schedule_date", startOfMonthDate)
         .lte("schedule_date", endOfMonthDate)
         .order("schedule_date", { ascending: true })
@@ -113,10 +112,7 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
   const selectedDaySchedules = useMemo(() => {
     if (!date) return [];
     const normalizedSelectedDate = startOfDay(date);
-    return schedules.filter(s => {
-      const scheduleDate = parseISO(s.schedule_date);
-      return isValid(scheduleDate) && isSameDay(startOfDay(scheduleDate), normalizedSelectedDate);
-    });
+    return schedules.filter(s => isSameDay(startOfDay(parseISO(s.schedule_date)), normalizedSelectedDate));
   }, [date, schedules]);
 
   const technicianDayModifiers = useMemo(() => {
@@ -126,12 +122,10 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
     });
 
     schedules.forEach(s => {
-      const scheduleDate = parseISO(s.schedule_date);
-      if (isValid(scheduleDate)) { // Only add valid dates
-        const technicianKey = s.technician_name?.toLowerCase().replace(/\s/g, '_');
-        if (technicianKey && modifiers[technicianKey]) {
-          modifiers[technicianKey].push(startOfDay(scheduleDate));
-        }
+      const scheduleDate = startOfDay(parseISO(s.schedule_date));
+      const technicianKey = s.technician_name?.toLowerCase().replace(/\s/g, '_');
+      if (technicianKey && modifiers[technicianKey]) {
+        modifiers[technicianKey].push(scheduleDate);
       }
     });
 
@@ -213,13 +207,9 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
         </div>
         <div className="flex-1 lg:max-h-[400px] overflow-y-auto p-4 border rounded-md bg-gray-50 dark:bg-gray-700">
           <h3 className="text-lg font-semibold mb-4">
-            Jadwal untuk {date ? formatDateSafely(date, "dd MMMM yyyy", { locale: id }) : "Pilih tanggal"}
+            Jadwal untuk {date ? format(date, "dd MMMM yyyy", { locale: id }) : "Pilih tanggal"}
           </h3>
-          {loadingSchedules ? (
-            <div className="flex justify-center items-center h-24">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : selectedDaySchedules.length === 0 ? (
+          {selectedDaySchedules.length === 0 ? (
             <p className="text-gray-600 dark:text-gray-300">Tidak ada jadwal untuk tanggal ini.</p>
           ) : (
             <div className="space-y-4">
@@ -248,7 +238,6 @@ const TechnicianScheduleCalendar: React.FC<TechnicianScheduleCalendarProps> = ()
                       <li key={schedule.id} className={`p-3 rounded-md shadow-sm text-sm ${getTechnicianBgClass(schedule.technician_name)}`}>
                         <p className="flex items-center"><Clock className="h-4 w-4 mr-2 text-current" /> {schedule.schedule_time || "Waktu tidak ditentukan"}</p>
                         <p className="flex items-center"><Info className="h-4 w-4 mr-2 text-current" /> {schedule.type.charAt(0).toUpperCase() + schedule.type.slice(1)} untuk {schedule.customer_name}</p>
-                        {schedule.product_category && <p className="flex items-center"><Package className="h-4 w-4 mr-2 text-current" /> Kategori Produk: {schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>} {/* Display product category */}
                         {schedule.address && <p className="flex items-center"><MapPin className="h-4 w-4 mr-2 text-current" /> {schedule.address}</p>}
                         {schedule.notes && <p className="text-xs text-current mt-1">Catatan: {schedule.notes}</p>}
                       </li>

@@ -31,7 +31,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const ScheduleManagementPage = () => {
   const queryClient = useQueryClient();
@@ -66,8 +65,8 @@ const ScheduleManagementPage = () => {
           updated_at,
           product_category,
           customer_id,
-          customers (customer_name)
-        `) // Optimized select statement, only customer_name from customers
+          customers (customer_name, company_name, phone_number, address, customer_type)
+        `) // Join customers table
         .order("schedule_date", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -81,30 +80,7 @@ const ScheduleManagementPage = () => {
         showError("Gagal memuat jadwal.");
         throw error;
       }
-      // Map the data to ensure it matches the Schedule interface, providing defaults for missing fields
-      return data.map((item: any) => ({
-        id: item.id,
-        user_id: item.user_id,
-        schedule_date: item.schedule_date,
-        schedule_time: item.schedule_time,
-        type: item.type,
-        customer_name: item.customer_name,
-        address: item.address,
-        technician_name: item.technician_name,
-        invoice_id: item.invoice_id,
-        status: item.status,
-        notes: item.notes,
-        created_at: item.created_at,
-        phone_number: item.phone_number,
-        courier_service: item.courier_service,
-        document_url: item.document_url,
-        scheduling_request_id: item.scheduling_request_id,
-        do_number: item.do_number,
-        updated_at: item.updated_at,
-        product_category: item.product_category,
-        customer_id: item.customer_id,
-        // Add any other fields from Schedule interface with default/null if not selected
-      })) as Schedule[];
+      return data;
     },
   });
 
@@ -137,6 +113,23 @@ const ScheduleManagementPage = () => {
     setEditingSchedule(null);
     setIsAddEditFormOpen(true);
   };
+
+  // No need for local filtering anymore
+  // const filteredSchedules = useMemo(() => {
+  //   if (!schedules) return [];
+  //   return schedules.filter((schedule) => {
+  //     const searchLower = searchTerm.toLowerCase();
+  //     const customerName = (schedule as any).customers?.customer_name || schedule.customer_name; // Use joined data
+  //     return (
+  //       schedule.do_number?.toLowerCase().includes(searchLower) ||
+  //       customerName.toLowerCase().includes(searchLower) ||
+  //       schedule.technician_name?.toLowerCase().includes(searchLower) ||
+  //       schedule.type.toLowerCase().includes(searchLower) ||
+  //       schedule.status.toLowerCase().includes(searchLower) ||
+  //       format(new Date(schedule.schedule_date), "dd-MM-yyyy").includes(searchLower)
+  //     );
+  //   });
+  // }, [schedules, searchTerm]);
 
   if (isLoading) {
     return (
@@ -207,14 +200,14 @@ const ScheduleManagementPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {schedules?.length === 0 ? (
+            {schedules?.length === 0 ? ( // Use 'schedules' directly
               <TableRow>
                 <TableCell colSpan={10} className="text-center">
                   Tidak ada jadwal ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              schedules?.map((schedule, index) => (
+              schedules?.map((schedule, index) => ( // Use 'schedules' directly
                 <TableRow key={schedule.id}>
                   <TableCell>{index + 1}</TableCell>
                   <TableCell>
@@ -227,7 +220,7 @@ const ScheduleManagementPage = () => {
                         size="icon"
                         onClick={() => {
                           const scheduleUrl = `${window.location.origin}/schedules/${schedule.id}`;
-                          const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${formatDateSafely(schedule.schedule_date, 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
+                          const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${format(new Date(schedule.schedule_date), 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
                           window.open(`https://wa.me/?text=${whatsappText}`, '_blank');
                         }}
                         className="h-7 w-7"
@@ -236,10 +229,10 @@ const ScheduleManagementPage = () => {
                       </Button>
                     </div>
                   </TableCell>
-                  <TableCell>{formatDateSafely(schedule.schedule_date, "dd-MM-yyyy")}</TableCell>
+                  <TableCell>{format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</TableCell>
                   <TableCell>{schedule.product_category ? schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</TableCell>
                   <TableCell>{schedule.schedule_time || "-"}</TableCell>
-                  <TableCell>{schedule.customer_name}</TableCell> {/* Use schedule.customer_name directly */}
+                  <TableCell>{(schedule as any).customers?.customer_name || schedule.customer_name}</TableCell> {/* Use joined data */}
                   <TableCell>{schedule.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</TableCell>
                   <TableCell>{schedule.technician_name || "-"}</TableCell>
                   <TableCell>{schedule.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</TableCell>

@@ -22,7 +22,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const getEventTypeDisplay = (type: StockEventType) => {
   switch (type) {
@@ -64,14 +63,18 @@ const StockMovementHistoryPage = () => {
         .from("stock_ledger")
         .select(`
           id,
+          user_id,
+          product_id,
           event_type,
           quantity,
           from_warehouse_category,
           to_warehouse_category,
           notes,
+          event_date,
           created_at,
+          updated_at,
           products (nama_barang, kode_barang)
-        `) // Optimized select statement
+        `)
         .order("created_at", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -182,7 +185,7 @@ const StockMovementHistoryPage = () => {
             ) : (
               stockMovements?.map((movement) => ( // Use 'stockMovements' directly
                 <TableRow key={movement.id}>
-                  <TableCell>{formatDateSafely(movement.created_at, "dd-MM-yyyy HH:mm")}</TableCell>
+                  <TableCell>{format(new Date(movement.created_at), "dd-MM-yyyy HH:mm")}</TableCell>
                   <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell>
                   <TableCell>{movement.products?.kode_barang || "N/A"}</TableCell>
                   <TableCell>

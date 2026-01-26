@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form"; // Import useFieldArray
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -31,13 +31,12 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory, Customer, Invoice } from "@/types/data"; // Added Invoice import
+import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory, Customer } from "@/types/data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import TechnicianCombobox from "./TechnicianCombobox";
 import CustomerCombobox from "./CustomerCombobox";
 import { useSession } from "@/components/SessionContextProvider";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const formSchema = z.object({
   customer_id: z.string().uuid().optional().nullable(),
@@ -49,7 +48,7 @@ const formSchema = z.object({
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
   product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(),
   technician_name: z.string().optional().nullable(),
-  invoice_id: z.string().uuid().optional().nullable(),
+  invoice_id: z.string().optional().nullable(),
   status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
   notes: z.string().optional().nullable(),
   courier_service: z.string().optional().nullable(),
@@ -83,9 +82,6 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
       courier_service: null,
     },
   });
-
-  // Removed useFieldArray, itemSearchInputs, products, handleProductSelect, handleQuantityChange, handleUnitPriceChange, addInvoiceMutation
-  // These were incorrectly copied from AddInvoiceForm
 
   const [activeTab, setActiveTab] = useState("basic");
   const [technicianSearchInput, setTechnicianSearchInput] = useState(initialData?.technician_name || "");
@@ -123,45 +119,46 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
     enabled: isOpen,
   });
 
-  const { data: invoices, isLoading: loadingInvoices } = useQuery<Invoice[], Error>({
-    queryKey: ["invoices"],
-    queryFn: async (): Promise<Invoice[]> => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select(`id, invoice_number`)
-        .order("invoice_number", { ascending: true });
-      if (error) {
-        showError("Gagal memuat daftar invoice.");
-        throw error;
-      }
-      return data as Invoice[];
-    },
-    enabled: isOpen, // Always enable if needed for selection, or conditionally based on schedule type
-  });
-
   useEffect(() => {
     if (isOpen) {
-      form.reset({
-        customer_id: initialData?.customer_id || null,
-        customer_name: initialData?.customer_name || "",
-        address: initialData?.address || null,
-        phone_number: initialData?.phone_number || null,
-        schedule_date: initialData?.schedule_date ? new Date(initialData.schedule_date) : new Date(),
-        schedule_time: initialData?.schedule_time || null,
-        type: initialData?.type || ScheduleType.INSTALASI,
-        product_category: initialData?.product_category || null,
-        technician_name: initialData?.technician_name || null,
-        invoice_id: initialData?.invoice_id || null,
-        status: initialData?.status || ScheduleStatus.SCHEDULED,
-        notes: initialData?.notes || null,
-        courier_service: initialData?.courier_service || null,
-      });
-      if (initialData?.customer_name) setCustomerSearchInput(initialData.customer_name);
-      if (initialData?.technician_name) setTechnicianSearchInput(initialData.technician_name);
+      if (initialData) {
+        form.reset({
+          customer_id: initialData.customer_id || null,
+          customer_name: initialData.customer_name,
+          address: initialData.address || null,
+          phone_number: initialData.phone_number || null,
+          schedule_date: new Date(initialData.schedule_date),
+          schedule_time: initialData.schedule_time || null,
+          type: initialData.type,
+          product_category: initialData.product_category || null,
+          technician_name: initialData.technician_name || null,
+          invoice_id: initialData.invoice_id || null,
+          status: initialData.status,
+          notes: initialData.notes || null,
+          courier_service: initialData.courier_service || null,
+        });
+        setTechnicianSearchInput(initialData.technician_name || "");
+        setCustomerSearchInput(initialData.customer_name || "");
+      } else {
+        form.reset({
+          customer_id: null,
+          customer_name: "",
+          address: null,
+          phone_number: null,
+          schedule_date: new Date(),
+          schedule_time: null,
+          type: ScheduleType.INSTALASI,
+          product_category: null,
+          technician_name: null,
+          invoice_id: null,
+          status: ScheduleStatus.SCHEDULED,
+          notes: null,
+          courier_service: null,
+        });
+        setTechnicianSearchInput("");
+        setCustomerSearchInput("");
+      }
       setActiveTab("basic");
-    } else {
-      setCustomerSearchInput("");
-      setTechnicianSearchInput("");
     }
   }, [isOpen, initialData, form]);
 
@@ -171,6 +168,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
       form.setValue("customer_name", customer.customer_name);
       form.setValue("address", customer.address || null);
       form.setValue("phone_number", customer.phone_number || null);
+      setCustomerSearchInput(customer.customer_name);
       form.clearErrors(["customer_name", "address", "phone_number"]);
     } else {
       form.setValue("customer_id", null);
@@ -195,7 +193,9 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
   const saveScheduleMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const userId = session?.user?.id;
-      if (!userId) throw new Error("Pengguna tidak terautentikasi.");
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
 
       const dataToSubmit = {
         user_id: userId,
@@ -203,7 +203,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
         customer_name: values.customer_name.trim(),
         address: values.address?.trim() || null,
         phone_number: values.phone_number?.trim() || null,
-        schedule_date: formatDateSafely(values.schedule_date, "yyyy-MM-dd"),
+        schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
         schedule_time: values.schedule_time?.trim() || null,
         type: values.type,
         product_category: values.product_category || null,
@@ -222,14 +222,13 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
             updated_at: new Date().toISOString(),
           })
           .eq("id", initialData.id);
+
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("schedules")
-          .insert({
-            ...dataToSubmit,
-            user_id: userId,
-          });
+          .insert(dataToSubmit);
+
         if (error) throw error;
       }
     },
@@ -239,6 +238,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
       onOpenChange(false);
       form.reset();
       queryClient.invalidateQueries({ queryKey: ["schedules"] });
+      queryClient.invalidateQueries({ queryKey: ["technicianSchedules"] });
     },
     onError: (err: any) => {
       showError(`Gagal menyimpan jadwal: ${err.message}`);
@@ -250,14 +250,14 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
     saveScheduleMutation.mutate(values);
   };
 
-  if (loadingCustomers || loadingTechnicians || loadingInvoices) { // Added loadingInvoices
+  if (loadingCustomers || loadingTechnicians) {
     return (
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{initialData ? "Edit Jadwal" : "Tambah Jadwal Baru"}</DialogTitle>
             <DialogDescription>Memuat data...</DialogDescription>
-          </DialogDescription>
+          </DialogHeader>
           <div className="flex justify-center items-center h-32">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
@@ -302,7 +302,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
                               )}
                             >
                               {field.value ? (
-                                formatDateSafely(field.value, "PPP")
+                                format(field.value, "PPP")
                               ) : (
                                 <span>Pilih tanggal</span>
                               )}
@@ -502,20 +502,9 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Nomor Invoice Terkait (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value || ""} disabled={loadingInvoices}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder={loadingInvoices ? "Memuat invoice..." : "Pilih nomor invoice"} />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {invoices?.map((invoice: Invoice) => (
-                            <SelectItem key={invoice.id} value={invoice.id}>
-                              {invoice.invoice_number}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

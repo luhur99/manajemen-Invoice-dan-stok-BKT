@@ -11,20 +11,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { format, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, Invoice, InvoiceItem } from "@/types/data"; // Use InvoiceWithDetails
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data"; // Use InvoiceWithDetails
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Printer, Loader2 } from "lucide-react";
+import { Printer } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { showError } from "@/utils/toast";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 interface ViewInvoiceDetailsDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  invoiceId: string; // Pass only invoice ID
+  invoice: InvoiceWithDetails; // Use InvoiceWithDetails
 }
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
@@ -57,77 +53,8 @@ const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
 const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
   isOpen,
   onOpenChange,
-  invoiceId,
+  invoice,
 }) => {
-  // Fetch full invoice details when dialog is open
-  const { data: invoice, isLoading: loadingInvoice, error: invoiceError } = useQuery<Invoice, Error>({
-    queryKey: ["invoice", invoiceId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoices")
-        .select("*")
-        .eq("id", invoiceId)
-        .single();
-      if (error) {
-        showError("Gagal memuat detail invoice.");
-        throw error;
-      }
-      return data as Invoice;
-    },
-    enabled: isOpen, // Only fetch when the dialog is open
-  });
-
-  // Fetch invoice items separately when dialog is open
-  const { data: invoiceItems, isLoading: loadingItems, error: itemsError } = useQuery<InvoiceItem[], Error>({
-    queryKey: ["invoiceItems", invoiceId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("invoice_items")
-        .select("*")
-        .eq("invoice_id", invoiceId);
-      if (error) {
-        showError("Gagal memuat item invoice.");
-        throw error;
-      }
-      return data as InvoiceItem[];
-    },
-    enabled: isOpen, // Only fetch when the dialog is open
-  });
-
-  if (loadingInvoice || loadingItems) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Memuat Detail Invoice...</DialogTitle>
-            <DialogDescription>Harap tunggu.</DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center items-center h-32">
-            <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (invoiceError || itemsError || !invoice) {
-    return (
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Error Memuat Invoice</DialogTitle>
-            <DialogDescription>
-              Terjadi kesalahan: {invoiceError?.message || itemsError?.message || "Invoice tidak ditemukan."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => onOpenChange(false)}>Tutup</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
@@ -138,8 +65,8 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
           <div>
             <p><strong>Nomor Invoice:</strong> {invoice.invoice_number}</p>
-            <p><strong>Tanggal Invoice:</strong> {formatDateSafely(invoice.invoice_date, "dd MMMM yyyy")}</p>
-            <p><strong>Tanggal Jatuh Tempo:</strong> {formatDateSafely(invoice.due_date, "dd MMMM yyyy")}</p>
+            <p><strong>Tanggal Invoice:</strong> {format(parseISO(invoice.invoice_date), "dd MMMM yyyy")}</p>
+            <p><strong>Tanggal Jatuh Tempo:</strong> {invoice.due_date ? format(parseISO(invoice.due_date), "dd MMMM yyyy") : "-"}</p>
             <p><strong>Nama Pelanggan:</strong> {invoice.customer_name}</p>
             <p><strong>Nama Perusahaan:</strong> {invoice.company_name || "-"}</p>
             <p><strong>Tipe Invoice:</strong> {invoice.type ? invoice.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : "-"}</p>
@@ -161,8 +88,8 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
                 {getDocumentStatusDisplay(invoice.invoice_status)}
               </span>
             </p>
-            <p><strong>Dibuat Pada:</strong> {formatDateSafely(invoice.created_at, "dd MMMM yyyy HH:mm")}</p>
-            <p><strong>Terakhir Diperbarui:</strong> {formatDateSafely(invoice.updated_at, "dd MMMM yyyy HH:mm")}</p>
+            <p><strong>Dibuat Pada:</strong> {format(parseISO(invoice.created_at), "dd MMMM yyyy HH:mm")}</p>
+            <p><strong>Terakhir Diperbarui:</strong> {format(parseISO(invoice.updated_at), "dd MMMM yyyy HH:mm")}</p>
             {invoice.document_url && (
               <p className="mt-2">
                 <strong>Dokumen:</strong>{" "}
@@ -177,7 +104,7 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
         <Separator className="my-4" />
 
         <h3 className="text-lg font-semibold mb-2">Item Invoice</h3>
-        {invoiceItems && invoiceItems.length > 0 ? (
+        {invoice.invoice_items && invoice.invoice_items.length > 0 ? (
           <div className="rounded-md border">
             <Table>
               <TableHeader>
@@ -191,7 +118,7 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoiceItems.map((item) => (
+                {invoice.invoice_items.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.item_name}</TableCell>
                     <TableCell>{item.item_code || "-"}</TableCell>

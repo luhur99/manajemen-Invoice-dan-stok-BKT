@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PurchaseRequest, PurchaseRequestStatus } from "@/types/data";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
+import { format } from "date-fns";
 
 interface ViewPurchaseRequestDetailsDialogProps {
   isOpen: boolean;
@@ -95,12 +95,12 @@ const ViewPurchaseRequestDetailsDialog: React.FC<ViewPurchaseRequestDetailsDialo
           </div>
           <div className="grid grid-cols-2 gap-2">
             <p className="font-medium">Tanggal Dibuat:</p>
-            <p>{formatDateSafely(request.created_at, "dd/MM/yyyy HH:mm")}</p>
+            <p>{format(new Date(request.created_at), "dd/MM/yyyy HH:mm")}</p>
           </div>
           {request.updated_at && (
             <div className="grid grid-cols-2 gap-2">
               <p className="font-medium">Terakhir Diperbarui:</p>
-              <p>{formatDateSafely(request.updated_at, "dd/MM/yyyy HH:mm")}</p>
+              <p>{format(new Date(request.updated_at), "dd/MM/yyyy HH:mm")}</p>
             </div>
           )}
           {request.document_url && (
@@ -136,7 +136,7 @@ const ViewPurchaseRequestDetailsDialog: React.FC<ViewPurchaseRequestDetailsDialo
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <p className="font-medium">Tanggal Diterima:</p>
-                <p>{formatDateSafely(request.received_at, "dd/MM/yyyy HH:mm")}</p>
+                <p>{request.received_at ? format(new Date(request.received_at), "dd/MM/yyyy HH:mm") : "-"}</p>
               </div>
             </>
           )}

@@ -84,22 +84,30 @@ const SchedulingRequestPage = () => {
         .from("scheduling_requests")
         .select(`
           id,
+          user_id,
           type,
           full_address,
+          landmark,
           requested_date,
+          requested_time,
           contact_person,
+          payment_method,
           status,
           notes,
+          created_at,
           sr_number,
           invoice_id,
           customer_id,
+          vehicle_details,
+          company_name,
           customer_name,
           phone_number,
+          updated_at,
           technician_name,
           product_category,
           customers (customer_name, company_name, phone_number, customer_type),
           invoices (invoice_number)
-        `) // Optimized select statement
+        `)
         .order("created_at", { ascending: false });
 
       if (debouncedSearchTerm) {

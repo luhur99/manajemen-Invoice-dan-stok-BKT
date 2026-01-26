@@ -37,13 +37,13 @@ import {
   InvoiceType,
   CustomerTypeEnum,
   WarehouseInventory,
+  ScheduleWithDetails,
   InvoiceDocumentStatus,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const formSchema = z.object({
   invoice_date: z.date({ required_error: "Tanggal Invoice harus diisi." }),
@@ -75,10 +75,10 @@ interface AddInvoiceFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  // Removed initialSchedule prop as it's not relevant for AddInvoiceForm
+  initialSchedule?: ScheduleWithDetails | null;
 }
 
-const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
+const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess, initialSchedule }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("basic_info");
@@ -148,25 +148,30 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
   React.useEffect(() => {
     if (isOpen) {
+      let defaultNotes = "";
+      if (initialSchedule?.do_number) {
+        defaultNotes = `DO Number: ${initialSchedule.do_number}`;
+      }
+
       form.reset({
         invoice_date: new Date(),
         due_date: undefined,
-        customer_name: "",
-        company_name: "",
+        customer_name: initialSchedule?.customer_name || "",
+        company_name: undefined,
         total_amount: 0,
         payment_status: InvoicePaymentStatus.PENDING,
-        type: undefined, // Reset type
-        customer_type: undefined, // Reset customer type
-        payment_method: "",
-        notes: "",
-        courier_service: "",
+        type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
+        customer_type: initialSchedule?.customers?.customer_type || undefined,
+        payment_method: initialSchedule?.payment_method || undefined,
+        notes: defaultNotes,
+        courier_service: initialSchedule?.courier_service || undefined,
         invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
         items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
       });
       setItemSearchInputs(fields.map(item => item.item_name || ""));
       setActiveTab("basic_info");
     }
-  }, [isOpen, form, fields]);
+  }, [isOpen, initialSchedule, form, fields]);
 
   React.useEffect(() => {
     setItemSearchInputs(fields.map(item => item.item_name || ""));
@@ -191,8 +196,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         item_code: selectedProduct.kode_barang,
         unit_price: selectedProduct.harga_jual,
         unit_type: selectedProduct.satuan,
-        quantity: fields[index].quantity || 1,
-        subtotal: selectedProduct.harga_jual * (fields[index].quantity || 1),
+        subtotal: selectedProduct.harga_jual * fields[index].quantity,
       });
       setItemSearchInputs(prev => {
         const newInputs = [...prev];
@@ -239,8 +243,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     mutationFn: async (values: z.infer<typeof formSchema>) => {
       const { data, error } = await supabase.functions.invoke('create-invoice', {
         body: JSON.stringify({
-          invoice_date: formatDateSafely(values.invoice_date, "yyyy-MM-dd"),
-          due_date: values.due_date ? formatDateSafely(values.due_date, "yyyy-MM-dd") : null,
+          invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
+          due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
           company_name: values.company_name,
           total_amount: values.total_amount,
@@ -282,7 +286,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         <DialogHeader>
           <DialogTitle>Tambah Invoice Baru</DialogTitle>
           <DialogDescription>
-            Isi detail untuk invoice baru.
+            Isi detail invoice baru di sini. Nomor Invoice akan dibuat otomatis.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -312,7 +316,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                               )}
                             >
                               {field.value ? (
-                                formatDateSafely(field.value, "PPP")
+                                format(field.value, "PPP")
                               ) : (
                                 <span>Pilih tanggal</span>
                               )}
@@ -350,7 +354,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                               )}
                             >
                               {field.value ? (
-                                formatDateSafely(field.value, "PPP")
+                                format(field.value, "PPP")
                               ) : (
                                 <span>Pilih tanggal</span>
                               )}
@@ -403,7 +407,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Status Pembayaran</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih status pembayaran" />
@@ -427,7 +431,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipe Invoice (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih tipe invoice" />
@@ -451,7 +455,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih tipe pelanggan" />
@@ -482,19 +486,21 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                     </FormItem>
                   )}
                 />
-                <FormField
-                  control={form.control}
-                  name="courier_service"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Layanan Kurir (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {watchedInvoiceType === InvoiceType.KIRIM_BARANG && (
+                  <FormField
+                    control={form.control}
+                    name="courier_service"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Layanan Kurir (Opsional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="items" className="mt-4 space-y-4">

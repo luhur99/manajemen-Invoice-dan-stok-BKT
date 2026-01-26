@@ -23,7 +23,6 @@ import { format } from "date-fns";
 import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
@@ -163,7 +162,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
             quantity: values.initial_stock_quantity,
             to_warehouse_category: values.initial_warehouse_category,
             notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplayName(values.initial_warehouse_category)}`,
-            event_date: formatDateSafely(new Date(), "yyyy-MM-dd"),
+            event_date: format(new Date(), "yyyy-MM-dd"),
           });
 
         if (ledgerError) {

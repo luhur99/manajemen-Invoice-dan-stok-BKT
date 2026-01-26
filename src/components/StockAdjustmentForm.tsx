@@ -28,7 +28,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { Product, WarehouseInventory, WarehouseCategory as WarehouseCategoryType } from "@/types/data";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const formSchema = z.object({
   warehouse_category: z.string({

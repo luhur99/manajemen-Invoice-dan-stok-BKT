@@ -40,7 +40,6 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const getStatusBadgeClass = (status: PurchaseRequestStatus) => {
   switch (status) {
@@ -89,16 +88,31 @@ const PurchaseRequestPage = () => {
         .from("purchase_requests")
         .select(`
           id,
+          user_id,
           item_name,
           item_code,
           quantity,
+          unit_price,
+          suggested_selling_price,
+          total_price,
+          notes,
           status,
           created_at,
           document_url,
-          pr_number,
+          received_quantity,
+          returned_quantity,
+          damaged_quantity,
+          target_warehouse_category,
+          received_notes,
+          received_at,
+          product_id,
+          supplier_id,
           satuan,
+          pr_number,
+          updated_at,
+          products (nama_barang, kode_barang, satuan),
           suppliers (name)
-        `) // Optimized select statement
+        `)
         .order("created_at", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -270,7 +284,7 @@ const PurchaseRequestPage = () => {
                         {getStatusDisplay(request.status)}
                       </span>
                     </TableCell>
-                    <TableCell>{formatDateSafely(request.created_at, "dd-MM-yyyy")}</TableCell>
+                    <TableCell>{format(parseISO(request.created_at), "dd-MM-yyyy")}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>

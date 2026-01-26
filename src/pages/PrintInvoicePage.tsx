@@ -7,7 +7,6 @@ import { InvoiceWithDetails, InvoiceItem } from "@/types/data";
 import { Loader2, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const PrintInvoicePage = () => {
   const { id } = useParams<{ id: string }>();
@@ -87,11 +86,11 @@ const PrintInvoicePage = () => {
               <strong>No. Invoice:</strong> {invoice.invoice_number}
             </p>
             <p className="text-sm text-gray-500">
-              <strong>Tanggal:</strong> {formatDateSafely(invoice.invoice_date, "dd MMMM yyyy")}
+              <strong>Tanggal:</strong> {format(new Date(invoice.invoice_date), "dd MMMM yyyy")}
             </p>
             {invoice.due_date && (
               <p className="text-sm text-gray-500">
-                <strong>Jatuh Tempo:</strong> {formatDateSafely(invoice.due_date, "dd MMMM yyyy")}
+                <strong>Jatuh Tempo:</strong> {format(new Date(invoice.due_date), "dd MMMM yyyy")}
               </p>
             )}
           </div>

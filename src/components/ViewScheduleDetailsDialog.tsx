@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { ScheduleWithDetails } from "@/types/data";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
+import { format } from "date-fns";
 
 interface ViewScheduleDetailsDialogProps {
   schedule: ScheduleWithDetails;
@@ -32,7 +32,7 @@ const ViewScheduleDetailsDialog: React.FC<ViewScheduleDetailsDialogProps> = ({
         <div className="grid gap-4 py-4">
           <p><strong>Nomor DO:</strong> {schedule.do_number || "-"}</p>
           <p><strong>Nomor SR:</strong> {schedule.sr_number || "-"}</p>
-          <p><strong>Tanggal Jadwal:</strong> {formatDateSafely(schedule.schedule_date, "dd-MM-yyyy")}</p>
+          <p><strong>Tanggal Jadwal:</strong> {format(new Date(schedule.schedule_date), "dd-MM-yyyy")}</p>
           {schedule.product_category && <p><strong>Kategori Produk:</strong> {schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>} {/* New field */}
           <p><strong>Waktu Jadwal:</strong> {schedule.schedule_time || "-"}</p>
           <p><strong>Tipe:</strong> {schedule.type}</p>

@@ -37,7 +37,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const SupplierManagementPage = () => {
   const queryClient = useQueryClient();
@@ -53,18 +52,7 @@ const SupplierManagementPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("suppliers")
-        .select(`
-          id,
-          user_id,
-          name,
-          contact_person,
-          phone_number,
-          email,
-          address,
-          notes,
-          created_at,
-          updated_at
-        `) // Optimized select statement
+        .select("*")
         .order("name", { ascending: true });
 
       if (debouncedSearchTerm) {
@@ -78,7 +66,7 @@ const SupplierManagementPage = () => {
         showError("Gagal memuat supplier.");
         throw error;
       }
-      return data as Supplier[];
+      return data;
     },
   });
 
@@ -111,6 +99,21 @@ const SupplierManagementPage = () => {
     setSelectedSupplier(supplier);
     setIsViewDetailsOpen(true);
   };
+
+  // No need for local filtering anymore
+  // const filteredSuppliers = useMemo(() => {
+  //   if (!suppliers) return [];
+  //   return suppliers.filter((supplier) => {
+  //     const searchLower = searchTerm.toLowerCase();
+  //     return (
+  //       supplier.name.toLowerCase().includes(searchLower) ||
+  //       supplier.contact_person?.toLowerCase().includes(searchLower) ||
+  //       supplier.phone_number?.toLowerCase().includes(searchLower) ||
+  //       supplier.email?.toLowerCase().includes(searchLower) ||
+  //       supplier.address?.toLowerCase().includes(searchLower)
+  //     );
+  //   });
+  // }, [suppliers, searchTerm]);
 
   if (isLoading) {
     return (

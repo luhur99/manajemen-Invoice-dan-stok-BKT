@@ -7,7 +7,6 @@ import { ScheduleWithDetails, InvoiceItem } from "@/types/data";
 import { Loader2, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { formatDateSafely } from "@/lib/utils"; // Import formatDateSafely
 
 const PrintSchedulePage = () => {
   const { id } = useParams<{ id: string }>();
@@ -106,7 +105,7 @@ const PrintSchedulePage = () => {
             <h1 className="text-2xl font-bold text-gray-900">{documentTitle}</h1>
             <p className="mt-2 text-sm"><strong>No. DO:</strong> {schedule.do_number || "-"}</p>
             <p className="text-sm"><strong>No. SR:</strong> {schedule.sr_number || "-"}</p>
-            <p className="text-sm"><strong>Tanggal:</strong> {formatDateSafely(schedule.schedule_date, "dd MMMM yyyy")}</p>
+            <p className="text-sm"><strong>Tanggal:</strong> {format(new Date(schedule.schedule_date), "dd MMMM yyyy")}</p>
           </div>
         </div>
 

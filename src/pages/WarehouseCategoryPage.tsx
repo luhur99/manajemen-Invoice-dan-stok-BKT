@@ -63,14 +63,7 @@ const WarehouseCategoryPage: React.FC = () => {
     queryFn: async () => {
       let query = supabase
         .from("warehouse_categories")
-        .select(`
-          id,
-          user_id,
-          name,
-          code,
-          created_at,
-          updated_at
-        `) // Optimized select statement
+        .select("*")
         .order("name", { ascending: true });
 
       if (debouncedSearchTerm) {
@@ -84,7 +77,7 @@ const WarehouseCategoryPage: React.FC = () => {
       return data.map((cat, index) => ({
         ...cat,
         no: index + 1,
-      })) as WarehouseCategoryWithNo[];
+      }));
     },
   });
 
@@ -157,6 +150,11 @@ const WarehouseCategoryPage: React.FC = () => {
       showError(`Gagal menghapus kategori gudang: ${err.message}`);
     },
   });
+
+  // No need for local filtering anymore
+  // const filteredCategories = categories.filter((category) =>
+  //   category.name.toLowerCase().includes(searchTerm.toLowerCase())
+  // );
 
   const handleAddCategory = (values: z.infer<typeof formSchema>) => {
     addCategoryMutation.mutate(values);
