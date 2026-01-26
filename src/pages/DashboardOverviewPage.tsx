@@ -11,7 +11,8 @@ import {
   ChartTooltipContent,
   ChartConfig,
 } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Legend }
+from "recharts";
 import TechnicianScheduleCalendar from "@/components/TechnicianScheduleCalendar";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -19,6 +20,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useSession } from "@/components/SessionContextProvider";
+import { showError } from "@/utils/toast"; // Import showError
 
 // Define a type for combined activities
 interface LatestActivity {
@@ -26,6 +28,18 @@ interface LatestActivity {
   type: 'invoice' | 'schedule' | 'stock_ledger' | 'purchase_request';
   description: string;
   date: string; // ISO date string
+}
+
+// Define the expected structure of the data returned by the Edge Function
+interface DashboardOverviewData {
+  pendingInvoices: number;
+  todaySchedules: number;
+  lowStockItems: number;
+  pendingPurchaseRequests: number;
+  latestActivities: LatestActivity[];
+  totalInvoicesThisMonth: number;
+  totalStockInThisMonth: number;
+  totalStockOutThisMonth: number;
 }
 
 // Chart configuration (kept for potential future use or other charts, but not used for monthly summaries anymore)
@@ -53,21 +67,21 @@ const DashboardOverviewPage = () => {
     isLoading: isFetchingDashboardData, 
     error: fetchError, 
     refetch: refetchDashboardData 
-  } = useQuery({
+  } = useQuery<DashboardOverviewData, Error>({ // Specify the type for data and error
     queryKey: ["dashboardOverview"],
     queryFn: async ({ signal }) => { // Destructure signal from queryFn context
       try {
-        // Pass the signal to the invoke call if supported by supabase-js version
-        // As of supabase-js@2.45.0, invoke does not directly accept a signal.
-        // The AbortError is likely from React Query's internal cancellation.
-        const { data, error } = await supabase.functions.invoke('get-dashboard-overview');
+        // Pass the signal to the invoke call
+        const { data, error } = await supabase.functions.invoke('get-dashboard-overview', {
+          signal: signal, // Pass the AbortSignal here
+        });
         if (error) {
           throw error;
         }
         if (data && data.error) {
           throw new Error(data.error);
         }
-        return data;
+        return data as DashboardOverviewData; // Assert the type of the returned data
       } catch (err: any) {
         if (err.name === 'AbortError') {
           // This is an expected error when the query is cancelled.
@@ -75,6 +89,8 @@ const DashboardOverviewPage = () => {
           console.warn('Dashboard overview fetch aborted:', err.message);
           throw err; // Re-throw so React Query can handle it
         }
+        // For other errors, show a toast. This logic is now outside useQuery options.
+        showError(`Gagal memuat dashboard: ${err.message}`);
         throw err; // Re-throw other errors
       }
     },
@@ -82,6 +98,7 @@ const DashboardOverviewPage = () => {
     retry: 1, // Limit retries to prevent endless loops on error
     staleTime: 5 * 60 * 1000, // Data is considered fresh for 5 minutes
     gcTime: 10 * 60 * 1000, // Cache data for 10 minutes
+    // Removed onError from here as it's not a direct option in useQuery v5
   });
 
   // Extract data with default values
