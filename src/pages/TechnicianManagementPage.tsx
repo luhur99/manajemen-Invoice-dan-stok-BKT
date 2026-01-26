@@ -38,7 +38,17 @@ const TechnicianManagementPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("technicians")
-        .select("*")
+        .select(`
+          id,
+          name,
+          phone_number,
+          type,
+          address,
+          city,
+          province,
+          created_at,
+          updated_at
+        `) // Optimized select statement
         .order("name", { ascending: true });
 
       if (debouncedSearchTerm) {
@@ -79,16 +89,6 @@ const TechnicianManagementPage = () => {
       deleteTechnicianMutation.mutate(selectedTechnician.id);
     }
   };
-
-  // No need for local filtering anymore
-  // const filteredTechnicians = technicians.filter(item =>
-  //   item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   item.phone_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   item.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   item.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   item.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   item.province?.toLowerCase().includes(searchTerm.toLowerCase())
-  // );
 
   const handleAddClick = () => {
     setSelectedTechnician(null);

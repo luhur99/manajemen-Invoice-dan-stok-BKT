@@ -48,7 +48,7 @@ const StockPage = () => {
           safe_stock_limit,
           created_at,
           supplier_id
-        `)
+        `) // Optimized select statement
         .order("nama_barang", { ascending: true });
 
       if (debouncedSearchTerm) {
@@ -60,7 +60,7 @@ const StockPage = () => {
       const { data: productsData, error: productsError } = await query;
 
       if (productsError) throw productsError;
-      return productsData;
+      return productsData as ProductWithDetails[];
     },
   });
 
@@ -105,12 +105,6 @@ const StockPage = () => {
       deleteProductMutation.mutate(selectedProduct.id);
     }
   };
-
-  // No need for local filtering anymore, as the query itself is filtered by debouncedSearchTerm
-  // const filteredProducts = products?.filter((product) =>
-  //   product.nama_barang.toLowerCase().includes(searchTerm.toLowerCase()) ||
-  //   product.kode_barang.toLowerCase().includes(searchTerm.toLowerCase())
-  // );
 
   if (isLoading) {
     return (

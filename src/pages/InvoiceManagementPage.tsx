@@ -22,7 +22,7 @@ import {
   DialogDescription, // Added import
 } from "@/components/ui/dialog";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data";
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, Invoice } from "@/types/data"; // Changed InvoiceWithDetails to Invoice for main list
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
@@ -88,45 +88,34 @@ const InvoiceManagementPage = () => {
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null); // Changed to Invoice
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
-  const { data: invoices, isLoading, error } = useQuery<InvoiceWithDetails[], Error>({
+  const { data: invoices, isLoading, error } = useQuery<Invoice[], Error>({ // Changed to Invoice[]
     queryKey: ["invoices", debouncedSearchTerm, dateRange], // Include debounced search term and date range
     queryFn: async () => {
       let query = supabase
         .from("invoices")
         .select(`
           id,
-          user_id,
           invoice_number,
           invoice_date,
-          due_date,
           customer_name,
           company_name,
           total_amount,
           payment_status,
-          created_at,
+          invoice_status,
+          document_url,
+          updated_at,
+          due_date,
           type,
           customer_type,
           payment_method,
           notes,
-          document_url,
-          courier_service,
-          invoice_status,
-          updated_at,
-          invoice_items (
-            id,
-            item_name,
-            item_code,
-            quantity,
-            unit_price,
-            subtotal,
-            unit_type
-          )
-        `)
+          courier_service
+        `) // Optimized select statement
         .order("invoice_date", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -147,7 +136,7 @@ const InvoiceManagementPage = () => {
         showError("Gagal memuat invoice.");
         throw error;
       }
-      return data as InvoiceWithDetails[];
+      return data as Invoice[]; // Cast to Invoice[]
     },
   });
 
@@ -171,44 +160,20 @@ const InvoiceManagementPage = () => {
     }
   };
 
-  const handleEdit = (invoice: InvoiceWithDetails) => {
+  const handleEdit = (invoice: Invoice) => { // Changed to Invoice
     setSelectedInvoice(invoice);
     setIsEditFormOpen(true);
   };
 
-  const handleViewDetails = (invoice: InvoiceWithDetails) => {
+  const handleViewDetails = (invoice: Invoice) => { // Changed to Invoice
     setSelectedInvoice(invoice);
     setIsViewDetailsOpen(true);
   };
 
-  const handleUploadDocument = (invoice: InvoiceWithDetails) => {
+  const handleUploadDocument = (invoice: Invoice) => { // Changed to Invoice
     setSelectedInvoice(invoice);
     setIsUploadDialogOpen(true);
   };
-
-  // No need for local filtering anymore, as the query itself is filtered
-  // const filteredInvoices = useMemo(() => {
-  //   if (!invoices) return [];
-  //   return invoices.filter((invoice) => {
-  //     const searchLower = searchTerm.toLowerCase();
-  //     const matchesSearch =
-  //       invoice.invoice_number.toLowerCase().includes(searchLower) ||
-  //       invoice.customer_name.toLowerCase().includes(searchLower) ||
-  //       invoice.company_name?.toLowerCase().includes(searchLower) ||
-  //       invoice.payment_status.toLowerCase().includes(searchLower) ||
-  //       invoice.type?.toLowerCase().includes(searchLower);
-
-  //     const invoiceDate = parseISO(invoice.invoice_date);
-  //     const matchesDateRange = dateRange?.from
-  //       ? isWithinInterval(invoiceDate, {
-  //           start: startOfDay(dateRange.from),
-  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-  //         })
-  //       : true;
-
-  //     return matchesSearch && matchesDateRange;
-  //   });
-  // }, [invoices, searchTerm, dateRange]);
 
   if (isLoading) {
     return (
@@ -343,7 +308,7 @@ const InvoiceManagementPage = () => {
             onSuccess={() => setIsEditFormOpen(false)}
           />
           <ViewInvoiceDetailsDialog
-            invoice={selectedInvoice}
+            invoiceId={selectedInvoice.id} // Pass only ID
             isOpen={isViewDetailsOpen}
             onOpenChange={setIsViewDetailsOpen}
           />

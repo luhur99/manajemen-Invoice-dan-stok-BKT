@@ -59,26 +59,44 @@ const StockManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: products, isLoading, error } = useQuery<ProductType[], Error>({
-    queryKey: ["products"],
+    queryKey: ["productsWithInventories"], // Changed query key to differentiate from metadata-only query
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
         .select(`
-          *,
+          id,
+          user_id,
+          kode_barang,
+          nama_barang,
+          satuan,
+          harga_beli,
+          harga_jual,
+          safe_stock_limit,
+          created_at,
+          supplier_id,
           warehouse_inventories (
             warehouse_category,
             quantity
           )
-        `)
+        `) // Optimized select statement
         .order("nama_barang", { ascending: true });
       if (error) {
         showError("Gagal memuat item stok.");
         throw error;
       }
-      return data.map(item => ({
-        ...item,
+      return data.map((item: any) => ({
+        id: item.id,
+        user_id: item.user_id,
+        kode_barang: item.kode_barang,
+        nama_barang: item.nama_barang,
+        satuan: item.satuan,
+        harga_beli: item.harga_beli,
+        harga_jual: item.harga_jual,
+        safe_stock_limit: item.safe_stock_limit,
+        created_at: item.created_at,
+        supplier_id: item.supplier_id,
         inventories: item.warehouse_inventories as WarehouseInventory[],
-      }));
+      })) as ProductType[];
     },
   });
 
@@ -104,9 +122,10 @@ const StockManagementPage = () => {
     },
     onSuccess: () => {
       showSuccess("Item stok berhasil dihapus!");
-      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] });
       queryClient.invalidateQueries({ queryKey: ["stockHistory"] });
       queryClient.invalidateQueries({ queryKey: ["stockMovements"] });
+      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate metadata too
     },
     onError: (err) => {
       showError(`Gagal menghapus item stok: ${err.message}`);
@@ -287,9 +306,9 @@ const StockManagementPage = () => {
             product={selectedProduct}
           />
           <ViewStockItemDetailsDialog
+            product={selectedProduct}
             isOpen={isViewDetailsOpen}
             onOpenChange={setIsViewDetailsOpen}
-            product={selectedProduct}
           />
           <AddStockTransactionForm
             isOpen={isAddTransactionOpen}

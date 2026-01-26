@@ -37,7 +37,16 @@ const CustomerManagementPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("customers")
-        .select("*")
+        .select(`
+          id,
+          customer_name,
+          company_name,
+          address,
+          phone_number,
+          customer_type,
+          created_at,
+          updated_at
+        `) // Optimized select statement
         .order("customer_name", { ascending: true });
 
       if (debouncedSearchTerm) {
@@ -78,20 +87,6 @@ const CustomerManagementPage = () => {
       console.error("Error deleting customer:", err);
     },
   });
-
-  // No need for local filtering anymore, as the query itself is filtered
-  // useEffect(() => {
-  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
-  //   const filtered = customers.filter(item =>
-  //     item.customer_name.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.company_name?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.address?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.phone_number?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.customer_type.toLowerCase().includes(lowerCaseSearchTerm)
-  //   );
-  //   setFilteredCustomers(filtered);
-  //   setCurrentPage(1);
-  // }, [searchTerm, customers]);
 
   const handleDeleteCustomer = () => {
     if (selectedCustomer) {

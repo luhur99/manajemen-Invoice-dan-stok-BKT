@@ -63,8 +63,6 @@ const StockHistoryPage = () => {
         .from("stock_ledger")
         .select(`
           id,
-          user_id,
-          product_id,
           event_type,
           quantity,
           from_warehouse_category,
@@ -72,9 +70,8 @@ const StockHistoryPage = () => {
           notes,
           event_date,
           created_at,
-          updated_at,
           products (nama_barang, kode_barang)
-        `)
+        `) // Optimized select statement
         .order("created_at", { ascending: false });
 
       if (debouncedSearchTerm) {

@@ -32,7 +32,37 @@ const SalesDetailsPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("sales_details")
-        .select("*")
+        .select(`
+          id,
+          user_id,
+          no,
+          kirim_install,
+          no_transaksi,
+          invoice_number,
+          new_old,
+          perusahaan,
+          tanggal,
+          hari,
+          jam,
+          customer,
+          alamat_install,
+          no_hp,
+          type,
+          qty_unit,
+          stock,
+          harga,
+          web,
+          qty_web,
+          kartu,
+          qty_kartu,
+          paket,
+          pulsa,
+          teknisi,
+          payment,
+          catatan,
+          created_at,
+          updated_at
+        `) // Select all fields as they are used in ViewSalesDetailDialog and EditSalesDetailForm
         .order("tanggal", { ascending: false });
 
       if (debouncedSearchTerm) {
@@ -44,7 +74,7 @@ const SalesDetailsPage = () => {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data;
+      return data as SalesDetail[];
     },
   });
 
@@ -88,19 +118,6 @@ const SalesDetailsPage = () => {
       deleteSalesDetailMutation.mutate(selectedSalesDetail.id);
     }
   };
-
-  // No need for local filtering anymore
-  // const filteredSalesDetails = salesDetails?.filter((item) => {
-  //   const lowerCaseSearchTerm = searchTerm.toLowerCase();
-  //   return (
-  //     item.customer.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.no_transaksi.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.invoice_number.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.perusahaan?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     item.teknisi?.toLowerCase().includes(lowerCaseSearchTerm) ||
-  //     format(new Date(item.tanggal), "dd-MM-yyyy").includes(lowerCaseSearchTerm)
-  //   );
-  // });
 
   if (isLoading) {
     return (

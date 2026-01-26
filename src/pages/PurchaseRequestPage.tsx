@@ -88,31 +88,16 @@ const PurchaseRequestPage = () => {
         .from("purchase_requests")
         .select(`
           id,
-          user_id,
           item_name,
           item_code,
           quantity,
-          unit_price,
-          suggested_selling_price,
-          total_price,
-          notes,
           status,
           created_at,
           document_url,
-          received_quantity,
-          returned_quantity,
-          damaged_quantity,
-          target_warehouse_category,
-          received_notes,
-          received_at,
-          product_id,
-          supplier_id,
-          satuan,
           pr_number,
-          updated_at,
-          products (nama_barang, kode_barang, satuan),
+          satuan,
           suppliers (name)
-        `)
+        `) // Optimized select statement
         .order("created_at", { ascending: false });
 
       if (debouncedSearchTerm) {

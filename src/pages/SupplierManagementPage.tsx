@@ -52,7 +52,18 @@ const SupplierManagementPage = () => {
     queryFn: async () => {
       let query = supabase
         .from("suppliers")
-        .select("*")
+        .select(`
+          id,
+          user_id,
+          name,
+          contact_person,
+          phone_number,
+          email,
+          address,
+          notes,
+          created_at,
+          updated_at
+        `) // Optimized select statement
         .order("name", { ascending: true });
 
       if (debouncedSearchTerm) {
@@ -66,7 +77,7 @@ const SupplierManagementPage = () => {
         showError("Gagal memuat supplier.");
         throw error;
       }
-      return data;
+      return data as Supplier[];
     },
   });
 
@@ -99,21 +110,6 @@ const SupplierManagementPage = () => {
     setSelectedSupplier(supplier);
     setIsViewDetailsOpen(true);
   };
-
-  // No need for local filtering anymore
-  // const filteredSuppliers = useMemo(() => {
-  //   if (!suppliers) return [];
-  //   return suppliers.filter((supplier) => {
-  //     const searchLower = searchTerm.toLowerCase();
-  //     return (
-  //       supplier.name.toLowerCase().includes(searchLower) ||
-  //       supplier.contact_person?.toLowerCase().includes(searchLower) ||
-  //       supplier.phone_number?.toLowerCase().includes(searchLower) ||
-  //       supplier.email?.toLowerCase().includes(searchLower) ||
-  //       supplier.address?.toLowerCase().includes(searchLower)
-  //     );
-  //   });
-  // }, [suppliers, searchTerm]);
 
   if (isLoading) {
     return (
