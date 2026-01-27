@@ -3,7 +3,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { Profile } from "@/types/data";
 
@@ -31,8 +30,6 @@ export const SessionContextProvider: React.FC<SessionContextProviderProps> = ({ 
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     const fetchProfile = async (userId: string | undefined) => {
@@ -59,16 +56,6 @@ export const SessionContextProvider: React.FC<SessionContextProviderProps> = ({ 
         setSession(currentSession);
         await fetchProfile(currentSession?.user?.id);
         setLoading(false);
-
-        if (event === 'SIGNED_OUT' || !currentSession) {
-          if (location.pathname !== '/auth') {
-            navigate('/auth');
-          }
-        } else if (currentSession) {
-          if (location.pathname === '/auth') {
-            navigate('/');
-          }
-        }
       }
     );
 
@@ -81,12 +68,6 @@ export const SessionContextProvider: React.FC<SessionContextProviderProps> = ({ 
       setSession(initialSession);
       await fetchProfile(initialSession?.user?.id);
       setLoading(false);
-
-      if (!initialSession && location.pathname !== '/auth') {
-        navigate('/auth');
-      } else if (initialSession && location.pathname === '/auth') {
-        navigate('/');
-      }
     };
 
     getInitialSession();
@@ -94,7 +75,7 @@ export const SessionContextProvider: React.FC<SessionContextProviderProps> = ({ 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [navigate, location.pathname]);
+  }, []); // Removed navigate and location.pathname from dependencies
 
   if (loading) {
     return (

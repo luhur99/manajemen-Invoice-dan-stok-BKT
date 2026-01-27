@@ -39,6 +39,7 @@ import DashboardOverviewPage from "./pages/DashboardOverviewPage"; // Added
 import TechnicianScheduleCalendar from "./pages/TechnicianScheduleCalendar"; // Added
 import PrintInvoicePage from "./pages/PrintInvoicePage"; // Added
 import PrintSchedulePage from "./pages/PrintSchedulePage"; // Added
+import AuthRedirector from "./components/AuthRedirector"; // New import
 
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ export const App = () => {
       <SessionContextProvider> {/* Use your existing SessionContextProvider */}
         <Toaster /> {/* Using sonner for toasts */}
         <BrowserRouter>
+          <AuthRedirector /> {/* Placed inside BrowserRouter */}
           <Routes>
             {/* Public routes */}
             <Route path="/auth" element={<AuthPage />} />
