@@ -1,10 +1,14 @@
-import { User } from '@supabase/supabase-js'; // Import User type from Supabase
-
-export enum SchedulingRequestType {
-  INSTALLATION = "installation",
+export enum ScheduleType {
+  KIRIM = "kirim",
+  INSTALASI = "instalasi",
   SERVICE = "service",
+}
+
+export enum SchedulingRequestType { // Defined based on usage
+  KIRIM = "kirim",
+  INSTALASI = "instalasi",
   SERVICE_UNBILL = "service_unbill",
-  DELIVERY = "delivery",
+  SERVICE_BILL = "service_bill",
 }
 
 export enum SchedulingRequestStatus {
@@ -17,44 +21,6 @@ export enum SchedulingRequestStatus {
   COMPLETED = "completed",
 }
 
-export enum ScheduleProductCategory {
-  GPS_TRACKER = "gps_tracker",
-  CCTV = "cctv",
-  LAINNYA = "lainnya",
-}
-
-export interface SchedulingRequest {
-  id: string;
-  user_id: string | null;
-  type: SchedulingRequestType;
-  full_address: string;
-  landmark: string | null;
-  requested_date: string; // ISO date string
-  requested_time: string | null;
-  contact_person: string;
-  payment_method: string | null;
-  status: SchedulingRequestStatus;
-  notes: string | null;
-  created_at: string; // ISO date string
-  sr_number: string | null;
-  invoice_id: string | null;
-  customer_id: string | null;
-  vehicle_details: string | null;
-  company_name: string | null;
-  customer_name: string | null;
-  phone_number: string | null;
-  updated_at: string; // ISO date string
-  technician_name: string | null;
-  product_category: ScheduleProductCategory | null;
-  customer_type: CustomerTypeEnum | null; // Added customer_type
-}
-
-// New interface for SchedulingRequest with joined customer and invoice details
-export interface SchedulingRequestWithDetails extends SchedulingRequest {
-  customers: Pick<Customer, 'customer_name' | 'company_name' | 'phone_number' | 'address' | 'customer_type'> | null;
-  invoices: Pick<Invoice, 'invoice_number'> | null; // Added for invoice_number
-}
-
 export enum PurchaseRequestStatus {
   PENDING = "pending",
   APPROVED = "approved",
@@ -63,71 +29,80 @@ export enum PurchaseRequestStatus {
   CLOSED = "closed",
 }
 
-export enum WarehouseCategoryEnum {
-  GUDANG_UTAMA = "gudang_utama",
-  GUDANG_TRANSIT = "gudang_transit",
-  GUDANG_TEKNISI = "gudang_teknisi",
-  GUDANG_RETUR = "gudang_retur",
-  SIAP_JUAL = "siap_jual", // Added 'siap_jual'
+export enum DeliveryOrderStatus {
+  PENDING = "pending",
+  SCHEDULED = "scheduled",
+  IN_TRANSIT = "in_transit",
+  DELIVERED = "delivered",
+  CANCELLED = "cancelled",
 }
-
-export enum EventTypeEnum {
-  IN = "in",
-  OUT = "out",
-  TRANSFER = "transfer",
-  ADJUSTMENT = "adjustment",
-  INITIAL = "initial",
-}
-
-// Alias EventTypeEnum to StockEventType for consistency
-export { EventTypeEnum as StockEventType };
 
 export enum InvoicePaymentStatus {
   PENDING = "pending",
   PAID = "paid",
-  PARTIAL = "partial",
+  PARTIALLY_PAID = "partially_paid", // Corrected from PARTIAL
   OVERDUE = "overdue",
   CANCELLED = "cancelled",
 }
 
 export enum InvoiceType {
+  KIRIM_BARANG = "kirim_barang",
   INSTALASI = "instalasi",
   SERVICE = "service",
-  KIRIM_BARANG = "kirim_barang",
 }
 
 export enum CustomerTypeEnum {
-  PERORANGAN = "perorangan",
-  PERUSAHAAN = "perusahaan",
-  B2C = "b2c", // Added B2C
+  INDIVIDUAL = "individual",
+  COMPANY = "company",
+  // Removed B2C as it's not in the schema and caused errors
 }
 
 export enum InvoiceDocumentStatus {
   WAITING_DOCUMENT_INV = "waiting_document_inv",
-  DOCUMENT_INV_SENT = "document_inv_sent",
-  DOCUMENT_INV_RECEIVED = "document_inv_received",
-  COMPLETED = "completed", // Added COMPLETED
+  DOCUMENT_SENT = "document_sent", // Corrected from DOCUMENT_INV_SENT
+  DOCUMENT_RECEIVED = "document_received", // Corrected from DOCUMENT_INV_RECEIVED
+  COMPLETED = "completed",
 }
 
-export enum TechnicianType { // Added TechnicianType enum
+export enum TechnicianType {
   INTERNAL = "internal",
   EXTERNAL = "external",
 }
 
-export enum ScheduleType { // Added ScheduleType enum
-  INSTALASI = "instalasi",
-  SERVICE = "service",
-  KIRIM = "kirim",
+export enum ProductCategory { // Used instead of ScheduleProductCategory
+  GPS = "GPS",
+  CCTV = "CCTV",
+  LAINNYA = "Lainnya",
 }
 
-export enum ScheduleStatus { // Added ScheduleStatus enum
+export enum StockEventType {
+  IN = "IN",
+  OUT = "OUT",
+  TRANSFER = "TRANSFER",
+  ADJUSTMENT = "ADJUSTMENT",
+  INITIAL = "INITIAL", // Added INITIAL
+}
+
+export enum ScheduleStatus { // Defined based on common schedule statuses
   SCHEDULED = "scheduled",
   COMPLETED = "completed",
   CANCELLED = "cancelled",
   RESCHEDULED = "rescheduled",
+  PENDING = "pending",
+  IN_PROGRESS = "in_progress",
 }
 
-export interface Product {
+export type Profile = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  avatar_url: string | null;
+  phone_number: string | null;
+  role: string;
+  updated_at: string | null;
+};
+
+export type Product = {
   id: string;
   user_id: string | null;
   kode_barang: string;
@@ -136,12 +111,68 @@ export interface Product {
   harga_beli: number;
   harga_jual: number;
   safe_stock_limit: number | null;
-  created_at: string;
   supplier_id: string | null;
-  inventories?: WarehouseInventory[]; // Joined data from warehouse_inventories
-}
+  created_at: string | null;
+  updated_at: string | null;
+  inventories?: WarehouseInventory[]; // Added inventories
+};
 
-export interface Supplier {
+export type WarehouseCategory = {
+  id: string;
+  user_id: string | null;
+  name: string;
+  code: string;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type WarehouseInventory = {
+  id: string;
+  product_id: string;
+  warehouse_category: string; // Assuming this is a string for simplicity, could be enum or foreign key
+  quantity: number;
+  user_id: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  products?: Product; // Joined product data
+  warehouse_categories?: WarehouseCategory; // Joined category data
+};
+
+export type StockLedger = {
+  id: string;
+  user_id: string | null;
+  product_id: string | null;
+  event_type: StockEventType;
+  quantity: number;
+  from_warehouse_category: string | null;
+  to_warehouse_category: string | null;
+  notes: string | null;
+  event_date: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type StockLedgerWithProduct = StockLedger & {
+  products?: Product; // Joined product data
+};
+
+export type Customer = {
+  id: string;
+  user_id: string | null;
+  customer_name: string;
+  company_name: string | null;
+  address: string | null;
+  phone_number: string | null;
+  customer_type: CustomerTypeEnum;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type CustomerWithDetails = Customer & {
+  profiles?: Profile; // Assuming customer might have a related profile
+};
+
+export type Supplier = {
   id: string;
   user_id: string | null;
   name: string;
@@ -150,55 +181,133 @@ export interface Supplier {
   email: string | null;
   address: string | null;
   notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
+  created_at: string | null;
+  updated_at: string | null;
+};
 
-// New interface for Supplier with joined details (if any)
-export interface SupplierWithDetails extends Supplier {
-  // Add any joined fields if needed
-}
-
-export interface WarehouseCategory {
+export type Technician = {
   id: string;
   user_id: string | null;
   name: string;
-  code: string;
-  created_at: string;
-  updated_at: string;
-}
+  phone_number: string | null;
+  type: TechnicianType;
+  address: string | null;
+  city: string | null;
+  province: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
 
-export interface WarehouseInventory {
-  id: string;
-  product_id: string;
-  warehouse_category: WarehouseCategoryEnum;
-  quantity: number;
-  user_id: string;
-  created_at: string;
-  updated_at: string;
-}
+export type TechnicianWithDetails = Technician & {
+  profiles?: Profile; // Assuming technician might have a related profile
+};
 
-export interface StockLedger {
+export type SchedulingRequest = {
   id: string;
   user_id: string | null;
-  product_id: string | null;
-  event_type: EventTypeEnum;
-  quantity: number;
-  from_warehouse_category: WarehouseCategoryEnum | null;
-  to_warehouse_category: WarehouseCategoryEnum | null;
+  type: ScheduleType; // Using ScheduleType for consistency
+  full_address: string;
+  landmark: string | null;
+  requested_date: string;
+  requested_time: string | null;
+  contact_person: string;
+  payment_method: string | null;
+  status: SchedulingRequestStatus;
   notes: string | null;
-  event_date: string | null; // ISO date string
-  created_at: string;
-  updated_at: string;
-  products?: Pick<Product, 'nama_barang'>; // Joined data
-}
+  created_at: string | null;
+  sr_number: string | null;
+  invoice_id: string | null;
+  customer_id: string | null;
+  vehicle_details: string | null;
+  company_name: string | null;
+  customer_name: string | null;
+  phone_number: string | null;
+  updated_at: string | null;
+  technician_name: string | null;
+  product_category: ProductCategory | null;
+  customer_type: CustomerTypeEnum | null; // Added customer_type
+};
 
-// New interface for StockLedger with joined product details
-export interface StockLedgerWithProduct extends StockLedger {
-  products: Pick<Product, 'nama_barang' | 'kode_barang'> | null; // Added kode_barang
-}
+export type SchedulingRequestWithDetails = SchedulingRequest & {
+  customers?: Customer;
+  invoices?: Invoice;
+};
 
-export interface PurchaseRequest {
+export type Schedule = {
+  id: string;
+  user_id: string | null;
+  schedule_date: string;
+  schedule_time: string | null;
+  type: ScheduleType;
+  customer_name: string;
+  address: string | null;
+  technician_name: string | null;
+  invoice_id: string | null;
+  status: ScheduleStatus; // Changed to ScheduleStatus enum
+  notes: string | null;
+  created_at: string | null;
+  phone_number: string | null;
+  courier_service: string | null;
+  document_url: string | null;
+  scheduling_request_id: string | null;
+  do_number: string | null;
+  updated_at: string | null;
+  product_category: ProductCategory | null;
+  customer_id: string | null;
+  sr_number: string | null; // Added sr_number
+  invoices?: Invoice; // Added invoices for joined data
+};
+
+export type ScheduleWithDetails = Schedule & {
+  customers?: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null;
+  // payment_method is not directly on Schedule, it's on SchedulingRequest.
+  // If needed, it should be accessed via scheduling_request relation.
+  // For now, removing it from here to avoid type errors if not directly joined.
+};
+
+export type InvoiceItem = {
+  id: string;
+  invoice_id: string | null;
+  user_id: string | null;
+  item_name: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+  created_at: string | null;
+  unit_type: string | null;
+  product_id: string | null;
+  item_code: string | null;
+  updated_at: string | null;
+  products?: Product; // Joined product data
+};
+
+export type Invoice = {
+  id: string;
+  user_id: string | null;
+  invoice_number: string;
+  invoice_date: string;
+  due_date: string | null;
+  customer_name: string;
+  company_name: string | null;
+  total_amount: number;
+  payment_status: InvoicePaymentStatus;
+  type: InvoiceType | null;
+  customer_type: CustomerTypeEnum | null;
+  payment_method: string | null;
+  notes: string | null;
+  document_url: string | null;
+  courier_service: string | null;
+  invoice_status: InvoiceDocumentStatus;
+  created_at: string | null;
+  updated_at: string | null;
+  do_number: string | null;
+};
+
+export type InvoiceWithDetails = Invoice & {
+  invoice_items?: InvoiceItem[]; // Joined invoice items
+};
+
+export type PurchaseRequest = {
   id: string;
   user_id: string | null;
   item_name: string;
@@ -209,135 +318,48 @@ export interface PurchaseRequest {
   total_price: number;
   notes: string | null;
   status: PurchaseRequestStatus;
-  created_at: string;
+  created_at: string | null;
   document_url: string | null;
   received_quantity: number | null;
   returned_quantity: number | null;
   damaged_quantity: number | null;
-  target_warehouse_category: WarehouseCategoryEnum | null;
+  target_warehouse_category: string | null;
   received_notes: string | null;
   received_at: string | null;
   product_id: string | null;
   supplier_id: string | null;
   satuan: string | null;
   pr_number: string | null;
-  updated_at: string;
-}
+  updated_at: string | null;
+};
 
-// New interface for PurchaseRequest with joined details
-export interface PurchaseRequestWithDetails extends PurchaseRequest {
-  products: Pick<Product, 'nama_barang' | 'kode_barang' | 'satuan'> | null;
-  suppliers: Pick<Supplier, 'name'> | null; // Added name for supplier_name
-}
+export type PurchaseRequestWithDetails = PurchaseRequest & {
+  products?: Product; // Joined product data
+  suppliers?: Supplier; // Joined supplier data
+};
 
-export interface Customer {
+export type DeliveryOrder = {
   id: string;
+  request_id: string | null; // This could be scheduling_request_id or invoice_id
   user_id: string | null;
-  customer_name: string;
-  company_name: string | null;
-  address: string | null;
-  phone_number: string | null;
-  customer_type: CustomerTypeEnum;
-  created_at: string;
-  updated_at: string;
-}
-
-// New interface for Customer with joined details (if any)
-export interface CustomerWithDetails extends Customer {
-  // Add any joined fields if needed
-}
-
-export interface Technician {
-  id: string;
-  user_id: string | null;
-  name: string;
-  phone_number: string | null;
-  type: TechnicianType; // Use TechnicianType enum
-  address: string | null;
-  city: string | null;
-  province: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// New interface for Technician with joined details (if any)
-export interface TechnicianWithDetails extends Technician {
-  // Add any joined fields if needed
-}
-
-export interface InvoiceItem {
-  id?: string; // Made optional for new items
-  invoice_id: string | null;
-  user_id: string | null;
-  item_name: string;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  created_at?: string; // Made optional for new items
-  unit_type: string | null;
-  product_id: string | null; // Changed from selected_product_id
-  item_code: string | null;
-  updated_at?: string; // Made optional for new items
-}
-
-export interface Invoice {
-  id: string;
-  user_id: string | null;
-  invoice_number: string;
-  invoice_date: string;
-  due_date: string | null;
-  customer_name: string;
-  company_name: string | null;
-  total_amount: number;
-  payment_status: InvoicePaymentStatus;
-  created_at: string;
-  type: InvoiceType | null;
-  customer_type: CustomerTypeEnum | null;
-  payment_method: string | null;
+  do_number: string;
+  items_json: any | null; // JSONB type, can be more specific if schema is known
+  delivery_date: string;
+  delivery_time: string | null;
+  status: DeliveryOrderStatus;
   notes: string | null;
-  document_url: string | null;
-  courier_service: string | null;
-  invoice_status: InvoiceDocumentStatus;
-  updated_at: string;
-}
+  created_at: string | null;
+  updated_at: string | null;
+};
 
-// New interface for Invoice with joined items
-export interface InvoiceWithDetails extends Invoice {
-  invoice_items: InvoiceItem[];
-}
-
-export interface Schedule {
+export type SalesInvoice = {
   id: string;
-  user_id: string | null;
-  schedule_date: string; // ISO date string
-  schedule_time: string | null;
-  type: ScheduleType; // Use ScheduleType enum
-  customer_name: string;
-  address: string | null;
-  technician_name: string | null;
-  invoice_id: string | null;
-  status: ScheduleStatus; // Use ScheduleStatus enum
-  notes: string | null;
-  created_at: string; // ISO date string
-  phone_number: string | null;
-  courier_service: string | null;
-  document_url: string | null;
-  scheduling_request_id: string | null;
-  do_number: string | null;
-  updated_at: string; // ISO date string
-  product_category: ScheduleProductCategory | null;
-  customer_id: string | null; // Added customer_id
-}
+  no_transaksi: string;
+  invoice_file_url: string | null;
+  created_at: string | null;
+};
 
-// Extend Schedule to include related customer and invoice details
-export interface ScheduleWithDetails extends Schedule {
-  customers: Pick<Customer, 'customer_name' | 'company_name' | 'phone_number' | 'address' | 'customer_type'> | null;
-  invoices: Pick<Invoice, 'invoice_number'> | null;
-  sr_number: string | null; // Added sr_number to ScheduleWithDetails
-  payment_method: string | null; // Added payment_method to ScheduleWithDetails
-}
-
-export interface SalesDetail {
+export type SalesDetail = {
   id: string;
   user_id: string | null;
   no: number;
@@ -346,7 +368,7 @@ export interface SalesDetail {
   invoice_number: string;
   new_old: string | null;
   perusahaan: string | null;
-  tanggal: string; // ISO date string
+  tanggal: string;
   hari: string | null;
   jam: string | null;
   customer: string;
@@ -365,28 +387,10 @@ export interface SalesDetail {
   teknisi: string | null;
   payment: string | null;
   catatan: string | null;
-  created_at: string;
-  updated_at: string;
-}
+  created_at: string | null;
+  updated_at: string | null;
+};
 
-export interface SalesInvoice {
-  id: string;
-  no_transaksi: string;
-  invoice_file_url: string | null;
-  created_at: string;
-}
-
-export interface Profile {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  avatar_url: string | null;
-  phone_number: string | null;
-  updated_at: string;
-  role: 'user' | 'admin' | 'staff';
-}
-
-// New interface for Supabase User with joined Profile details
-export interface UserWithProfile extends User {
-  profiles: Pick<Profile, 'role' | 'first_name' | 'last_name' | 'phone_number'> | null; // Added phone_number
-}
+export type UserWithProfile = Profile & {
+  email: string; // Assuming email is available from auth.users
+};

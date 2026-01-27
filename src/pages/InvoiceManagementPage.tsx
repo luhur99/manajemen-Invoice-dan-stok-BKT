@@ -1,44 +1,32 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum } from "@/types/data";
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum } from "@/types/data"; // Use InvoiceWithDetails
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
-import { showError, showSuccess } from "@/utils/toast";
-import AddInvoiceForm from "@/components/AddInvoiceForm";
-import EditInvoiceForm from "@/components/EditInvoiceForm";
-import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog";
-import InvoiceUpload from "@/components/InvoiceUpload";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import AddInvoiceForm from "@/components/AddInvoiceForm";
+import EditInvoiceForm from "@/components/EditInvoiceForm";
+import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
-import { useDebounce } from "@/hooks/use-debounce";
+import Link from "next/link";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { showError, showSuccess } from "@/utils/toast";
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   switch (status) {
@@ -48,7 +36,7 @@ const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
       return "bg-yellow-100 text-yellow-800";
     case InvoicePaymentStatus.OVERDUE:
       return "bg-red-100 text-red-800";
-    case InvoicePaymentStatus.PARTIAL:
+    case InvoicePaymentStatus.PARTIALLY_PAID: // Corrected
       return "bg-blue-100 text-blue-800";
     case InvoicePaymentStatus.CANCELLED:
       return "bg-gray-100 text-gray-800";
@@ -59,117 +47,91 @@ const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
 
 const getDocumentStatusBadgeClass = (status: InvoiceDocumentStatus) => {
   switch (status) {
-    case InvoiceDocumentStatus.COMPLETED:
-      return "bg-green-100 text-green-800";
     case InvoiceDocumentStatus.WAITING_DOCUMENT_INV:
       return "bg-yellow-100 text-yellow-800";
-    case InvoiceDocumentStatus.DOCUMENT_INV_SENT:
+    case InvoiceDocumentStatus.DOCUMENT_SENT: // Corrected
       return "bg-blue-100 text-blue-800";
-    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED:
+    case InvoiceDocumentStatus.DOCUMENT_RECEIVED: // Corrected
       return "bg-purple-100 text-purple-800";
+    case InvoiceDocumentStatus.COMPLETED:
+      return "bg-green-100 text-green-800";
     default:
       return "bg-gray-100 text-gray-800";
   }
 };
 
-const getDocumentStatusDisplay = (status: InvoiceDocumentStatus) => {
+const getDocumentStatusDisplayName = (status: InvoiceDocumentStatus) => {
   switch (status) {
-    case InvoiceDocumentStatus.COMPLETED: return "Completed";
     case InvoiceDocumentStatus.WAITING_DOCUMENT_INV: return "Waiting Document";
-    case InvoiceDocumentStatus.DOCUMENT_INV_SENT: return "Document Sent";
-    case InvoiceDocumentStatus.DOCUMENT_INV_RECEIVED: return "Document Received";
+    case InvoiceDocumentStatus.DOCUMENT_SENT: return "Document Sent"; // Corrected
+    case InvoiceDocumentStatus.DOCUMENT_RECEIVED: return "Document Received"; // Corrected
+    case InvoiceDocumentStatus.COMPLETED: return "Completed";
     default: return "Unknown";
   }
 };
 
-const InvoiceManagementPage = () => {
+const InvoiceManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [filterPaymentStatus, setFilterPaymentStatus] = useState<InvoicePaymentStatus | "all">("all");
+  const [filterDocumentStatus, setFilterDocumentStatus] = useState<InvoiceDocumentStatus | "all">("all");
 
   const { data: invoices, isLoading, error } = useQuery<InvoiceWithDetails[], Error>({
-    queryKey: ["invoices", debouncedSearchTerm, dateRange],
+    queryKey: ["invoices"],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from("invoices")
         .select(`
-          id,
-          user_id,
-          invoice_number,
-          invoice_date,
-          due_date,
-          customer_name,
-          company_name,
-          total_amount,
-          payment_status,
-          created_at,
-          type,
-          customer_type,
-          payment_method,
-          notes,
-          document_url,
-          courier_service,
-          invoice_status,
-          updated_at,
+          *,
           invoice_items (
             id,
             item_name,
-            item_code,
             quantity,
             unit_price,
             subtotal,
-            unit_type
+            item_code,
+            unit_type,
+            product_id
           )
-        `)
-        .order("invoice_date", { ascending: false });
-
-      if (debouncedSearchTerm) {
-        query = query.or(
-          `invoice_number.ilike.%${debouncedSearchTerm}%,customer_name.ilike.%${debouncedSearchTerm}%,company_name.ilike.%${debouncedSearchTerm}%,payment_status.ilike.%${debouncedSearchTerm}%,type.ilike.%${debouncedSearchTerm}%`
-        );
-      }
-
-      if (dateRange?.from) {
-        query = query.gte("invoice_date", format(startOfDay(dateRange.from), "yyyy-MM-dd"));
-      }
-      if (dateRange?.to) {
-        query = query.lte("invoice_date", format(endOfDay(dateRange.to), "yyyy-MM-dd"));
-      }
-
-      const { data, error } = await query;
-      if (error) {
-        showError("Gagal memuat invoice.");
-        throw error;
-      }
+        `);
+      if (error) throw error;
       return data as InvoiceWithDetails[];
     },
   });
 
-  // Fetch completed DOs from schedules table for AddInvoiceForm
-  const { data: completedSchedules = [], isLoading: isLoadingSchedules, error: schedulesError } = useQuery({
-    queryKey: ["completedSchedulesForInvoiceForm"],
+  const { data: completedSchedules, isLoading: isLoadingSchedules, error: schedulesError } = useQuery<
+    { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[],
+    Error
+  >({
+    queryKey: ["completedSchedulesForInvoice"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedules")
-        .select("id, do_number, customer_name, schedule_date, status, type, phone_number, courier_service, customer_id, customers(company_name, customer_type)")
-        .eq("status", "completed")
-        .not("do_number", "is", null)
-        .order("schedule_date", { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error("Error fetching schedules for InvoiceManagementPage:", error);
-        throw error;
-      }
-      return data || [];
+        .select(`
+          id,
+          do_number,
+          customer_name,
+          schedule_date,
+          status,
+          type,
+          phone_number,
+          courier_service,
+          customer_id,
+          customers (
+            company_name,
+            customer_type
+          )
+        `)
+        .eq("status", "completed"); // Only fetch completed schedules
+      if (error) throw error;
+      return data;
     },
-    enabled: isAddFormOpen, // Only fetch when the AddInvoiceForm is open
   });
 
   const deleteInvoiceMutation = useMutation({
@@ -180,31 +142,48 @@ const InvoiceManagementPage = () => {
     onSuccess: () => {
       showSuccess("Invoice berhasil dihapus!");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      setIsDeleteDialogOpen(false);
+      setSelectedInvoice(null);
     },
-    onError: (err) => {
+    onError: (err: any) => {
       showError(`Gagal menghapus invoice: ${err.message}`);
+      console.error("Error deleting invoice:", err);
     },
   });
 
-  const handleDelete = (id: string) => {
-    if (window.confirm("Apakah Anda yakin ingin menghapus invoice ini?")) {
-      deleteInvoiceMutation.mutate(id);
+  const filteredInvoices = invoices?.filter((invoice) => {
+    const matchesSearch =
+      invoice.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      invoice.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      invoice.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      invoice.do_number?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const invoiceDate = parseISO(invoice.invoice_date);
+    const matchesDateRange = dateRange?.from
+      ? isWithinInterval(invoiceDate, {
+          start: startOfDay(dateRange.from),
+          end: endOfDay(dateRange.to || dateRange.from),
+        })
+      : true;
+
+    const matchesPaymentStatus =
+      filterPaymentStatus === "all" || invoice.payment_status === filterPaymentStatus;
+
+    const matchesDocumentStatus =
+      filterDocumentStatus === "all" || invoice.invoice_status === filterDocumentStatus;
+
+    return matchesSearch && matchesDateRange && matchesPaymentStatus && matchesDocumentStatus;
+  });
+
+  const handleDeleteClick = (invoice: InvoiceWithDetails) => {
+    setSelectedInvoice(invoice);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (selectedInvoice) {
+      deleteInvoiceMutation.mutate(selectedInvoice.id);
     }
-  };
-
-  const handleEdit = (invoice: InvoiceWithDetails) => {
-    setSelectedInvoice(invoice);
-    setIsEditFormOpen(true);
-  };
-
-  const handleViewDetails = (invoice: InvoiceWithDetails) => {
-    setSelectedInvoice(invoice);
-    setIsViewDetailsOpen(true);
-  };
-
-  const handleUploadDocument = (invoice: InvoiceWithDetails) => {
-    setSelectedInvoice(invoice);
-    setIsUploadDialogOpen(true);
   };
 
   if (isLoading) {
@@ -216,162 +195,188 @@ const InvoiceManagementPage = () => {
   }
 
   if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>
-          Gagal memuat invoice: {error.message}
-        </AlertDescription>
-      </Alert>
-    );
+    return <div className="text-red-500">Error loading invoices: {error.message}</div>;
   }
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Manajemen Invoice</h1>
+      <h1 className="text-2xl font-bold mb-4">Manajemen Invoice</h1>
 
-      <div className="flex flex-wrap justify-between items-center mb-4 gap-4">
-        <div className="flex items-center gap-2">
-          <div className="relative w-full max-w-sm">
-            <Input
-              type="text"
-              placeholder="Cari invoice..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-          </div>
-          <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+      <div className="flex flex-wrap justify-between items-center mb-4 gap-2">
+        <div className="relative w-full max-w-sm flex-grow">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+          <Input
+            type="text"
+            placeholder="Cari invoice (Nomor, Pelanggan, Perusahaan, DO)..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
-        <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setIsAddFormOpen(true)}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Tambah Invoice
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Buat Invoice Baru</DialogTitle>
-              <DialogDescription>Isi detail invoice baru di sini. Nomor Invoice akan dibuat otomatis.</DialogDescription>
-            </DialogHeader>
-            <AddInvoiceForm
-              onSuccess={() => setIsAddFormOpen(false)}
-              initialSchedule={null}
-              completedSchedules={completedSchedules as any[]}
-              isLoadingSchedules={isLoadingSchedules}
-              schedulesError={schedulesError}
-            />
-          </DialogContent>
-        </Dialog>
+        <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+        <Select value={filterPaymentStatus} onValueChange={(value: InvoicePaymentStatus | "all") => setFilterPaymentStatus(value)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter Status Pembayaran" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status Pembayaran</SelectItem>
+            {Object.values(InvoicePaymentStatus).map((status) => (
+              <SelectItem key={status} value={status}>
+                {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filterDocumentStatus} onValueChange={(value: InvoiceDocumentStatus | "all") => setFilterDocumentStatus(value)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter Status Dokumen" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Semua Status Dokumen</SelectItem>
+            {Object.values(InvoiceDocumentStatus).map((status) => (
+              <SelectItem key={status} value={status}>
+                {getDocumentStatusDisplayName(status)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button onClick={() => setIsAddFormOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Buat Invoice
+        </Button>
       </div>
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>No. Invoice</TableHead>
+              <TableHead>Nomor Invoice</TableHead>
+              <TableHead>Nomor DO</TableHead>
               <TableHead>Tanggal</TableHead>
               <TableHead>Pelanggan</TableHead>
-              <TableHead>Perusahaan</TableHead>
               <TableHead>Total</TableHead>
-              <TableHead>Status Pembayaran</TableHead>
-              <TableHead>Status Dokumen</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
+              <TableHead>Pembayaran</TableHead>
+              <TableHead>Dokumen</TableHead>
+              <TableHead>Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {invoices?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center">
-                  Tidak ada invoice ditemukan.
+            {filteredInvoices?.map((invoice) => (
+              <TableRow key={invoice.id}>
+                <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                <TableCell>{invoice.do_number || "-"}</TableCell>
+                <TableCell>{format(parseISO(invoice.invoice_date), "dd/MM/yyyy")}</TableCell>
+                <TableCell>{invoice.customer_name}</TableCell>
+                <TableCell>Rp {invoice.total_amount.toLocaleString('id-ID')}</TableCell>
+                <TableCell>
+                  <Badge className={getPaymentStatusBadgeClass(invoice.payment_status)}>
+                    {invoice.payment_status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge className={getDocumentStatusBadgeClass(invoice.invoice_status)}>
+                    {getDocumentStatusDisplayName(invoice.invoice_status)}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0">
+                        <span className="sr-only">Buka menu</span>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>Aksi</DropdownMenuLabel>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedInvoice(invoice);
+                          setIsViewDetailsOpen(true);
+                        }}
+                      >
+                        <Eye className="mr-2 h-4 w-4" /> Lihat Detail
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedInvoice(invoice);
+                          setIsEditFormOpen(true);
+                        }}
+                      >
+                        <Edit className="mr-2 h-4 w-4" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <Link href={`/print-invoice/${invoice.id}`} passHref>
+                        <DropdownMenuItem>
+                          <Printer className="mr-2 h-4 w-4" /> Cetak Invoice
+                        </DropdownMenuItem>
+                      </Link>
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteClick(invoice)}
+                        className="text-red-600"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" /> Hapus
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ) : (
-              invoices?.map((invoice) => (
-                <TableRow key={invoice.id}>
-                  <TableCell>{invoice.invoice_number}</TableCell>
-                  <TableCell>{format(parseISO(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>
-                  <TableCell>{invoice.customer_name}</TableCell>
-                  <TableCell>{invoice.company_name || "-"}</TableCell>
-                  <TableCell>Rp {invoice.total_amount.toLocaleString('id-ID')}</TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentStatusBadgeClass(invoice.payment_status)}`}>
-                      {invoice.payment_status.charAt(0).toUpperCase() + invoice.payment_status.slice(1)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getDocumentStatusBadgeClass(invoice.invoice_status)}`}>
-                      {getDocumentStatusDisplay(invoice.invoice_status)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Buka menu</span>
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleViewDetails(invoice)}>
-                          <Eye className="mr-2 h-4 w-4" /> Lihat Detail
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEdit(invoice)}>
-                          <Edit className="mr-2 h-4 w-4" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleUploadDocument(invoice)}>
-                          <UploadCloud className="mr-2 h-4 w-4" /> Unggah Dokumen
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.open(`/print/invoice/${invoice.id}`, '_blank')}>
-                          <Printer className="mr-2 h-4 w-4" /> Cetak
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDelete(invoice.id)} className="text-red-600">
-                          <Trash2 className="mr-2 h-4 w-4" /> Hapus
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>
 
+      <AddInvoiceForm
+        isOpen={isAddFormOpen}
+        onOpenChange={setIsAddFormOpen}
+        onSuccess={() => setIsAddFormOpen(false)}
+        completedSchedules={completedSchedules || []}
+        isLoadingSchedules={isLoadingSchedules}
+        schedulesError={schedulesError}
+      />
+
       {selectedInvoice && (
-        <>
-          <EditInvoiceForm
-            invoice={selectedInvoice}
-            isOpen={isEditFormOpen}
-            onOpenChange={setIsEditFormOpen}
-            onSuccess={() => setIsEditFormOpen(false)}
-          />
-          <ViewInvoiceDetailsDialog
-            invoice={selectedInvoice}
-            isOpen={isViewDetailsOpen}
-            onOpenChange={setIsViewDetailsOpen}
-          />
-          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Unggah Dokumen Invoice</DialogTitle>
-                <DialogDescription>
-                  Unggah dokumen terkait untuk invoice {selectedInvoice.invoice_number}.
-                </DialogDescription>
-              </DialogHeader>
-              <InvoiceUpload
-                invoiceId={selectedInvoice.id}
-                onUploadSuccess={(url) => {
-                  setSelectedInvoice((prev) => prev ? { ...prev, document_url: url, invoice_status: InvoiceDocumentStatus.COMPLETED } : null);
-                  setIsUploadDialogOpen(false);
-                }}
-                currentDocumentUrl={selectedInvoice.document_url}
-              />
-            </DialogContent>
-          </Dialog>
-        </>
+        <EditInvoiceForm
+          invoice={selectedInvoice}
+          isOpen={isEditFormOpen}
+          onOpenChange={setIsEditFormOpen}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ["invoices"] })}
+        />
       )}
+
+      {selectedInvoice && (
+        <ViewInvoiceDetailsDialog
+          invoice={selectedInvoice}
+          isOpen={isViewDetailsOpen}
+          onOpenChange={setIsViewDetailsOpen}
+        />
+      )}
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Konfirmasi Hapus</DialogTitle>
+            <DialogDescription>
+              Apakah Anda yakin ingin menghapus invoice "{selectedInvoice?.invoice_number}"?
+              Tindakan ini tidak dapat dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteInvoiceMutation.isPending}
+            >
+              {deleteInvoiceMutation.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                "Hapus"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

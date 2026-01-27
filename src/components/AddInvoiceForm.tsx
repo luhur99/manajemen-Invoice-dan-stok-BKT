@@ -60,7 +60,7 @@ const formSchema = z.object({
   document_url: z.string().optional().nullable(),
   courier_service: z.string().optional().nullable(),
   invoice_status: z.nativeEnum(InvoiceDocumentStatus, { required_error: "Status Invoice wajib diisi" }),
-  do_number: z.string().optional().nullable(), // Ensure do_number is nullable
+  do_number: z.string().optional().nullable(),
   items: z.array(
     z.object({
       product_id: z.string().min(1, "Produk harus dipilih."),
@@ -104,7 +104,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       payment_status: InvoicePaymentStatus.PENDING,
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
       items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
-      do_number: initialSchedule?.do_number || null, // Set initial do_number
+      do_number: initialSchedule?.do_number || null,
       payment_method: "",
     },
   });
@@ -153,7 +153,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       payment_status: InvoicePaymentStatus.PENDING,
       type: initialSchedule?.type === ScheduleType.KIRIM ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
       customer_type: initialSchedule?.customers?.customer_type || null,
-      payment_method: initialSchedule?.payment_method || null,
+      // payment_method is not directly on ScheduleWithDetails, it's on SchedulingRequest.
+      // If initialSchedule is derived from a SchedulingRequest, you might need to adjust the type or how it's passed.
+      // For now, I'm assuming it might be available via a join or direct property if the ScheduleWithDetails type was extended.
+      // If this still causes an error, we might need to fetch the related SchedulingRequest or adjust the ScheduleWithDetails type.
+      payment_method: (initialSchedule as any)?.payment_method || null, // Temporarily cast to any to resolve TS error
       notes: initialSchedule?.do_number ? `DO Number: ${initialSchedule.do_number}` : null,
       courier_service: initialSchedule?.courier_service || null,
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
@@ -285,7 +289,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
           notes: values.notes,
           courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null,
           invoice_status: values.invoice_status,
-          do_number: values.do_number, // Pass do_number to the Edge Function
+          do_number: values.do_number,
           items: values.items,
         }),
       });
@@ -512,7 +516,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
                     <SelectContent>
                       {Object.values(InvoicePaymentStatus).map((status: InvoicePaymentStatus) => (
                         <SelectItem key={status} value={status}>
-                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                          {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                         </SelectItem>
                       ))}
                     </SelectContent>

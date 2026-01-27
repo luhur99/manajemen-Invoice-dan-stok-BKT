@@ -1,10 +1,18 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -14,37 +22,34 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
-import { showSuccess, showError } from "@/utils/toast";
-import { Loader2, PlusCircle } from "lucide-react";
-import { format } from "date-fns";
-import { WarehouseCategory as WarehouseCategoryType, StockEventType } from "@/types/data";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { showError, showSuccess } from "@/utils/toast";
+import { Supplier, WarehouseCategory, StockEventType } from "@/types/data";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
+import { Loader2 } from "lucide-react";
 
-// Schema validasi menggunakan Zod
 const formSchema = z.object({
-  kode_barang: z.string().min(1, "Kode Barang wajib diisi"),
-  nama_barang: z.string().min(1, "Nama Barang wajib diisi"),
-  satuan: z.string().optional(),
-  harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
-  harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
-  initial_stock_quantity: z.coerce.number().min(0, "Stok Awal tidak boleh negatif").default(0),
-  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
-  initial_warehouse_category: z.string({
-    required_error: "Kategori Gudang Awal wajib dipilih",
-  }).min(1, "Kategori Gudang Awal wajib dipilih"),
+  kode_barang: z.string().min(1, "Kode Barang harus diisi.").trim(),
+  nama_barang: z.string().min(1, "Nama Barang harus diisi.").trim(),
+  satuan: z.string().optional().nullable().trim(),
+  harga_beli: z.number().min(0, "Harga Beli tidak boleh negatif."),
+  harga_jual: z.number().min(0, "Harga Jual tidak boleh negatif."),
+  safe_stock_limit: z.number().int().min(0, "Batas Stok Aman tidak boleh negatif.").optional().nullable(),
+  supplier_id: z.string().optional().nullable(),
+  initial_stock_quantity: z.number().int().min(0, "Kuantitas stok awal tidak boleh negatif.").default(0),
+  initial_warehouse_category: z.string().optional().nullable(),
 });
 
 interface AddStockItemFormProps {
-  onSuccess: () => void;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
 }
 
-const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, onOpenChange }) => {
+const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
 
@@ -56,150 +61,112 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
       satuan: "",
       harga_beli: 0,
       harga_jual: 0,
-      initial_stock_quantity: 0,
       safe_stock_limit: 0,
+      supplier_id: "",
+      initial_stock_quantity: 0,
       initial_warehouse_category: "",
     },
   });
 
-  // Fetch warehouse categories using useQuery
-  const { data: warehouseCategories, isLoading: loadingCategories } = useQuery<WarehouseCategoryType[], Error>({
-    queryKey: ["warehouseCategories"],
+  const { data: suppliers, isLoading: loadingSuppliers } = useQuery<Supplier[], Error>({
+    queryKey: ["suppliers"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("warehouse_categories")
-        .select("id, name, code") // Select specific columns
-        .order("name", { ascending: true });
-      if (error) {
-        showError("Gagal memuat kategori gudang.");
-        throw error;
-      }
-      return data as WarehouseCategoryType[];
+      const { data, error } = await supabase.from("suppliers").select("*");
+      if (error) throw error;
+      return data;
     },
-    enabled: isOpen, // Only fetch when the dialog is open
   });
 
-  // Set default initial_warehouse_category when categories load and dialog is open
-  useEffect(() => {
-    if (isOpen && warehouseCategories && warehouseCategories.length > 0 && !form.getValues("initial_warehouse_category")) {
-      form.setValue("initial_warehouse_category", warehouseCategories[0].code);
-    }
-  }, [isOpen, warehouseCategories, form]);
+  const { data: warehouseCategories, isLoading: loadingWarehouseCategories } = useQuery<WarehouseCategory[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("warehouse_categories").select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
 
-  // Reset form when dialog opens
-  useEffect(() => {
-    if (isOpen) {
-      form.reset({
-        kode_barang: "",
-        nama_barang: "",
-        satuan: "",
-        harga_beli: 0,
-        harga_jual: 0,
-        initial_stock_quantity: 0,
-        safe_stock_limit: 0,
-        initial_warehouse_category: warehouseCategories?.[0]?.code || "", // Set default if available
-      });
-    }
-  }, [isOpen, form, warehouseCategories]);
-
-  const getCategoryDisplayName = (code: string) => {
-    const category = warehouseCategories?.find(cat => cat.code === code);
-    return category ? category.name : code;
-  };
-
-  // Mutation for adding a stock item
-  const addStockItemMutation = useMutation({
+  const createStockItemMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const userId = session?.user?.id;
-      if (!userId) {
-        throw new Error("Pengguna tidak terautentikasi.");
+      if (!session?.user?.id) {
+        throw new Error("Anda harus login untuk membuat item stok.");
       }
 
-      // 1. Insert into products (product metadata)
-      const { data: productData, error: productError } = await supabase
+      const { data: newProduct, error: productError } = await supabase
         .from("products")
         .insert({
-          user_id: userId,
+          user_id: session.user.id,
           kode_barang: values.kode_barang,
           nama_barang: values.nama_barang,
           satuan: values.satuan,
           harga_beli: values.harga_beli,
           harga_jual: values.harga_jual,
           safe_stock_limit: values.safe_stock_limit,
+          supplier_id: values.supplier_id || null,
         })
-        .select("id")
+        .select()
         .single();
 
-      if (productError) {
-        throw productError;
-      }
+      if (productError) throw productError;
 
-      const newProductId = productData.id;
-
-      // 2. If initial_stock_quantity > 0, insert into warehouse_inventories
-      if (values.initial_stock_quantity > 0) {
+      if (values.initial_stock_quantity > 0 && values.initial_warehouse_category) {
         const { error: inventoryError } = await supabase
           .from("warehouse_inventories")
           .insert({
-            user_id: userId,
-            product_id: newProductId,
+            user_id: session.user.id,
+            product_id: newProduct.id,
             warehouse_category: values.initial_warehouse_category,
             quantity: values.initial_stock_quantity,
           });
 
-        if (inventoryError) {
-          console.error("Error creating initial warehouse inventory:", inventoryError);
-          throw new Error(`Gagal membuat inventaris awal: ${inventoryError.message}`);
-        }
+        if (inventoryError) throw inventoryError;
 
-        // 3. Record initial stock transaction in stock_ledger
         const { error: ledgerError } = await supabase
           .from("stock_ledger")
           .insert({
-            user_id: userId,
-            product_id: newProductId,
-            event_type: StockEventType.INITIAL,
+            user_id: session.user.id,
+            product_id: newProduct.id,
+            event_type: StockEventType.INITIAL, // Corrected
             quantity: values.initial_stock_quantity,
             to_warehouse_category: values.initial_warehouse_category,
-            notes: `Stok awal saat penambahan item di kategori ${getCategoryDisplayName(values.initial_warehouse_category)}`,
-            event_date: format(new Date(), "yyyy-MM-dd"),
+            notes: "Stok awal saat pembuatan item",
+            event_date: new Date().toISOString().split('T')[0], // Current date
           });
 
-        if (ledgerError) {
-          console.error("Error recording initial stock ledger entry:", ledgerError);
-          // Don't throw here, as inventory was already created. Log and continue.
-        }
+        if (ledgerError) throw ledgerError;
       }
+      return newProduct;
     },
     onSuccess: () => {
-      showSuccess("Produk berhasil ditambahkan!");
-      form.reset();
+      showSuccess("Item stok berhasil dibuat!");
       onOpenChange(false);
-      queryClient.invalidateQueries({ queryKey: ["productsMetadata"] }); // Invalidate product list
-      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
-      queryClient.invalidateQueries({ queryKey: ["stockLedgerEntries"] }); // Invalidate stock history
-      onSuccess(); // Call parent's onSuccess
+      form.reset();
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["warehouse_inventories"] });
+      queryClient.invalidateQueries({ queryKey: ["stock_ledger"] });
+      onSuccess();
     },
-    onError: (error: any) => {
-      showError(`Gagal menambahkan produk: ${error.message}`);
-      console.error("Error adding product:", error);
+    onError: (err: any) => {
+      showError(`Gagal membuat item stok: ${err.message}`);
+      console.error("Error creating stock item:", err);
     },
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    addStockItemMutation.mutate(values);
+    createStockItemMutation.mutate(values);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      {/* Removed DialogTrigger asChild */}
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Tambah Produk Baru</DialogTitle>
-          <DialogDescription>Isi detail untuk menambahkan produk baru ke inventaris.</DialogDescription>
+          <DialogTitle>Tambah Item Stok Baru</DialogTitle>
+          <DialogDescription>
+            Isi detail item stok baru di sini. Anda juga dapat menambahkan stok awal.
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <FormField
               control={form.control}
               name="kode_barang"
@@ -231,7 +198,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
               name="satuan"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Satuan</FormLabel>
+                  <FormLabel>Satuan (Opsional)</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -246,7 +213,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
                 <FormItem>
                   <FormLabel>Harga Beli</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -259,7 +226,7 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
                 <FormItem>
                   <FormLabel>Harga Jual</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -270,9 +237,9 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
               name="safe_stock_limit"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Batas Stok Aman</FormLabel>
+                  <FormLabel>Batas Stok Aman (Opsional)</FormLabel>
                   <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
+                    <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -280,50 +247,87 @@ const AddStockItemForm: React.FC<AddStockItemFormProps> = ({ onSuccess, isOpen, 
             />
             <FormField
               control={form.control}
-              name="initial_warehouse_category"
+              name="supplier_id"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Kategori Gudang Awal</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={loadingCategories}>
+                  <FormLabel>Supplier (Opsional)</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={loadingCategories ? "Memuat kategori..." : "Pilih kategori gudang awal"} />
+                        <SelectValue placeholder="Pilih supplier" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {warehouseCategories?.map((category) => (
-                        <SelectItem key={category.id} value={category.code}>
-                          {category.name}
-                        </SelectItem>
-                      ))}
+                      {loadingSuppliers ? (
+                        <SelectItem value="loading" disabled>Memuat supplier...</SelectItem>
+                      ) : (
+                        suppliers?.map((supplier) => (
+                          <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="initial_stock_quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Kuantitas Stok Awal</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} onChange={e => field.onChange(e.target.value === "" ? "" : Number(e.target.value))} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="md:col-span-2">
-              <Button type="submit" className="w-full" disabled={addStockItemMutation.isPending}>
-                {addStockItemMutation.isPending ? (
+
+            <h3 className="text-lg font-semibold mt-4 mb-2">Stok Awal (Opsional)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="initial_stock_quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Kuantitas Stok Awal</FormLabel>
+                    <FormControl>
+                      <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value, 10))} min="0" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="initial_warehouse_category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Kategori Gudang Awal</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Pilih kategori gudang" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {loadingWarehouseCategories ? (
+                          <SelectItem value="loading" disabled>Memuat kategori...</SelectItem>
+                        ) : (
+                          warehouseCategories?.map((category) => (
+                            <SelectItem key={category.id} value={category.code}>
+                              {category.name}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="submit" disabled={createStockItemMutation.isPending}>
+                {createStockItemMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Tambah Produk"
+                  "Simpan Item Stok"
                 )}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

@@ -6,6 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   Form,
   FormControl,
   FormField,
@@ -14,35 +22,32 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { showSuccess, showError } from "@/utils/toast";
-import { useSession } from "@/components/SessionContextProvider";
+import { showError, showSuccess } from "@/utils/toast";
 import { CustomerTypeEnum } from "@/types/data";
-import { useMutation, useQueryClient } from "@tanstack/react-query"; // Import useMutation and useQueryClient
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "@/components/SessionContextProvider";
+import { Loader2 } from "lucide-react";
 
-// Schema validasi menggunakan Zod
 const formSchema = z.object({
-  customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
-  company_name: z.string().optional(),
-  address: z.string().optional(),
-  phone_number: z.string().optional(),
-  customer_type: z.nativeEnum(CustomerTypeEnum, {
-    required_error: "Tipe pelanggan wajib dipilih.",
-  }),
+  customer_name: z.string().min(1, "Nama Pelanggan harus diisi."),
+  company_name: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  phone_number: z.string().optional().nullable(),
+  customer_type: z.nativeEnum(CustomerTypeEnum, { required_error: "Tipe Pelanggan harus diisi." }),
 });
 
 interface AddCustomerFormProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
-const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
+const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
-  const queryClient = useQueryClient(); // Initialize queryClient
-  const [isOpen, setIsOpen] = React.useState(false);
+  const queryClient = useQueryClient();
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -50,65 +55,59 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
       company_name: "",
       address: "",
       phone_number: "",
-      customer_type: CustomerTypeEnum.B2C, // Default to B2C
+      customer_type: CustomerTypeEnum.INDIVIDUAL, // Default to INDIVIDUAL
     },
   });
 
-  // Define the mutation for adding a customer
-  const addCustomerMutation = useMutation({
+  const createCustomerMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const userId = session?.user?.id;
-
-      if (!userId) {
-        throw new Error("Pengguna tidak terautentikasi.");
+      if (!session?.user?.id) {
+        throw new Error("Anda harus login untuk membuat pelanggan.");
       }
-
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("customers")
         .insert({
-          user_id: userId,
+          user_id: session.user.id,
           customer_name: values.customer_name,
-          company_name: values.company_name || null,
-          address: values.address || null,
-          phone_number: values.phone_number || null,
+          company_name: values.company_name,
+          address: values.address,
+          phone_number: values.phone_number,
           customer_type: values.customer_type,
-        });
+        })
+        .select()
+        .single();
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
-      showSuccess("Pelanggan berhasil ditambahkan!");
+      showSuccess("Pelanggan berhasil dibuat!");
+      onOpenChange(false);
       form.reset();
-      setIsOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["customers"] }); // Invalidate and refetch customers
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       onSuccess();
     },
-    onError: (error: any) => {
-      showError(`Gagal menambahkan pelanggan: ${error.message}`);
-      console.error("Error adding customer:", error);
+    onError: (err: any) => {
+      showError(`Gagal membuat pelanggan: ${err.message}`);
+      console.error("Error creating customer:", err);
     },
   });
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    addCustomerMutation.mutate(values);
+    createCustomerMutation.mutate(values);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <PlusCircle className="h-4 w-4" /> Tambah Pelanggan
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Tambah Pelanggan Baru</DialogTitle>
-          <DialogDescription>Isi detail untuk menambahkan pelanggan baru.</DialogDescription>
+          <DialogDescription>
+            Isi detail pelanggan baru di sini. Klik simpan saat Anda selesai.
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <FormField
               control={form.control}
               name="customer_name"
@@ -128,6 +127,19 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alamat (Opsional)</FormLabel>
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
@@ -162,7 +174,7 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
                     </FormControl>
                     <SelectContent>
                       {Object.values(CustomerTypeEnum).map((type) => (
-                        <SelectItem key={type as string} value={type as string}>
+                        <SelectItem key={type} value={type}>
                           {type.charAt(0).toUpperCase() + type.slice(1)}
                         </SelectItem>
                       ))}
@@ -172,28 +184,15 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem className="md:col-span-2">
-                  <FormLabel>Alamat (Opsional)</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Alamat lengkap pelanggan" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="md:col-span-2">
-              <Button type="submit" className="w-full mt-6" disabled={addCustomerMutation.isPending}>
-                {addCustomerMutation.isPending ? (
+            <DialogFooter>
+              <Button type="submit" disabled={createCustomerMutation.isPending}>
+                {createCustomerMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Tambah Pelanggan"
+                  "Simpan"
                 )}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

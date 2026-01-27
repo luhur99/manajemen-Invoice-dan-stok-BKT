@@ -52,16 +52,17 @@ const formSchema = z.object({
   invoice_date: z.date({ required_error: "Tanggal Invoice harus diisi." }),
   due_date: z.date().optional(),
   customer_name: z.string().min(1, "Nama Pelanggan harus diisi."),
-  company_name: z.string().optional(),
+  company_name: z.string().optional().nullable(),
   total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
   payment_status: z.nativeEnum(InvoicePaymentStatus),
-  type: z.nativeEnum(InvoiceType).optional(),
-  customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
+  type: z.nativeEnum(InvoiceType).optional().nullable(),
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional().nullable(),
   payment_method: z.string().optional().nullable(),
-  notes: z.string().optional(),
-  courier_service: z.string().optional(),
+  notes: z.string().optional().nullable(),
+  courier_service: z.string().optional().nullable(),
   invoice_status: z.nativeEnum(InvoiceDocumentStatus),
   document_url: z.string().optional().nullable(),
+  do_number: z.string().optional().nullable(), // Added do_number to schema
   items: z.array(
     z.object({
       id: z.string().optional(),
@@ -96,16 +97,17 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       invoice_date: new Date(invoice.invoice_date),
       due_date: invoice.due_date ? new Date(invoice.due_date) : undefined,
       customer_name: invoice.customer_name,
-      company_name: invoice.company_name || "",
+      company_name: invoice.company_name || null,
       payment_status: invoice.payment_status as InvoicePaymentStatus,
       type: invoice.type as InvoiceType | undefined,
       customer_type: invoice.customer_type as CustomerTypeEnum | undefined,
-      payment_method: invoice.payment_method || "",
-      notes: invoice.notes || "",
-      courier_service: invoice.courier_service || "",
+      payment_method: invoice.payment_method || null,
+      notes: invoice.notes || null,
+      courier_service: invoice.courier_service || null,
       total_amount: invoice.total_amount,
       invoice_status: invoice.invoice_status as InvoiceDocumentStatus,
-      document_url: invoice.document_url || "",
+      document_url: invoice.document_url || null,
+      do_number: invoice.do_number || null, // Initialize do_number
       items: [],
     },
   });
@@ -204,16 +206,17 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         invoice_date: new Date(invoice.invoice_date),
         due_date: invoice.due_date ? new Date(invoice.due_date) : undefined,
         customer_name: invoice.customer_name,
-        company_name: invoice.company_name || "",
+        company_name: invoice.company_name || null,
         payment_status: invoice.payment_status as InvoicePaymentStatus,
         type: invoice.type as InvoiceType | undefined,
         customer_type: invoice.customer_type as CustomerTypeEnum | undefined,
-        payment_method: invoice.payment_method || "",
-        notes: invoice.notes || "",
-        courier_service: invoice.courier_service || "",
+        payment_method: invoice.payment_method || null,
+        notes: invoice.notes || null,
+        courier_service: invoice.courier_service || null,
         total_amount: invoice.total_amount,
         invoice_status: invoice.invoice_status as InvoiceDocumentStatus,
-        document_url: invoice.document_url || "",
+        document_url: invoice.document_url || null,
+        do_number: invoice.do_number || null, // Reset do_number
         items: initialItems,
       });
       setItemSearchInputs(initialItems.map(item => item.item_name || ""));
@@ -311,6 +314,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           courier_service: values.courier_service,
           invoice_status: values.invoice_status,
           document_url: values.document_url,
+          do_number: values.do_number, // Update do_number here
           updated_at: new Date().toISOString(),
         })
         .eq("id", invoice.id);
@@ -418,6 +422,19 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                       <FormLabel>Nomor Invoice</FormLabel>
                       <FormControl>
                         <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="do_number"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nomor DO (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -555,7 +572,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipe Invoice (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih tipe invoice" />
@@ -564,7 +581,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         <SelectContent>
                           {Object.values(InvoiceType).map((type) => (
                             <SelectItem key={type} value={type}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                              {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -579,7 +596,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Pilih tipe pelanggan" />
