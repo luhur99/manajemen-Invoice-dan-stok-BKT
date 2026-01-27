@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
+import React from "react";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -28,245 +27,138 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { CalendarIcon, PlusCircle, Trash2, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { showError, showSuccess } from "@/utils/toast";
-import {
-  Product,
-  InvoicePaymentStatus,
-  InvoiceType,
-  CustomerTypeEnum,
-  WarehouseInventory,
-  ScheduleWithDetails,
-  InvoiceDocumentStatus,
-} from "@/types/data";
-import StockItemCombobox from "./StockItemCombobox";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { showSuccess, showError } from "@/utils/toast";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query"; // Added useQuery
 import { useSession } from "@/components/SessionContextProvider";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formSchema = z.object({
-  invoice_date: z.date({ required_error: "Tanggal Invoice harus diisi." }),
+  invoice_number: z.string().min(1, "Nomor Invoice wajib diisi"),
+  invoice_date: z.date({ required_error: "Tanggal Invoice wajib diisi" }),
   due_date: z.date().optional(),
-  customer_name: z.string().min(1, "Nama Pelanggan harus diisi."),
+  customer_name: z.string().min(1, "Nama Pelanggan wajib diisi"),
   company_name: z.string().optional(),
-  total_amount: z.number().min(0, "Total Jumlah tidak boleh negatif."),
-  payment_status: z.nativeEnum(InvoicePaymentStatus),
-  type: z.nativeEnum(InvoiceType).optional(),
-  customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
+  total_amount: z.coerce.number().min(0, "Total Jumlah tidak boleh negatif").default(0),
+  payment_status: z.string().min(1, "Status Pembayaran wajib diisi"),
+  type: z.string().optional(),
+  customer_type: z.string().optional(),
   payment_method: z.string().optional(),
   notes: z.string().optional(),
+  document_url: z.string().optional(),
   courier_service: z.string().optional(),
-  invoice_status: z.nativeEnum(InvoiceDocumentStatus).default(InvoiceDocumentStatus.WAITING_DOCUMENT_INV),
-  items: z.array(
-    z.object({
-      product_id: z.string().min(1, "Produk harus dipilih."),
-      item_name: z.string().min(1, "Nama Item harus diisi."),
-      item_code: z.string().optional(),
-      quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
-      unit_price: z.number().min(0, "Harga Satuan tidak boleh negatif."),
-      subtotal: z.number().min(0, "Subtotal tidak boleh negatif."),
-      unit_type: z.string().optional(),
-    })
-  ).min(1, "Setidaknya satu item harus ditambahkan."),
+  invoice_status: z.string().min(1, "Status Invoice wajib diisi"),
+  do_number: z.string().optional(), // New field for Delivery Order number
 });
 
 interface AddInvoiceFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  initialSchedule?: ScheduleWithDetails | null;
 }
 
-const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess, initialSchedule }) => {
+const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, onSuccess }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("basic_info");
-  const [itemSearchInputs, setItemSearchInputs] = useState<string[]>([]);
+
+  // Fetch completed DOs from schedules table
+  const { data: completedSchedules, isLoading: isLoadingSchedules } = useQuery({
+    queryKey: ["completedSchedules"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("schedules")
+        .select("id, do_number, customer_name, schedule_date")
+        .eq("status", "completed"); // Assuming 'completed' is the status for completed DOs
+
+      if (error) {
+        throw error;
+      }
+      return data;
+    },
+    enabled: isOpen, // Only fetch when dialog is open
+  });
+
+  // Fetch existing invoice numbers from invoices table
+  const { data: existingInvoiceNumbers, isLoading: isLoadingInvoiceNumbers } = useQuery({
+    queryKey: ["existingInvoiceNumbers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("invoice_number");
+
+      if (error) {
+        throw error;
+      }
+      return data.map(item => item.invoice_number); // Extract just the numbers
+    },
+    enabled: isOpen, // Only fetch when dialog is open
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      invoice_number: "",
       invoice_date: new Date(),
+      due_date: undefined,
       customer_name: "",
+      company_name: "",
       total_amount: 0,
-      payment_status: InvoicePaymentStatus.PENDING,
-      invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
-      items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+      payment_status: "pending",
+      type: "",
+      customer_type: "",
+      payment_method: "",
+      notes: "",
+      document_url: "",
+      courier_service: "",
+      invoice_status: "waiting_document_inv",
+      do_number: "", // Default for new field
     },
   });
-
-  const { fields, append, remove, update } = useFieldArray({
-    control: form.control,
-    name: "items",
-  });
-
-  // Fetch product metadata (without inventories for invoice items)
-  const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
-    queryKey: ["productsMetadata"], // Changed query key
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          id,
-          user_id,
-          kode_barang,
-          nama_barang,
-          satuan,
-          harga_beli,
-          harga_jual,
-          safe_stock_limit,
-          supplier_id,
-          created_at
-        `);
-
-      if (error) {
-        showError("Gagal memuat daftar produk.");
-        throw error;
-      }
-      return data as Product[];
-    },
-    enabled: isOpen,
-  });
-
-  const watchedInvoiceType = form.watch("type");
-
-  React.useEffect(() => {
-    if (isOpen) {
-      let defaultNotes = "";
-      if (initialSchedule?.do_number) {
-        defaultNotes = `DO Number: ${initialSchedule.do_number}`;
-      }
-
-      const defaultItems = [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }];
-
-      form.reset({
-        invoice_date: new Date(),
-        due_date: undefined,
-        customer_name: initialSchedule?.customer_name || "",
-        company_name: undefined,
-        total_amount: 0,
-        payment_status: InvoicePaymentStatus.PENDING,
-        type: initialSchedule?.type === "kirim" ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
-        customer_type: initialSchedule?.customers?.customer_type || undefined,
-        payment_method: initialSchedule?.payment_method || undefined,
-        notes: defaultNotes,
-        courier_service: initialSchedule?.courier_service || undefined,
-        invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
-        items: defaultItems, // Use the defaultItems here
-      });
-      setItemSearchInputs(defaultItems.map(item => item.item_name || "")); // Initialize based on defaultItems
-      form.clearErrors(); // Clear any previous form errors
-      setActiveTab("basic_info");
-    }
-  }, [isOpen, initialSchedule, form]); // Removed `fields` from dependency array
-
-  // Separate useEffect to keep itemSearchInputs in sync with actual form fields
-  React.useEffect(() => {
-    // Only update if the number of fields changes or if item_name in fields changes
-    const currentItemNames = fields.map(item => item.item_name || "");
-    if (JSON.stringify(itemSearchInputs) !== JSON.stringify(currentItemNames)) {
-      setItemSearchInputs(currentItemNames);
-    }
-  }, [fields, itemSearchInputs]); // Keep itemSearchInputs as dependency to prevent infinite loop
-
-
-  const calculateTotalAmount = React.useCallback(() => {
-    const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
-    form.setValue("total_amount", total);
-  }, [fields, form]);
-
-  React.useEffect(() => {
-    calculateTotalAmount();
-  }, [fields, calculateTotalAmount]);
-
-  const handleProductSelect = (index: number, productId: string | undefined) => {
-    const selectedProduct = products?.find(p => p.id === productId);
-    if (selectedProduct) {
-      update(index, {
-        ...fields[index],
-        product_id: selectedProduct.id,
-        item_name: selectedProduct.nama_barang,
-        item_code: selectedProduct.kode_barang,
-        unit_price: selectedProduct.harga_jual,
-        unit_type: selectedProduct.satuan,
-        subtotal: selectedProduct.harga_jual * fields[index].quantity,
-      });
-      setItemSearchInputs(prev => {
-        const newInputs = [...prev];
-        newInputs[index] = selectedProduct.nama_barang;
-        return newInputs;
-      });
-    } else {
-      update(index, {
-        ...fields[index],
-        product_id: "",
-        item_name: "",
-        item_code: "",
-        unit_price: 0,
-        unit_type: "",
-        subtotal: 0,
-      });
-      setItemSearchInputs(prev => {
-        const newInputs = [...prev];
-        newInputs[index] = "";
-        return newInputs;
-      });
-    }
-  };
-
-  const handleQuantityChange = (index: number, value: number) => {
-    const unitPrice = fields[index].unit_price;
-    update(index, {
-      ...fields[index],
-      quantity: value,
-      subtotal: value * unitPrice,
-    });
-  };
-
-  const handleUnitPriceChange = (index: number, value: number) => {
-    const quantity = fields[index].quantity;
-    update(index, {
-      ...fields[index],
-      unit_price: value,
-      subtotal: value * quantity,
-    });
-  };
 
   const addInvoiceMutation = useMutation({
     mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const { data, error } = await supabase.functions.invoke('create-invoice', {
-        body: JSON.stringify({
+      const userId = session?.user?.id;
+
+      if (!userId) {
+        throw new Error("Pengguna tidak terautentikasi.");
+      }
+
+      const { error } = await supabase
+        .from("invoices")
+        .insert({
+          user_id: userId,
+          invoice_number: values.invoice_number,
           invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
           due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
           customer_name: values.customer_name,
-          company_name: values.company_name,
+          company_name: values.company_name || null,
           total_amount: values.total_amount,
           payment_status: values.payment_status,
-          type: values.type,
-          customer_type: values.customer_type,
-          payment_method: values.payment_method,
-          notes: values.notes,
-          courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null,
+          type: values.type || null,
+          customer_type: values.customer_type || null,
+          payment_method: values.payment_method || null,
+          notes: values.notes || null,
+          document_url: values.document_url || null,
+          courier_service: values.courier_service || null,
           invoice_status: values.invoice_status,
-          items: values.items,
-        }),
-      });
+          do_number: values.do_number || null, // Include new field
+        })
+        .select();
 
-      if (error) throw error;
-      if (data && data.error) throw new Error(data.error);
-      return data;
+      if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       showSuccess("Invoice berhasil ditambahkan!");
-      onSuccess();
-      onOpenChange(false);
       form.reset();
+      onOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      onSuccess();
     },
-    onError: (err: any) => {
-      showError(`Gagal menambahkan invoice: ${err.message}`);
-      console.error("Error adding invoice:", err);
+    onError: (error: any) => {
+      showError(`Gagal menambahkan invoice: ${error.message}`);
+      console.error("Error adding invoice:", error);
     },
   });
 
@@ -276,346 +168,323 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tambah Invoice Baru</DialogTitle>
           <DialogDescription>
-            Isi detail invoice baru di sini. Nomor Invoice akan dibuat otomatis.
+            Isi detail untuk menambahkan invoice baru.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="basic_info">Informasi Dasar</TabsTrigger>
-                <TabsTrigger value="items">Item Invoice</TabsTrigger>
-                <TabsTrigger value="notes">Catatan</TabsTrigger>
-              </TabsList>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+            {/* New Field: DO Number */}
+            <FormField
+              control={form.control}
+              name="do_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nomor DO Selesai (Opsional)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih nomor DO yang sudah selesai" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {isLoadingSchedules ? (
+                        <SelectItem value="loading" disabled>Memuat DO...</SelectItem>
+                      ) : (
+                        completedSchedules?.map((schedule) => (
+                          <SelectItem key={schedule.id} value={schedule.do_number || ""}>
+                            {schedule.do_number} - {schedule.customer_name} ({format(new Date(schedule.schedule_date), "PPP")})
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <TabsContent value="basic_info" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="invoice_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Tanggal Invoice</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pilih tanggal</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="due_date"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Tanggal Jatuh Tempo (Opsional)</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn(
-                                "w-full pl-3 text-left font-normal",
-                                !field.value && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value ? (
-                                format(field.value, "PPP")
-                              ) : (
-                                <span>Pilih tanggal</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="customer_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nama Pelanggan</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="company_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="payment_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status Pembayaran</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih status pembayaran" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(InvoicePaymentStatus).map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipe Invoice (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih tipe invoice" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(InvoiceType).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="customer_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih tipe pelanggan" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => (
-                            <SelectItem key={type} value={type}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="payment_method"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {watchedInvoiceType === InvoiceType.KIRIM_BARANG && (
-                  <FormField
-                    control={form.control}
-                    name="courier_service"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Layanan Kurir (Opsional)</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </TabsContent>
+            {/* Existing Field: Invoice Number - now a Select */}
+            <FormField
+              control={form.control}
+              name="invoice_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nomor Invoice</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih nomor invoice yang sudah ada" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {isLoadingInvoiceNumbers ? (
+                        <SelectItem value="loading" disabled>Memuat nomor invoice...</SelectItem>
+                      ) : (
+                        existingInvoiceNumbers?.map((num) => (
+                          <SelectItem key={num} value={num}>
+                            {num}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <TabsContent value="items" className="mt-4 space-y-4">
-                {fields.map((item, index) => (
-                  <div key={item.id || index} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
-                    <div className="md:col-span-2">
-                      <FormItem>
-                        <FormLabel>Produk</FormLabel>
-                        <StockItemCombobox
-                          products={products || []}
-                          selectedProductId={item.product_id || undefined}
-                          onSelectProduct={(productId) => handleProductSelect(index, productId)}
-                          inputValue={itemSearchInputs[index] || ""}
-                          onInputValueChange={(value) => {
-                            setItemSearchInputs(prev => {
-                              const newInputs = [...prev];
-                              newInputs[index] = value;
-                              return newInputs;
-                            });
-                          }}
-                          disabled={loadingProducts}
-                          loading={loadingProducts}
-                          showInventory={false} // Do not show inventory in invoice item selection
-                        />
-                        <FormMessage />
-                      </FormItem>
-                    </div>
-                    <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Kuantitas</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleQuantityChange(index, parseInt(e.target.value, 10))}
-                            min="1"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    </div>
-                    <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Harga Satuan</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value))}
-                            min="0"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    </div>
-                    <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Subtotal</FormLabel>
-                        <FormControl>
-                          <Input type="number" value={item.subtotal} readOnly className="bg-gray-100" />
-                        </FormControl>
-                      </FormItem>
-                    </div>
-                    <div className="md:col-span-1 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => remove(index)}
-                        className="mt-2 md:mt-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
-                    setItemSearchInputs(prev => [...prev, ""]);
-                  }}
-                  className="w-full"
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item
-                </Button>
-
-                <div className="flex justify-end items-center mt-4">
-                  <span className="text-lg font-semibold mr-2">Total Jumlah:</span>
-                  <span className="text-xl font-bold">
-                    Rp {form.watch("total_amount").toLocaleString('id-ID')}
-                  </span>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="notes" className="mt-4 space-y-4">
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Catatan (Opsional)</FormLabel>
+            <FormField
+              control={form.control}
+              name="invoice_date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Tanggal Invoice</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
                       <FormControl>
-                        <Textarea {...field} />
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pilih tanggal</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </TabsContent>
-            </Tabs>
-            <DialogFooter>
-              <Button type="submit" disabled={addInvoiceMutation.isPending}>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="due_date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Tanggal Jatuh Tempo (Opsional)</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pilih tanggal</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="customer_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama Pelanggan</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="company_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="total_amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Total Jumlah</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} onChange={e => field.onChange(parseFloat(e.target.value))} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="payment_status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status Pembayaran</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih status pembayaran" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipe (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="customer_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="payment_method"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Catatan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Textarea {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="document_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>URL Dokumen (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="courier_service"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Layanan Kurir (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="invoice_status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status Invoice</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih status invoice" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="waiting_document_inv">Menunggu Dokumen Inv</SelectItem>
+                      <SelectItem value="document_inv_sent">Dokumen Inv Terkirim</SelectItem>
+                      <SelectItem value="completed">Selesai</SelectItem>
+                      <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <div className="md:col-span-2">
+              <Button type="submit" className="w-full mt-6" disabled={addInvoiceMutation.isPending}>
                 {addInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Simpan Invoice"
+                  "Tambah Invoice"
                 )}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
       </DialogContent>
