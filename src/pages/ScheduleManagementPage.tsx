@@ -46,7 +46,7 @@ const ScheduleManagementPage = () => {
   const { data: schedules, isLoading, error } = useQuery({
     queryKey: ["schedules"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("schedules").select("*");
+      const { data, error } = await supabase.from("schedules").select("*").order('created_at', { ascending: false }); // Order by created_at descending
       if (error) throw error;
       return data;
     },
@@ -171,6 +171,7 @@ const ScheduleManagementPage = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => navigate(`/schedules/${schedule.id}`)}>View Details</DropdownMenuItem> {/* New View button */}
                       <DropdownMenuItem onClick={() => navigate(`/schedules/${schedule.id}/edit`)}>Edit</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDelete(schedule.id)}>Delete</DropdownMenuItem>
                       <DropdownMenuSeparator />
