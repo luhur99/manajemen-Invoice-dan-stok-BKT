@@ -55,7 +55,7 @@ const formSchema = z.object({
   payment_status: z.nativeEnum(InvoicePaymentStatus, { required_error: "Status Pembayaran wajib diisi" }),
   type: z.nativeEnum(InvoiceType).optional().nullable(),
   customer_type: z.nativeEnum(CustomerTypeEnum).optional().nullable(),
-  payment_method: z.string().optional().nullable(),
+  payment_method: z.string().optional().nullable(), // Tetap string karena dropdown akan menghasilkan string
   notes: z.string().optional().nullable(),
   document_url: z.string().optional().nullable(),
   courier_service: z.string().optional().nullable(),
@@ -105,6 +105,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
       items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
       do_number: initialSchedule?.do_number || "",
+      payment_method: "", // Default value for payment method
     },
   });
 
@@ -574,9 +575,19 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih metode pembayaran" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="Cash">Cash</SelectItem>
+                      <SelectItem value="Transfer">Transfer</SelectItem>
+                      <SelectItem value="DP">DP</SelectItem>
+                      <SelectItem value="Lainnya">Lainnya</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -731,7 +742,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
                     <FormItem>
                       <FormLabel>URL Dokumen (Opsional)</FormLabel>
                       <FormControl>
-                        <Input {...field} />
+                        <Input {...field} value={field.value || ""} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

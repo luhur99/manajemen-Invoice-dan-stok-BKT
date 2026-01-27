@@ -57,7 +57,7 @@ const formSchema = z.object({
   payment_status: z.nativeEnum(InvoicePaymentStatus),
   type: z.nativeEnum(InvoiceType).optional(),
   customer_type: z.nativeEnum(CustomerTypeEnum).optional(),
-  payment_method: z.string().optional(),
+  payment_method: z.string().optional().nullable(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
   invoice_status: z.nativeEnum(InvoiceDocumentStatus),
@@ -564,7 +564,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         <SelectContent>
                           {Object.values(InvoiceType).map((type) => (
                             <SelectItem key={type} value={type}>
-                              {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                              {type.charAt(0).toUpperCase() + type.slice(1)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -603,9 +603,19 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih metode pembayaran" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Cash">Cash</SelectItem>
+                          <SelectItem value="Transfer">Transfer</SelectItem>
+                          <SelectItem value="DP">DP</SelectItem>
+                          <SelectItem value="Lainnya">Lainnya</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -645,7 +655,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                           }}
                           disabled={loadingProducts}
                           loading={loadingProducts}
-                          showInventory={false} // Do not show inventory in invoice item selection
+                          showInventory={false}
                         />
                         <FormMessage />
                       </FormItem>
@@ -660,10 +670,10 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                             <FormControl>
                               <Input
                                 type="number"
-                                value={field.value} // FIX 1: Use field.value
+                                value={field.value}
                                 onChange={(e) => {
-                                  field.onChange(e.target.value === "" ? "" : parseInt(e.target.value, 10)); // Update RHF state
-                                  handleQuantityChange(index, parseInt(e.target.value, 10)); // Call custom logic
+                                  field.onChange(e.target.value === "" ? "" : parseInt(e.target.value, 10));
+                                  handleQuantityChange(index, parseInt(e.target.value, 10));
                                 }}
                                 min="1"
                               />
@@ -683,10 +693,10 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                             <FormControl>
                               <Input
                                 type="number"
-                                value={field.value} // FIX 2: Use field.value
+                                value={field.value}
                                 onChange={(e) => {
-                                  field.onChange(e.target.value === "" ? "" : parseFloat(e.target.value)); // Update RHF state
-                                  handleUnitPriceChange(index, parseFloat(e.target.value)); // Call custom logic
+                                  field.onChange(e.target.value === "" ? "" : parseFloat(e.target.value));
+                                  handleUnitPriceChange(index, parseFloat(e.target.value));
                                 }}
                                 min="0"
                               />
