@@ -75,11 +75,11 @@ export enum ProductCategory {
 }
 
 export enum StockEventType {
-  IN = "IN",
-  OUT = "OUT",
-  TRANSFER = "TRANSFER",
-  ADJUSTMENT = "ADJUSTMENT",
-  INITIAL = "INITIAL",
+  IN = "in",
+  OUT = "out",
+  TRANSFER = "transfer",
+  ADJUSTMENT = "adjustment",
+  INITIAL = "initial",
 }
 
 export enum ScheduleStatus {
