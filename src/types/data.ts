@@ -5,8 +5,8 @@ export enum ScheduleType {
 }
 
 export enum SchedulingRequestType { // Defined based on usage
-  KIRIM = "kirim",
-  INSTALASI = "instalasi",
+  DELIVERY = "delivery", // Changed from KIRIM to match common usage
+  INSTALLATION = "installation", // Changed from INSTALASI
   SERVICE_UNBILL = "service_unbill",
   SERVICE_BILL = "service_bill",
 }
@@ -40,7 +40,7 @@ export enum DeliveryOrderStatus {
 export enum InvoicePaymentStatus {
   PENDING = "pending",
   PAID = "paid",
-  PARTIALLY_PAID = "partially_paid", // Corrected from PARTIAL
+  PARTIALLY_PAID = "partially_paid",
   OVERDUE = "overdue",
   CANCELLED = "cancelled",
 }
@@ -54,13 +54,12 @@ export enum InvoiceType {
 export enum CustomerTypeEnum {
   INDIVIDUAL = "individual",
   COMPANY = "company",
-  // Removed B2C as it's not in the schema and caused errors
 }
 
 export enum InvoiceDocumentStatus {
   WAITING_DOCUMENT_INV = "waiting_document_inv",
-  DOCUMENT_SENT = "document_sent", // Corrected from DOCUMENT_INV_SENT
-  DOCUMENT_RECEIVED = "document_received", // Corrected from DOCUMENT_INV_RECEIVED
+  DOCUMENT_SENT = "document_sent",
+  DOCUMENT_RECEIVED = "document_received",
   COMPLETED = "completed",
 }
 
@@ -69,7 +68,7 @@ export enum TechnicianType {
   EXTERNAL = "external",
 }
 
-export enum ProductCategory { // Used instead of ScheduleProductCategory
+export enum ProductCategory {
   GPS = "GPS",
   CCTV = "CCTV",
   LAINNYA = "Lainnya",
@@ -80,16 +79,24 @@ export enum StockEventType {
   OUT = "OUT",
   TRANSFER = "TRANSFER",
   ADJUSTMENT = "ADJUSTMENT",
-  INITIAL = "INITIAL", // Added INITIAL
+  INITIAL = "INITIAL",
 }
 
-export enum ScheduleStatus { // Defined based on common schedule statuses
+export enum ScheduleStatus {
   SCHEDULED = "scheduled",
   COMPLETED = "completed",
   CANCELLED = "cancelled",
   RESCHEDULED = "rescheduled",
   PENDING = "pending",
   IN_PROGRESS = "in_progress",
+}
+
+export enum WarehouseCategoryEnum { // Defined for explicit usage in StockHistoryPage
+  GUDANG_UTAMA = "gudang_utama",
+  GUDANG_TRANSIT = "gudang_transit",
+  GUDANG_TEKNISI = "gudang_teknisi",
+  GUDANG_RETUR = "gudang_retur",
+  SIAP_JUAL = "siap_jual",
 }
 
 export type Profile = {
@@ -205,7 +212,7 @@ export type TechnicianWithDetails = Technician & {
 export type SchedulingRequest = {
   id: string;
   user_id: string | null;
-  type: ScheduleType; // Using ScheduleType for consistency
+  type: SchedulingRequestType; // Changed to SchedulingRequestType
   full_address: string;
   landmark: string | null;
   requested_date: string;
@@ -256,13 +263,11 @@ export type Schedule = {
   customer_id: string | null;
   sr_number: string | null; // Added sr_number
   invoices?: Invoice; // Added invoices for joined data
+  company_name: string | null; // Added company_name
 };
 
 export type ScheduleWithDetails = Schedule & {
   customers?: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null;
-  // payment_method is not directly on Schedule, it's on SchedulingRequest.
-  // If needed, it should be accessed via scheduling_request relation.
-  // For now, removing it from here to avoid type errors if not directly joined.
 };
 
 export type InvoiceItem = {
@@ -391,6 +396,10 @@ export type SalesDetail = {
   updated_at: string | null;
 };
 
-export type UserWithProfile = Profile & {
-  email: string; // Assuming email is available from auth.users
+export type UserWithProfile = {
+  id: string;
+  email: string;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+  profiles: Profile | null; // Nested profile object
 };
