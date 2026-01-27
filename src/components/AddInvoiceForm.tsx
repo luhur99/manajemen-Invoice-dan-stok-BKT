@@ -55,12 +55,12 @@ const formSchema = z.object({
   payment_status: z.nativeEnum(InvoicePaymentStatus, { required_error: "Status Pembayaran wajib diisi" }),
   type: z.nativeEnum(InvoiceType).optional().nullable(),
   customer_type: z.nativeEnum(CustomerTypeEnum).optional().nullable(),
-  payment_method: z.string().optional().nullable(), // Tetap string karena dropdown akan menghasilkan string
+  payment_method: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   document_url: z.string().optional().nullable(),
   courier_service: z.string().optional().nullable(),
   invoice_status: z.nativeEnum(InvoiceDocumentStatus, { required_error: "Status Invoice wajib diisi" }),
-  do_number: z.string().optional(),
+  do_number: z.string().optional().nullable(), // Ensure do_number is nullable
   items: z.array(
     z.object({
       product_id: z.string().min(1, "Produk harus dipilih."),
@@ -104,8 +104,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       payment_status: InvoicePaymentStatus.PENDING,
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
       items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
-      do_number: initialSchedule?.do_number || "",
-      payment_method: "", // Default value for payment method
+      do_number: initialSchedule?.do_number || null, // Set initial do_number
+      payment_method: "",
     },
   });
 
@@ -138,13 +138,12 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       }
       return data as Product[];
     },
-    enabled: true, // Always enabled as it's a core dependency
+    enabled: true,
   });
 
   const watchedInvoiceType = form.watch("type");
 
   useEffect(() => {
-    // Reset form when initialSchedule changes or component mounts
     form.reset({
       invoice_date: new Date(),
       due_date: undefined,
@@ -159,7 +158,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       courier_service: initialSchedule?.courier_service || null,
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
       items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
-      do_number: initialSchedule?.do_number || "",
+      do_number: initialSchedule?.do_number || null,
     });
     setItemSearchInputs([""]);
     form.clearErrors();
@@ -286,6 +285,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
           notes: values.notes,
           courier_service: values.type === InvoiceType.KIRIM_BARANG ? values.courier_service : null,
           invoice_status: values.invoice_status,
+          do_number: values.do_number, // Pass do_number to the Edge Function
           items: values.items,
         }),
       });
@@ -300,7 +300,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       if (initialSchedule?.id) {
         queryClient.invalidateQueries({ queryKey: ["schedules"] });
       }
-      onSuccess(); // Call parent's onSuccess
+      onSuccess();
     },
     onError: (error: any) => {
       showError(`Gagal membuat invoice: ${error.message || "Unknown error"}`);
@@ -337,7 +337,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nomor DO Selesai (Opsional)</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Pilih nomor DO yang sudah selesai" />

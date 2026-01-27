@@ -42,6 +42,7 @@ serve(async (req) => {
       notes, 
       courier_service,
       invoice_status,
+      do_number, // Added do_number
       items 
     } = await req.json();
 
@@ -100,7 +101,8 @@ serve(async (req) => {
           payment_method,
           notes,
           courier_service,
-          invoice_status
+          invoice_status,
+          do_number, // Insert do_number here
         })
         .select()
         .single();
