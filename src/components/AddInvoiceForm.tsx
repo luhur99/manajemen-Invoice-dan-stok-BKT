@@ -33,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
+import { InvoiceType, CustomerTypeEnum, ScheduleType, InvoiceDocumentStatus, InvoicePaymentStatus } from "@/types/data"; // Import necessary enums
 
 const formSchema = z.object({
   invoice_number: z.string().optional(),
@@ -41,14 +42,14 @@ const formSchema = z.object({
   customer_name: z.string().min(1, "Nama Pelanggan wajib diisi"),
   company_name: z.string().optional(),
   total_amount: z.coerce.number().min(0, "Total Jumlah tidak boleh negatif").default(0),
-  payment_status: z.string().min(1, "Status Pembayaran wajib diisi"),
-  type: z.string().optional(),
-  customer_type: z.string().optional(),
+  payment_status: z.nativeEnum(InvoicePaymentStatus, { required_error: "Status Pembayaran wajib diisi" }), // Fixed: Changed to nativeEnum
+  type: z.nativeEnum(InvoiceType).optional().nullable(),
+  customer_type: z.nativeEnum(CustomerTypeEnum).optional().nullable(),
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   document_url: z.string().optional(),
   courier_service: z.string().optional(),
-  invoice_status: z.string().min(1, "Status Invoice wajib diisi"),
+  invoice_status: z.nativeEnum(InvoiceDocumentStatus, { required_error: "Status Invoice wajib diisi" }), // Fixed: Removed .min(1)
   do_number: z.string().optional(),
 });
 
@@ -70,7 +71,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       
       const { data, error } = await supabase
         .from("schedules")
-        .select("id, do_number, customer_name, schedule_date, status")
+        .select("id, do_number, customer_name, schedule_date, status, type, phone_number, courier_service, customer_id, customers(company_name, customer_type)") // Added customer_id and joined customers table
         .eq("status", "completed")
         .not("do_number", "is", null)
         .order("schedule_date", { ascending: false })
@@ -98,14 +99,14 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       customer_name: "",
       company_name: "",
       total_amount: 0,
-      payment_status: "pending",
-      type: "",
-      customer_type: "",
+      payment_status: InvoicePaymentStatus.PENDING, // Fixed: Using enum member
+      type: undefined, // Set to undefined for nativeEnum
+      customer_type: undefined, // Set to undefined for nativeEnum
       payment_method: "",
       notes: "",
       document_url: "",
       courier_service: "",
-      invoice_status: "waiting_document_inv",
+      invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
       do_number: "",
     },
   });
@@ -119,9 +120,25 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
       );
 
       if (selectedSchedule) {
-        console.log("Selected schedule:", selectedSchedule);
+        console.log("Selected schedule for prepopulation:", selectedSchedule);
         form.setValue("customer_name", selectedSchedule.customer_name || "");
         form.setValue("invoice_date", new Date(selectedSchedule.schedule_date));
+        form.setValue("company_name", (selectedSchedule.customers as any)?.company_name || null); // Access from joined data
+        
+        // Map ScheduleType to InvoiceType
+        let invoiceType: InvoiceType | null = null;
+        if (selectedSchedule.type === ScheduleType.KIRIM) {
+          invoiceType = InvoiceType.KIRIM_BARANG;
+        } else if (selectedSchedule.type === ScheduleType.INSTALASI) {
+          invoiceType = InvoiceType.INSTALASI;
+        } else if (selectedSchedule.type === ScheduleType.SERVICE) {
+          invoiceType = InvoiceType.SERVICE;
+        }
+        form.setValue("type", invoiceType);
+
+        form.setValue("customer_type", (selectedSchedule.customers as any)?.customer_type || null); // Access from joined data
+        form.setValue("courier_service", selectedSchedule.courier_service || null);
+        // You might want to set payment_method or notes if they are available in schedules
       }
     }
   }, [form.watch("do_number"), completedSchedules, form]);
@@ -139,8 +156,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         .insert({
           user_id: userId,
           invoice_number: values.invoice_number || null,
-          invoice_date: format(values.invoice_date, "yyyy-MM-dd"),
-          due_date: values.due_date ? format(values.due_date, "yyyy-MM-dd") : null,
+          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"), // Fixed: Type assertion
+          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null, // Fixed: Type assertion
           customer_name: values.customer_name,
           company_name: values.company_name || null,
           total_amount: values.total_amount,
@@ -369,9 +386,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="overdue">Overdue</SelectItem>
+                      {Object.values(InvoicePaymentStatus).map((status: InvoicePaymentStatus) => ( // Fixed: Type assertion
+                        <SelectItem key={status} value={status}>
+                          {status.charAt(0).toUpperCase() + status.slice(1)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -384,9 +403,20 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipe (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih tipe invoice" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(InvoiceType).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -397,9 +427,20 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipe Pelanggan (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih tipe pelanggan" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(CustomerTypeEnum).map((type: CustomerTypeEnum) => (
+                        <SelectItem key={type} value={type}>
+                          {type.charAt(0).toUpperCase() + type.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -469,10 +510,11 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="waiting_document_inv">Menunggu Dokumen Inv</SelectItem>
-                      <SelectItem value="document_inv_sent">Dokumen Inv Terkirim</SelectItem>
-                      <SelectItem value="completed">Selesai</SelectItem>
-                      <SelectItem value="cancelled">Dibatalkan</SelectItem>
+                      {Object.values(InvoiceDocumentStatus).map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
