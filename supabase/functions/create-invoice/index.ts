@@ -103,6 +103,7 @@ serve(async (req) => {
           courier_service,
           invoice_status,
           do_number,
+          stock_deducted: false, // Initialize stock_deducted to false
         })
         .select()
         .single();
@@ -147,6 +148,7 @@ serve(async (req) => {
     }
 
     // 4. Conditional Stock Update and Ledger Entry if invoice_status is 'completed' and payment_status is 'paid'
+    let stockDeductedSuccessfully = false;
     if (invoice_status === 'completed' && payment_status === 'paid') {
       for (const item of items) {
         const targetWarehouseCategory = 'siap_jual'; // Target 'siap_jual' for sales deductions
@@ -192,7 +194,7 @@ serve(async (req) => {
             .insert({
               user_id: user.id,
               product_id: item.product_id,
-              event_type: 'OUT', // Assuming 'OUT' for sales
+              event_type: 'out', // Changed to lowercase 'out'
               quantity: item.quantity,
               notes: `Invoice ${invoiceData.invoice_number} - Item sold`,
               from_warehouse_category: deductedFromWarehouseCategory, // Use the category from which stock was deducted
@@ -203,10 +205,21 @@ serve(async (req) => {
             console.error(`Error inserting stock ledger entry for product ${item.product_id}:`, ledgerError);
           } else {
             console.log(`Stock ledger entry added for product ${item.product_id}.`);
+            stockDeductedSuccessfully = true; // Mark as successful if at least one item was processed
           }
 
         } catch (stockUpdateError) {
           console.error(`Unexpected error during stock update for item ${item.item_name}:`, stockUpdateError);
+        }
+      }
+      // Update stock_deducted flag in invoice if stock deduction was attempted
+      if (stockDeductedSuccessfully) {
+        const { error: updateInvoiceFlagError } = await supabaseClient
+          .from("invoices")
+          .update({ stock_deducted: true, updated_at: new Date().toISOString() })
+          .eq("id", invoiceData.id);
+        if (updateInvoiceFlagError) {
+          console.error("Error updating stock_deducted flag for invoice:", updateInvoiceFlagError);
         }
       }
     }

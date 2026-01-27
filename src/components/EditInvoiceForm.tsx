@@ -144,7 +144,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       }
       return data as Product[];
     },
-    enabled: isOpen,
+    enabled: isOpen, // Only fetch when the dialog is open
   });
 
   const { data: invoiceItems, isLoading: loadingInvoiceItems } = useQuery<InvoiceItem[], Error>({
@@ -297,67 +297,44 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         throw new Error("Anda harus login untuk memperbarui invoice.");
       }
 
-      const { error: invoiceError } = await supabase
-        .from("invoices")
-        .update({
-          invoice_number: values.invoice_number,
-          invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"),
-          due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null,
-          customer_name: values.customer_name,
-          company_name: values.company_name,
-          total_amount: values.total_amount,
-          payment_status: values.payment_status,
-          type: values.type,
-          customer_type: values.customer_type,
-          payment_method: values.payment_method,
-          notes: values.notes,
-          courier_service: values.courier_service,
-          invoice_status: values.invoice_status,
-          document_url: values.document_url,
-          do_number: values.do_number, // Update do_number here
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", invoice.id);
-
-      if (invoiceError) throw invoiceError;
-
+      // Separate items into those to update, delete, and insert
+      const currentFormItems = values.items;
+      const itemsToUpdate = currentFormItems.filter(item => item.id);
+      const itemsToInsert = currentFormItems.filter(item => !item.id);
       const itemsToDelete = initialItems.filter(
-        (initialItem) => !(values.items as typeof formSchema._type['items']).some((currentItem) => currentItem.id === initialItem.id)
+        (initialItem) => !currentFormItems.some((currentItem) => currentItem.id === initialItem.id)
       );
-      if (itemsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("invoice_items")
-          .delete()
-          .in("id", itemsToDelete.map(item => item.id));
-        if (deleteError) throw deleteError;
-      }
 
-      for (const item of (values.items as typeof formSchema._type['items'])) {
-        const commonItemData = {
+      const { data, error } = await supabase.functions.invoke('update-invoice-and-deduct-stock', {
+        body: JSON.stringify({
           invoice_id: invoice.id,
-          user_id: userId,
-          product_id: item.product_id,
-          item_name: item.item_name,
-          item_code: item.item_code,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          subtotal: item.subtotal,
-          unit_type: item.unit_type,
-        };
+          updated_invoice_data: {
+            invoice_number: values.invoice_number,
+            invoice_date: format(values.invoice_date as Date, "yyyy-MM-dd"),
+            due_date: values.due_date ? format(values.due_date as Date, "yyyy-MM-dd") : null,
+            customer_name: values.customer_name,
+            company_name: values.company_name,
+            total_amount: values.total_amount,
+            payment_status: values.payment_status,
+            type: values.type,
+            customer_type: values.customer_type,
+            payment_method: values.payment_method,
+            notes: values.notes,
+            courier_service: values.courier_service,
+            invoice_status: values.invoice_status,
+            document_url: values.document_url,
+            do_number: values.do_number,
+          },
+          items_to_update: itemsToUpdate,
+          items_to_delete: itemsToDelete,
+          items_to_insert: itemsToInsert,
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-        if (item.id) {
-          const { error: updateItemError } = await supabase
-            .from("invoice_items")
-            .update(commonItemData)
-            .eq("id", item.id);
-          if (updateItemError) throw updateItemError;
-        } else {
-          const { error: insertItemError } = await supabase
-            .from("invoice_items")
-            .insert(commonItemData);
-          if (insertItemError) throw insertItemError;
-        }
-      }
+      if (error) throw error;
+      if (data && data.error) throw new Error(data.error);
+      return data;
     },
     onSuccess: () => {
       showSuccess("Invoice berhasil diperbarui!");
@@ -365,6 +342,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
       queryClient.invalidateQueries({ queryKey: ["invoiceItems", invoice.id] });
+      queryClient.invalidateQueries({ queryKey: ["productsWithInventories"] }); // Invalidate stock management view
+      queryClient.invalidateQueries({ queryKey: ["stockHistory"] }); // Invalidate stock history
       onSuccess();
     },
     onError: (err: any) => {
@@ -656,181 +635,187 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                 {fields.map((item, index) => (
                   <div key={item.id || index} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
                     <div className="md:col-span-2">
-                      <FormItem>
-                        <FormLabel>Produk</FormLabel>
-                        <StockItemCombobox
-                          products={products || []}
-                          selectedProductId={item.product_id || undefined}
-                          onSelectProduct={(productId) => handleProductSelect(index, productId)}
-                          inputValue={itemSearchInputs[index] || ""}
-                          onInputValueChange={(value) => {
-                            setItemSearchInputs(prev => {
-                              const newInputs = [...prev];
-                              newInputs[index] = value;
-                              return newInputs;
-                            });
-                          }}
-                          disabled={loadingProducts}
-                          loading={loadingProducts}
-                          showInventory={false}
-                        />
-                        <FormMessage />
-                      </FormItem>
-                    </div>
-                    <div className="md:col-span-1">
                       <FormField
                         control={form.control}
-                        name={`items.${index}.quantity`}
+                        name={`items.${index}.product_id`}
                         render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Produk</FormLabel>
+                                <StockItemCombobox
+                                  products={products || []}
+                                  selectedProductId={field.value || undefined}
+                                  onSelectProduct={(productId) => handleProductSelect(index, productId)}
+                                  inputValue={itemSearchInputs[index] || ""}
+                                  onInputValueChange={(value) => {
+                                    setItemSearchInputs(prev => {
+                                      const newInputs = [...prev];
+                                      newInputs[index] = value;
+                                      return newInputs;
+                                    });
+                                  }}
+                                  disabled={loadingProducts}
+                                  loading={loadingProducts}
+                                  showInventory={false}
+                                />
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="md:col-span-1">
+                          <FormField
+                            control={form.control}
+                            name={`items.${index}.quantity`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Kuantitas</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    value={field.value}
+                                    onChange={(e) => {
+                                      field.onChange(e.target.value === "" ? "" : parseInt(e.target.value, 10));
+                                      handleQuantityChange(index, parseInt(e.target.value, 10));
+                                    }}
+                                    min="1"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="md:col-span-1">
+                          <FormField
+                            control={form.control}
+                            name={`items.${index}.unit_price`}
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Harga Satuan</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    value={field.value}
+                                    onChange={(e) => {
+                                      field.onChange(e.target.value === "" ? "" : parseFloat(e.target.value));
+                                      handleUnitPriceChange(index, parseFloat(e.target.value));
+                                    }}
+                                    min="0"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+                        <div className="md:col-span-1">
                           <FormItem>
-                            <FormLabel>Kuantitas</FormLabel>
+                            <FormLabel>Subtotal</FormLabel>
                             <FormControl>
-                              <Input
-                                type="number"
-                                value={field.value}
-                                onChange={(e) => {
-                                  field.onChange(e.target.value === "" ? "" : parseInt(e.target.value, 10));
-                                  handleQuantityChange(index, parseInt(e.target.value, 10));
-                                }}
-                                min="1"
-                              />
+                              <Input type="number" value={item.subtotal} readOnly className="bg-gray-100" />
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
-                        )}
-                      />
+                        </div>
+                        <div className="md:col-span-1 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => remove(index)}
+                            className="mt-2 md:mt-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
+                        setItemSearchInputs(prev => [...prev, ""]);
+                      }}
+                      className="w-full"
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item
+                    </Button>
+
+                    <div className="flex justify-end items-center mt-4">
+                      <span className="text-lg font-semibold mr-2">Total Jumlah:</span>
+                      <span className="text-xl font-bold">
+                        Rp {form.watch("total_amount").toLocaleString('id-ID')}
+                      </span>
                     </div>
-                    <div className="md:col-span-1">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.unit_price`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Harga Satuan</FormLabel>
+                  </TabsContent>
+
+                  <TabsContent value="notes" className="mt-4 space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Catatan (Opsional)</FormLabel>
+                          <FormControl>
+                            <Textarea {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="document_url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>URL Dokumen (Opsional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} value={field.value || ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="invoice_status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status Dokumen Invoice</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
                             <FormControl>
-                              <Input
-                                type="number"
-                                value={field.value}
-                                onChange={(e) => {
-                                  field.onChange(e.target.value === "" ? "" : parseFloat(e.target.value));
-                                  handleUnitPriceChange(index, parseFloat(e.target.value));
-                                }}
-                                min="0"
-                              />
+                              <SelectTrigger>
+                                <SelectValue placeholder="Pilih status dokumen invoice" />
+                              </SelectTrigger>
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Subtotal</FormLabel>
-                        <FormControl>
-                          <Input type="number" value={item.subtotal} readOnly className="bg-gray-100" />
-                        </FormControl>
-                      </FormItem>
-                    </div>
-                    <div className="md:col-span-1 flex justify-end">
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        onClick={() => remove(index)}
-                        className="mt-2 md:mt-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    append({ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 });
-                    setItemSearchInputs(prev => [...prev, ""]);
-                  }}
-                  className="w-full"
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" /> Tambah Item
-                </Button>
-
-                <div className="flex justify-end items-center mt-4">
-                  <span className="text-lg font-semibold mr-2">Total Jumlah:</span>
-                  <span className="text-xl font-bold">
-                    Rp {form.watch("total_amount").toLocaleString('id-ID')}
-                  </span>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="notes" className="mt-4 space-y-4">
-                <FormField
-                  control={form.control}
-                  name="notes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Catatan (Opsional)</FormLabel>
-                      <FormControl>
-                        <Textarea {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="document_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL Dokumen (Opsional)</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value || ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="invoice_status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Status Dokumen Invoice</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Pilih status dokumen invoice" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(InvoiceDocumentStatus).map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </TabsContent>
-            </Tabs>
-            <DialogFooter>
-              <Button type="submit" className="w-full" disabled={updateInvoiceMutation.isPending}>
-                {updateInvoiceMutation.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  "Simpan Perubahan"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-};
+                            <SelectContent>
+                              {Object.values(InvoiceDocumentStatus).map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </TabsContent>
+                </Tabs>
+                <DialogFooter>
+                  <Button type="submit" className="w-full" disabled={updateInvoiceMutation.isPending}>
+                    {updateInvoiceMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      "Simpan Perubahan"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+      );
+    };
 
 export default EditInvoiceForm;

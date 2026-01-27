@@ -307,6 +307,7 @@ export type Invoice = {
   created_at: string | null;
   updated_at: string | null;
   do_number: string | null;
+  stock_deducted: boolean | null; // Added stock_deducted
 };
 
 export type InvoiceWithDetails = Invoice & {
