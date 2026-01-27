@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Search, Loader2 } from "lucide-react";
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { StockLedgerWithProduct, StockEventType, WarehouseCategoryEnum } from "@/types/data"; // Updated imports
+import { StockLedgerWithProduct, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data"; // Updated imports
 import { showError } from "@/utils/toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
@@ -40,26 +40,35 @@ const getEventTypeDisplay = (type: StockEventType) => {
   }
 };
 
-const getCategoryDisplayName = (code: string | null | undefined) => { // Changed type to string | null | undefined
-  if (!code) return "-";
-  switch (code as WarehouseCategoryEnum) { // Cast to enum for switch
-    case WarehouseCategoryEnum.GUDANG_UTAMA: return "Gudang Utama";
-    case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
-    case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";
-    case WarehouseCategoryEnum.GUDANG_RETUR: return "Gudang Retur";
-    case WarehouseCategoryEnum.SIAP_JUAL: return "Siap Jual"; // Added Siap Jual
-    default: return code;
-  }
-};
-
 const StockMovementHistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
-  // Removed selectedEventType as this page is specifically for 'transfer'
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
+  const { data: warehouseCategories, isLoading: loadingCategories, error: categoriesError } = useQuery<WarehouseCategoryType[], Error>({
+    queryKey: ["warehouseCategories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("warehouse_categories")
+        .select("code, name")
+        .order("name", { ascending: true });
+
+      if (error) {
+        showError("Gagal memuat kategori gudang.");
+        throw error;
+      }
+      return data as WarehouseCategoryType[];
+    },
+  });
+
+  const getCategoryDisplayName = (code: string | null | undefined) => {
+    if (!code || !warehouseCategories) return "-";
+    const category = warehouseCategories.find(cat => cat.code === code);
+    return category ? category.name : code;
+  };
+
   const { data: stockMovements, isLoading, error } = useQuery<StockLedgerWithProduct[], Error>({
-    queryKey: ["stockMovements", debouncedSearchTerm, dateRange], // Removed selectedEventType from queryKey
+    queryKey: ["stockMovements", debouncedSearchTerm, dateRange, warehouseCategories], // Include warehouseCategories in queryKey
     queryFn: async () => {
       let query = supabase
         .from("stock_ledger")
@@ -105,7 +114,7 @@ const StockMovementHistoryPage = () => {
     },
   });
 
-  if (isLoading) {
+  if (isLoading || loadingCategories) {
     return (
       <div className="flex justify-center items-center h-screen">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -113,12 +122,12 @@ const StockMovementHistoryPage = () => {
     );
   }
 
-  if (error) {
+  if (error || categoriesError) {
     return (
       <Alert variant="destructive">
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>
-          Gagal memuat riwayat pergerakan stok: {error.message}
+          Gagal memuat riwayat pergerakan stok: {error?.message || categoriesError?.message}
         </AlertDescription>
       </Alert>
     );
@@ -172,8 +181,8 @@ const StockMovementHistoryPage = () => {
                   <TableCell>{movement.products?.nama_barang || "N/A"}</TableCell>
                   <TableCell>{movement.products?.kode_barang || "N/A"}</TableCell>
                   <TableCell>{movement.quantity}</TableCell>
-                  <TableCell>{movement.from_warehouse_category ? getCategoryDisplayName(movement.from_warehouse_category) : "-"}</TableCell>
-                  <TableCell>{movement.to_warehouse_category ? getCategoryDisplayName(movement.to_warehouse_category) : "-"}</TableCell>
+                  <TableCell>{getCategoryDisplayName(movement.from_warehouse_category)}</TableCell>
+                  <TableCell>{getCategoryDisplayName(movement.to_warehouse_category)}</TableCell>
                   <TableCell>{movement.notes || "-"}</TableCell>
                 </TableRow>
               ))
