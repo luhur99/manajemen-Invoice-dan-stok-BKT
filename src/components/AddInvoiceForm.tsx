@@ -22,6 +22,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
@@ -492,8 +493,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                 {fields.map((item, index) => (
                   <div key={item.id || index} className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end border p-3 rounded-md relative">
                     <div className="md:col-span-2">
-                      <FormItem>
-                        <FormLabel>Produk</FormLabel>
+                      <div className="space-y-2">
+                        <Label>Produk</Label>
                         <StockItemCombobox
                           products={products || []}
                           selectedProductId={item.product_id || undefined}
@@ -510,44 +511,35 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                           loading={loadingProducts}
                           showInventory={false} // Do not show inventory in invoice item selection
                         />
-                        <FormMessage />
-                      </FormItem>
+                      </div>
                     </div>
                     <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Kuantitas</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleQuantityChange(index, parseInt(e.target.value, 10))}
-                            min="1"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      <div className="space-y-2">
+                        <Label>Kuantitas</Label>
+                        <Input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => handleQuantityChange(index, parseInt(e.target.value, 10))}
+                          min="1"
+                        />
+                      </div>
                     </div>
                     <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Harga Satuan</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value))}
-                            min="0"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      <div className="space-y-2">
+                        <Label>Harga Satuan</Label>
+                        <Input
+                          type="number"
+                          value={item.unit_price}
+                          onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value))}
+                          min="0"
+                        />
+                      </div>
                     </div>
                     <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Subtotal</FormLabel>
-                        <FormControl>
-                          <Input type="number" value={item.subtotal} readOnly className="bg-gray-100" />
-                        </FormControl>
-                      </FormItem>
+                      <div className="space-y-2">
+                        <Label>Subtotal</Label>
+                        <Input type="number" value={item.subtotal} readOnly className="bg-gray-100" />
+                      </div>
                     </div>
                     <div className="md:col-span-1 flex justify-end">
                       <Button
