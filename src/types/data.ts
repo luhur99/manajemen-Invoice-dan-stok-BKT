@@ -405,3 +405,9 @@ export type UserWithProfile = {
   last_sign_in_at: string | null;
   profiles: Profile | null; // Nested profile object
 };
+
+export interface ViewCustomerDetailsDialogProps {
+  isOpen: boolean;
+  onClose: () => void;
+  customer: CustomerWithDetails | null;
+}

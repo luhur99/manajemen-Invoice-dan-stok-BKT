@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { CustomerWithDetails, CustomerTypeEnum } from "@/types/data"; // Use CustomerWithDetails
+import { CustomerWithDetails, CustomerTypeEnum, ViewCustomerDetailsDialogProps } from "@/types/data"; // Use CustomerWithDetails and import ViewCustomerDetailsDialogProps
 import AddCustomerForm from "@/components/AddCustomerForm";
 import EditCustomerForm from "@/components/EditCustomerForm";
 import { Button } from "@/components/ui/button";
@@ -22,11 +22,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ViewCustomerDetailsDialog from "@/components/ViewCustomerDetailsDialog";
 
-interface ViewCustomerDetailsDialogProps { // Moved interface here
-  isOpen: boolean;
-  onClose: () => void;
-  customer: CustomerWithDetails | null;
-}
 
 const CustomerManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
