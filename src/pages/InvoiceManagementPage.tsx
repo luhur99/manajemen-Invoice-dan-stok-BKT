@@ -16,13 +16,13 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogTrigger,
-  DialogContent, // Added import
-  DialogHeader, // Added import
-  DialogTitle, // Added import
-  DialogDescription, // Added import
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus } from "@/types/data";
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum } from "@/types/data"; // Added ScheduleType, CustomerTypeEnum
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
@@ -36,9 +36,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { DateRange } from "react-day-picker";
-import { useDebounce } from "@/hooks/use-debounce"; // Import useDebounce
+import { useDebounce } from "@/hooks/use-debounce";
 
 const getPaymentStatusBadgeClass = (status: InvoicePaymentStatus) => {
   switch (status) {
@@ -90,11 +90,11 @@ const InvoiceManagementPage = () => {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithDetails | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Apply debounce
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   const { data: invoices, isLoading, error } = useQuery<InvoiceWithDetails[], Error>({
-    queryKey: ["invoices", debouncedSearchTerm, dateRange], // Include debounced search term and date range
+    queryKey: ["invoices", debouncedSearchTerm, dateRange],
     queryFn: async () => {
       let query = supabase
         .from("invoices")
@@ -151,6 +151,27 @@ const InvoiceManagementPage = () => {
     },
   });
 
+  // Fetch completed DOs from schedules table for AddInvoiceForm
+  const { data: completedSchedules = [], isLoading: isLoadingSchedules, error: schedulesError } = useQuery({
+    queryKey: ["completedSchedulesForInvoiceForm"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("schedules")
+        .select("id, do_number, customer_name, schedule_date, status, type, phone_number, courier_service, customer_id, customers(company_name, customer_type)")
+        .eq("status", "completed")
+        .not("do_number", "is", null)
+        .order("schedule_date", { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error("Error fetching schedules for InvoiceManagementPage:", error);
+        throw error;
+      }
+      return data || [];
+    },
+    enabled: isAddFormOpen, // Only fetch when the AddInvoiceForm is open
+  });
+
   const deleteInvoiceMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("invoices").delete().eq("id", id);
@@ -185,30 +206,6 @@ const InvoiceManagementPage = () => {
     setSelectedInvoice(invoice);
     setIsUploadDialogOpen(true);
   };
-
-  // No need for local filtering anymore, as the query itself is filtered
-  // const filteredInvoices = useMemo(() => {
-  //   if (!invoices) return [];
-  //   return invoices.filter((invoice) => {
-  //     const searchLower = searchTerm.toLowerCase();
-  //     const matchesSearch =
-  //       invoice.invoice_number.toLowerCase().includes(searchLower) ||
-  //       invoice.customer_name.toLowerCase().includes(searchLower) ||
-  //       invoice.company_name?.toLowerCase().includes(searchLower) ||
-  //       invoice.payment_status.toLowerCase().includes(searchLower) ||
-  //       invoice.type?.toLowerCase().includes(searchLower);
-
-  //     const invoiceDate = parseISO(invoice.invoice_date);
-  //     const matchesDateRange = dateRange?.from
-  //       ? isWithinInterval(invoiceDate, {
-  //           start: startOfDay(dateRange.from),
-  //           end: dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from),
-  //         })
-  //       : true;
-
-  //     return matchesSearch && matchesDateRange;
-  //   });
-  // }, [invoices, searchTerm, dateRange]);
 
   if (isLoading) {
     return (
@@ -253,10 +250,14 @@ const InvoiceManagementPage = () => {
               <PlusCircle className="mr-2 h-4 w-4" /> Tambah Invoice
             </Button>
           </DialogTrigger>
+          {/* AddInvoiceForm is now rendered directly inside DialogContent */}
           <AddInvoiceForm
             isOpen={isAddFormOpen}
             onOpenChange={setIsAddFormOpen}
             onSuccess={() => setIsAddFormOpen(false)}
+            completedSchedules={completedSchedules as any[]} // Pass fetched data
+            isLoadingSchedules={isLoadingSchedules}
+            schedulesError={schedulesError}
           />
         </Dialog>
       </div>
@@ -276,14 +277,14 @@ const InvoiceManagementPage = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {invoices?.length === 0 ? ( // Use 'invoices' directly
+            {invoices?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center">
                   Tidak ada invoice ditemukan.
                 </TableCell>
               </TableRow>
             ) : (
-              invoices?.map((invoice) => ( // Use 'invoices' directly
+              invoices?.map((invoice) => (
                 <TableRow key={invoice.id}>
                   <TableCell>{invoice.invoice_number}</TableCell>
                   <TableCell>{format(parseISO(invoice.invoice_date), "dd-MM-yyyy")}</TableCell>

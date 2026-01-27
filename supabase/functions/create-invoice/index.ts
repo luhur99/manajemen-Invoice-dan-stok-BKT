@@ -46,7 +46,7 @@ serve(async (req) => {
     } = await req.json();
 
     if (!invoice_date || !customer_name || !items || items.length === 0) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ error: 'Missing required fields: invoice_date, customer_name, or items' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     // Retry logic for generating unique invoice number
@@ -125,7 +125,7 @@ serve(async (req) => {
     const invoiceItems = items.map((item: any) => ({
       invoice_id: invoiceData.id,
       user_id: user.id,
-      product_id: item.selected_product_id,
+      product_id: item.product_id,
       item_name: item.item_name,
       item_code: item.item_code,
       quantity: item.quantity,
