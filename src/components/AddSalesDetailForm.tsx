@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { useForm, FormProvider } from "react-hook-form"; // Import FormProvider
+import { useForm } from "react-hook-form"; // Removed FormProvider from here
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -166,7 +166,7 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
           <DialogTitle>Tambah Detil Penjualan Baru</DialogTitle>
           <DialogDescription>Isi detail untuk menambahkan catatan penjualan baru.</DialogDescription>
         </DialogHeader>
-        <FormProvider {...form}> {/* Use FormProvider to pass form context */}
+        <Form {...form}> {/* Use Form component from shadcn/ui */}
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <BasicInfoSection />
             <CustomerInfoSection />
@@ -183,7 +183,7 @@ const AddSalesDetailForm: React.FC<AddSalesDetailFormProps> = ({ isOpen, onOpenC
               </Button>
             </div>
           </form>
-        </FormProvider>
+        </Form>
       </DialogContent>
     </Dialog>
   );

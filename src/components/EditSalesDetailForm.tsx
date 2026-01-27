@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useForm, FormProvider } from "react-hook-form"; // Import FormProvider
+import { useForm } from "react-hook-form"; // Removed FormProvider from here
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils"; // FIXED: Changed '=>' to 'from'
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import { SalesDetail } from "@/types/data";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
+import { Form } from "@/components/ui/form"; // Import Form component from shadcn/ui
 
 const formSchema = z.object({
   no: z.number().int().positive("Nomor harus lebih dari 0."),
@@ -204,7 +205,7 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
             Ubah detail penjualan di sini. Klik simpan saat Anda selesai.
           </DialogDescription>
         </DialogHeader>
-        <FormProvider {...form}> {/* Use FormProvider directly */}
+        <Form {...form}> {/* Use Form component from shadcn/ui */}
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <FormField
@@ -568,7 +569,7 @@ const EditSalesDetailForm: React.FC<EditSalesDetailFormProps> = ({ salesDetail, 
               </Button>
             </DialogFooter>
           </form>
-        </FormProvider> {/* Close FormProvider */}
+        </Form> {/* Close FormProvider */}
       </DialogContent>
     </Dialog>
   );
