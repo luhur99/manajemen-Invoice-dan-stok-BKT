@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from "@/components/ui/dialog"; // Added DialogTrigger
 import { Badge } from "@/components/ui/badge";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
 import EditInvoiceForm from "@/components/EditInvoiceForm";
@@ -235,9 +235,27 @@ const InvoiceManagementPage: React.FC = () => {
             ))}
           </SelectContent>
         </Select>
-        <Button onClick={() => setIsAddFormOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Buat Invoice
-        </Button>
+        <Dialog open={isAddFormOpen} onOpenChange={setIsAddFormOpen}> {/* Wrap AddInvoiceForm in Dialog */}
+          <DialogTrigger asChild>
+            <Button onClick={() => setIsAddFormOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Buat Invoice
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto"> {/* Add DialogContent for the form */}
+            <DialogHeader>
+              <DialogTitle>Buat Invoice Baru</DialogTitle>
+              <DialogDescription>Isi detail invoice baru di sini. Nomor Invoice akan dibuat otomatis.</DialogDescription>
+            </DialogHeader>
+            <AddInvoiceForm
+              isOpen={isAddFormOpen}
+              onOpenChange={setIsAddFormOpen}
+              onSuccess={() => setIsAddFormOpen(false)}
+              completedSchedules={completedSchedules || []}
+              isLoadingSchedules={isLoadingSchedules}
+              schedulesError={schedulesError}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="rounded-md border">
@@ -319,14 +337,7 @@ const InvoiceManagementPage: React.FC = () => {
         </Table>
       </div>
 
-      <AddInvoiceForm
-        isOpen={isAddFormOpen}
-        onOpenChange={setIsAddFormOpen}
-        onSuccess={() => setIsAddFormOpen(false)}
-        completedSchedules={completedSchedules || []}
-        isLoadingSchedules={isLoadingSchedules}
-        schedulesError={schedulesError}
-      />
+      {/* AddInvoiceForm is now rendered inside the Dialog above */}
 
       {selectedInvoice && (
         <EditInvoiceForm
