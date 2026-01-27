@@ -42,7 +42,7 @@ serve(async (req) => {
       notes, 
       courier_service,
       invoice_status,
-      do_number, // Added do_number
+      do_number,
       items 
     } = await req.json();
 
@@ -102,7 +102,7 @@ serve(async (req) => {
           notes,
           courier_service,
           invoice_status,
-          do_number, // Insert do_number here
+          do_number,
         })
         .select()
         .single();
@@ -149,38 +149,41 @@ serve(async (req) => {
     // 4. Conditional Stock Update and Ledger Entry if invoice_status is 'completed' and payment_status is 'paid'
     if (invoice_status === 'completed' && payment_status === 'paid') {
       for (const item of items) {
+        const targetWarehouseCategory = 'siap_jual'; // Target 'siap_jual' for sales deductions
         let deductedFromWarehouseCategory = null;
+
         try {
-          // Deduct from warehouse_inventories
+          // Deduct from warehouse_inventories, specifically from 'siap_jual'
           const { data: inventoryEntries, error: inventoryError } = await supabaseClient
             .from("warehouse_inventories")
             .select("id, quantity, warehouse_category")
             .eq("product_id", item.product_id)
-            .limit(1); // Taking the first one found for simplicity
+            .eq("warehouse_category", targetWarehouseCategory) // Target specific category
+            .single(); // Use single as we expect one entry for a product in a specific category
 
-          if (inventoryError) {
-            console.error(`Error fetching inventory for product ${item.product_id}:`, inventoryError);
-          } else if (inventoryEntries && inventoryEntries.length > 0) {
-            const currentInventory = inventoryEntries[0];
+          if (inventoryError && inventoryError.code !== 'PGRST116') { // PGRST116 means no rows found
+            console.error(`Error fetching inventory for product ${item.product_id} in ${targetWarehouseCategory}:`, inventoryError);
+          } else if (inventoryEntries) { // If inventory entry exists
+            const currentInventory = inventoryEntries;
             if (currentInventory.quantity >= item.quantity) { // Only deduct if sufficient stock
               const newQuantity = currentInventory.quantity - item.quantity;
 
               const { error: updateInventoryError } = await supabaseClient
                 .from("warehouse_inventories")
-                .update({ quantity: newQuantity })
+                .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
                 .eq("id", currentInventory.id);
 
               if (updateInventoryError) {
-                console.error(`Error updating inventory for product ${item.product_id}:`, updateInventoryError);
+                console.error(`Error updating inventory for product ${item.product_id} in ${targetWarehouseCategory}:`, updateInventoryError);
               } else {
-                console.log(`Deducted ${item.quantity} from inventory for product ${item.product_id}. New quantity: ${newQuantity}`);
+                console.log(`Deducted ${item.quantity} from inventory for product ${item.product_id} in ${targetWarehouseCategory}. New quantity: ${newQuantity}`);
                 deductedFromWarehouseCategory = currentInventory.warehouse_category;
               }
             } else {
-              console.warn(`Insufficient stock for product ${item.product_id} in warehouse category ${currentInventory.warehouse_category}. Requested: ${item.quantity}, Available: ${currentInventory.quantity}. Stock not fully deducted.`);
+              console.warn(`Insufficient stock for product ${item.product_id} in warehouse category ${targetWarehouseCategory}. Requested: ${item.quantity}, Available: ${currentInventory.quantity}. Stock not fully deducted.`);
             }
           } else {
-            console.warn(`No inventory entry found for product ${item.product_id}. Stock not deducted.`);
+            console.warn(`No inventory entry found for product ${item.product_id} in ${targetWarehouseCategory}. Stock not deducted.`);
           }
 
           // Insert into stock_ledger
