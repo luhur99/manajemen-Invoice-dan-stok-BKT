@@ -144,6 +144,68 @@ serve(async (req) => {
       throw itemsError;
     }
 
+    // 4. Conditional Stock Update and Ledger Entry if invoice_status is 'completed' and payment_status is 'paid'
+    if (invoice_status === 'completed' && payment_status === 'paid') {
+      for (const item of items) {
+        let deductedFromWarehouseCategory = null;
+        try {
+          // Deduct from warehouse_inventories
+          const { data: inventoryEntries, error: inventoryError } = await supabaseClient
+            .from("warehouse_inventories")
+            .select("id, quantity, warehouse_category")
+            .eq("product_id", item.product_id)
+            .limit(1); // Taking the first one found for simplicity
+
+          if (inventoryError) {
+            console.error(`Error fetching inventory for product ${item.product_id}:`, inventoryError);
+          } else if (inventoryEntries && inventoryEntries.length > 0) {
+            const currentInventory = inventoryEntries[0];
+            if (currentInventory.quantity >= item.quantity) { // Only deduct if sufficient stock
+              const newQuantity = currentInventory.quantity - item.quantity;
+
+              const { error: updateInventoryError } = await supabaseClient
+                .from("warehouse_inventories")
+                .update({ quantity: newQuantity })
+                .eq("id", currentInventory.id);
+
+              if (updateInventoryError) {
+                console.error(`Error updating inventory for product ${item.product_id}:`, updateInventoryError);
+              } else {
+                console.log(`Deducted ${item.quantity} from inventory for product ${item.product_id}. New quantity: ${newQuantity}`);
+                deductedFromWarehouseCategory = currentInventory.warehouse_category;
+              }
+            } else {
+              console.warn(`Insufficient stock for product ${item.product_id} in warehouse category ${currentInventory.warehouse_category}. Requested: ${item.quantity}, Available: ${currentInventory.quantity}. Stock not fully deducted.`);
+            }
+          } else {
+            console.warn(`No inventory entry found for product ${item.product_id}. Stock not deducted.`);
+          }
+
+          // Insert into stock_ledger
+          const { error: ledgerError } = await supabaseClient
+            .from("stock_ledger")
+            .insert({
+              user_id: user.id,
+              product_id: item.product_id,
+              event_type: 'OUT', // Assuming 'OUT' for sales
+              quantity: item.quantity,
+              notes: `Invoice ${invoiceData.invoice_number} - Item sold`,
+              from_warehouse_category: deductedFromWarehouseCategory, // Use the category from which stock was deducted
+              event_date: format(new Date(), "yyyy-MM-dd"), // Current date
+            });
+
+          if (ledgerError) {
+            console.error(`Error inserting stock ledger entry for product ${item.product_id}:`, ledgerError);
+          } else {
+            console.log(`Stock ledger entry added for product ${item.product_id}.`);
+          }
+
+        } catch (stockUpdateError) {
+          console.error(`Unexpected error during stock update for item ${item.item_name}:`, stockUpdateError);
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ message: 'Invoice created successfully', invoice: invoiceData }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
