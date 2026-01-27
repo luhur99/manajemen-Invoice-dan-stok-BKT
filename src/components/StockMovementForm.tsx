@@ -131,14 +131,14 @@ const StockMovementForm: React.FC<StockMovementFormProps> = ({
         throw new Error(`Kuantitas yang dipindahkan melebihi stok yang tersedia (${currentFromCategoryQuantity}).`);
       }
 
-      // Use Edge Function for atomic transaction
-      const { data, error } = await supabase.functions.invoke('move-stock', {
+      // Use the new Edge Function for atomic transaction
+      const { data, error } = await supabase.functions.invoke('atomic-stock-transfer', {
         body: JSON.stringify({
           product_id: product.id,
           from_category: values.from_category,
           to_category: values.to_category,
           quantity: values.quantity,
-          reason: values.notes // Map notes to reason for the function
+          notes: values.notes // Map notes to reason for the function
         }),
       });
 
