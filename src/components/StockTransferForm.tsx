@@ -222,7 +222,8 @@ const StockTransferForm: React.FC<StockTransferFormProps> = ({
                         <SelectItem key={category.id} value={category.code}>
                           {category.name}
                         </SelectItem>
-                      ))}
+                      ))
+                      }
                     </SelectContent>
                   </Select>
                   <FormMessage />

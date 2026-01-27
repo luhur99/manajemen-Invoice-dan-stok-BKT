@@ -35,25 +35,26 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { Schedule, ScheduleStatus, ScheduleType, ProductCategory } from "@/types/data"; // Import enums
 
 const ScheduleManagementPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [scheduleToDelete, setScheduleToDelete] = useState(null);
+  const [scheduleToDelete, setScheduleToDelete] = useState<string | null>(null); // Specify type
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const { data: schedules, isLoading, error } = useQuery({
+  const { data: schedules, isLoading, error } = useQuery<Schedule[], Error>({ // Specify type
     queryKey: ["schedules"],
     queryFn: async () => {
       const { data, error } = await supabase.from("schedules").select("*").order('created_at', { ascending: false }); // Order by created_at descending
       if (error) throw error;
-      return data;
+      return data as Schedule[]; // Cast to Schedule[]
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async (id) => {
+    mutationFn: async (id: string) => { // Specify type
       const { error } = await supabase.from("schedules").delete().eq("id", id);
       if (error) throw error;
       return id;
@@ -68,7 +69,7 @@ const ScheduleManagementPage = () => {
   });
 
   const updateScheduleStatusMutation = useMutation({
-    mutationFn: async ({ scheduleId, newStatus, notes }: { scheduleId: string, newStatus: string, notes?: string }) => {
+    mutationFn: async ({ scheduleId, newStatus, notes }: { scheduleId: string, newStatus: ScheduleStatus, notes?: string }) => { // Specify types
       const { data, error } = await supabase.functions.invoke('update-schedule-status', {
         body: { schedule_id: scheduleId, new_status: newStatus, notes },
       });
@@ -84,8 +85,8 @@ const ScheduleManagementPage = () => {
     },
   });
 
-  const handleStatusChange = (scheduleId: string, newStatus: string) => {
-    if (['cancelled', 'rescheduled'].includes(newStatus)) {
+  const handleStatusChange = (scheduleId: string, newStatus: ScheduleStatus) => { // Specify type
+    if ([ScheduleStatus.CANCELLED, ScheduleStatus.RESCHEDULED].includes(newStatus)) {
       const notes = prompt(`Please provide notes for ${newStatus} status:`);
       if (notes === null) return; // User cancelled the prompt
       updateScheduleStatusMutation.mutate({ scheduleId, newStatus, notes });
@@ -98,7 +99,7 @@ const ScheduleManagementPage = () => {
     navigate("/invoices/new", { state: { scheduleId } });
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = (id: string) => { // Specify type
     setScheduleToDelete(id);
     setIsDeleteDialogOpen(true);
   };
@@ -179,20 +180,20 @@ const ScheduleManagementPage = () => {
                       <DropdownMenuItem onClick={() => navigate(`/schedules/${schedule.id}/edit`)}>Edit</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDelete(schedule.id)}>Delete</DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      {schedule.status === 'completed' && (
+                      {schedule.status === ScheduleStatus.COMPLETED && (
                         <DropdownMenuItem onClick={() => handleCreateInvoice(schedule.id)}>
                           Create Invoice
                         </DropdownMenuItem>
                       )}
-                      {schedule.status !== 'completed' && schedule.status !== 'cancelled' && (
+                      {schedule.status !== ScheduleStatus.COMPLETED && schedule.status !== ScheduleStatus.CANCELLED && (
                         <>
-                          <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, 'completed')}>
+                          <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, ScheduleStatus.COMPLETED)}>
                             Mark as Completed
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, 'cancelled')}>
+                          <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, ScheduleStatus.CANCELLED)}>
                             Mark as Cancelled
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, 'rescheduled')}>
+                          <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, ScheduleStatus.RESCHEDULED)}>
                             Mark as Rescheduled
                           </DropdownMenuItem>
                         </>

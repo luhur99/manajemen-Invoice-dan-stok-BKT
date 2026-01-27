@@ -40,8 +40,9 @@ const getEventTypeDisplay = (type: StockEventType) => {
   }
 };
 
-const getCategoryDisplayName = (code: WarehouseCategoryEnum) => {
-  switch (code) {
+const getCategoryDisplayName = (code: string | null | undefined) => { // Changed type to string | null | undefined
+  if (!code) return "-";
+  switch (code as WarehouseCategoryEnum) { // Cast to enum for switch
     case WarehouseCategoryEnum.GUDANG_UTAMA: return "Gudang Utama";
     case WarehouseCategoryEnum.GUDANG_TRANSIT: return "Gudang Transit";
     case WarehouseCategoryEnum.GUDANG_TEKNISI: return "Gudang Teknisi";

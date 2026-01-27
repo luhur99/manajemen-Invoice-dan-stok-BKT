@@ -34,7 +34,7 @@ import { Loader2 } from "lucide-react";
 const formSchema = z.object({
   kode_barang: z.string().min(1, "Kode Barang harus diisi.").trim(),
   nama_barang: z.string().min(1, "Nama Barang harus diisi.").trim(),
-  satuan: z.string().optional().nullable().trim(),
+  satuan: z.string().trim().optional().nullable(), // Corrected Zod order
   harga_beli: z.number().min(0, "Harga Beli tidak boleh negatif."),
   harga_jual: z.number().min(0, "Harga Jual tidak boleh negatif."),
   safe_stock_limit: z.number().int().min(0, "Batas Stok Aman tidak boleh negatif.").optional().nullable(),

@@ -153,11 +153,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
       payment_status: InvoicePaymentStatus.PENDING,
       type: initialSchedule?.type === ScheduleType.KIRIM ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
       customer_type: initialSchedule?.customers?.customer_type || null,
-      // payment_method is not directly on ScheduleWithDetails, it's on SchedulingRequest.
-      // If initialSchedule is derived from a SchedulingRequest, you might need to adjust the type or how it's passed.
-      // For now, I'm assuming it might be available via a join or direct property if the ScheduleWithDetails type was extended.
-      // If this still causes an error, we might need to fetch the related SchedulingRequest or adjust the ScheduleWithDetails type.
-      payment_method: (initialSchedule as any)?.payment_method || null, // Temporarily cast to any to resolve TS error
+      payment_method: initialSchedule?.payment_method || null, // This was the problematic line
       notes: initialSchedule?.do_number ? `DO Number: ${initialSchedule.do_number}` : null,
       courier_service: initialSchedule?.courier_service || null,
       invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,

@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { SchedulingRequest, SchedulingRequestStatus, SchedulingRequestType, CustomerTypeEnum, ScheduleProductCategory } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestStatus, SchedulingRequestType, CustomerTypeEnum, ProductCategory } from "@/types/data";
 import { format } from "date-fns";
 
 interface ViewSchedulingRequestDetailsDialogProps {
@@ -36,7 +36,7 @@ const getTypeDisplay = (type: SchedulingRequestType) => {
   return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
-const getProductCategoryDisplay = (category: ScheduleProductCategory | null | undefined) => {
+const getProductCategoryDisplay = (category: ProductCategory | null | undefined) => {
   if (!category) return "-";
   return category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };

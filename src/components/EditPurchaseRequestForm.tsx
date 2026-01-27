@@ -31,103 +31,131 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategoryEnum, WarehouseInventory, PurchaseRequestStatus, StockEventType, WarehouseCategory as WarehouseCategoryType } from "@/types/data";
+import { Product, PurchaseRequestWithDetails, Supplier, WarehouseCategory as WarehouseCategoryType, PurchaseRequestStatus, StockEventType } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const formSchema = z.object({
-  pr_number: z.string().optional().nullable(),
-  item_name: z.string().min(1, "Nama item wajib diisi."),
-  item_code: z.string().min(1, "Kode item wajib diisi."),
+  item_name: z.string().min(1, "Nama Item harus diisi.").trim(),
+  item_code: z.string().min(1, "Kode Item harus diisi.").trim(),
   product_id: z.string().uuid().optional().nullable(),
   quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
-  unit_price: z.number().min(0, "Harga satuan tidak boleh negatif."),
-  suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
-  total_price: z.number().min(0, "Total harga tidak boleh negatif."),
-  satuan: z.string().optional().nullable(),
+  unit_price: z.number().min(0, "Harga Satuan tidak boleh negatif."),
+  suggested_selling_price: z.number().min(0, "Harga Jual yang Disarankan tidak boleh negatif."),
+  total_price: z.number().min(0, "Total Harga tidak boleh negatif."),
+  satuan: z.string().optional().nullable().trim(),
   supplier_id: z.string().uuid().optional().nullable(),
-  notes: z.string().optional().nullable(),
-  status: z.nativeEnum(PurchaseRequestStatus).default(PurchaseRequestStatus.PENDING),
+  notes: z.string().optional().nullable().trim(),
+  status: z.nativeEnum(PurchaseRequestStatus, { required_error: "Status wajib diisi." }),
   document_url: z.string().optional().nullable(),
-  received_quantity: z.number().int().min(0, "Kuantitas diterima tidak boleh negatif.").optional().nullable(),
-  returned_quantity: z.number().int().min(0, "Kuantitas dikembalikan tidak boleh negatif.").optional().nullable(),
-  damaged_quantity: z.number().int().min(0, "Kuantitas rusak tidak boleh negatif.").optional().nullable(),
-  target_warehouse_category: z.nativeEnum(WarehouseCategoryEnum).optional().nullable(),
-  received_notes: z.string().optional().nullable(),
+  received_quantity: z.number().int().min(0, "Kuantitas diterima tidak boleh negatif.").optional().nullable().default(0),
+  returned_quantity: z.number().int().min(0, "Kuantitas dikembalikan tidak boleh negatif.").optional().nullable().default(0),
+  damaged_quantity: z.number().int().min(0, "Kuantitas rusak tidak boleh negatif.").optional().nullable().default(0),
+  target_warehouse_category: z.string().optional().nullable(),
+  received_notes: z.string().optional().nullable().trim(),
   received_at: z.date().optional().nullable(),
+  pr_number: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
-  if (data.status === PurchaseRequestStatus.WAITING_FOR_RECEIVED && (!data.received_quantity || data.received_quantity <= 0)) {
+  if (data.status === PurchaseRequestStatus.WAITING_FOR_RECEIVED && (data.received_quantity === null || data.received_quantity <= 0)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Kuantitas diterima wajib diisi dan harus lebih dari 0 saat status 'Waiting for Received'.",
-      path: ['received_quantity'],
+      message: "Kuantitas diterima harus lebih dari 0 saat status 'waiting for received'.",
+      path: ["received_quantity"],
     });
   }
-  if (data.status === PurchaseRequestStatus.CLOSED && (!data.received_quantity || data.received_quantity <= 0)) {
+  if (data.status === PurchaseRequestStatus.CLOSED && (data.received_quantity === null || data.received_quantity <= 0)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Kuantitas diterima wajib diisi dan harus lebih dari 0 saat status 'Closed'.",
-      path: ['received_quantity'],
+      message: "Kuantitas diterima harus lebih dari 0 saat status 'closed'.",
+      path: ["received_quantity"],
     });
   }
-  if (data.status === PurchaseRequestStatus.REJECTED && (!data.notes || data.notes.trim() === '')) {
+  if (data.status === PurchaseRequestStatus.REJECTED && (!data.notes || (data.notes as string).trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: "Alasan (catatan) wajib diisi saat status 'Rejected'.",
-      path: ['notes'],
+      message: "Catatan (notes) wajib diisi saat status 'rejected'.",
+      path: ["notes"],
     });
   }
 });
 
 interface EditPurchaseRequestFormProps {
+  purchaseRequest: PurchaseRequestWithDetails;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  initialData: PurchaseRequestWithDetails;
 }
 
 const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
+  purchaseRequest,
   isOpen,
   onOpenChange,
   onSuccess,
-  initialData,
 }) => {
   const { session } = useSession();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("basic");
+  const [activeTab, setActiveTab] = useState("basic_info");
+  const [itemSearchInput, setItemSearchInput] = useState(purchaseRequest.products?.nama_barang || "");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      pr_number: initialData.pr_number || null,
-      item_name: initialData.item_name,
-      item_code: initialData.item_code,
-      product_id: initialData.product_id || null,
-      quantity: initialData.quantity,
-      unit_price: initialData.unit_price,
-      suggested_selling_price: initialData.suggested_selling_price,
-      total_price: initialData.total_price,
-      satuan: initialData.satuan || null,
-      supplier_id: initialData.supplier_id || null,
-      notes: initialData.notes || null,
-      status: initialData.status,
-      document_url: initialData.document_url || null,
-      received_quantity: initialData.received_quantity || 0,
-      returned_quantity: initialData.returned_quantity || 0,
-      damaged_quantity: initialData.damaged_quantity || 0,
-      target_warehouse_category: initialData.target_warehouse_category || null,
-      received_notes: initialData.received_notes || null,
-      received_at: initialData.received_at ? new Date(initialData.received_at) : null,
+      item_name: purchaseRequest.item_name,
+      item_code: purchaseRequest.item_code,
+      product_id: purchaseRequest.product_id || null,
+      quantity: purchaseRequest.quantity,
+      unit_price: purchaseRequest.unit_price,
+      suggested_selling_price: purchaseRequest.suggested_selling_price,
+      total_price: purchaseRequest.total_price,
+      satuan: purchaseRequest.satuan || null,
+      supplier_id: purchaseRequest.supplier_id || null,
+      notes: purchaseRequest.notes || null,
+      status: purchaseRequest.status,
+      document_url: purchaseRequest.document_url || null,
+      received_quantity: purchaseRequest.received_quantity || 0,
+      returned_quantity: purchaseRequest.returned_quantity || 0,
+      damaged_quantity: purchaseRequest.damaged_quantity || 0,
+      target_warehouse_category: purchaseRequest.target_warehouse_category || null,
+      received_notes: purchaseRequest.received_notes || null,
+      received_at: purchaseRequest.received_at ? new Date(purchaseRequest.received_at) : null,
+      pr_number: purchaseRequest.pr_number || null,
     },
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      form.reset({
+        item_name: purchaseRequest.item_name,
+        item_code: purchaseRequest.item_code,
+        product_id: purchaseRequest.product_id || null,
+        quantity: purchaseRequest.quantity,
+        unit_price: purchaseRequest.unit_price,
+        suggested_selling_price: purchaseRequest.suggested_selling_price,
+        total_price: purchaseRequest.total_price,
+        satuan: purchaseRequest.satuan || null,
+        supplier_id: purchaseRequest.supplier_id || null,
+        notes: purchaseRequest.notes || null,
+        status: purchaseRequest.status,
+        document_url: purchaseRequest.document_url || null,
+        received_quantity: purchaseRequest.received_quantity || 0,
+        returned_quantity: purchaseRequest.returned_quantity || 0,
+        damaged_quantity: purchaseRequest.damaged_quantity || 0,
+        target_warehouse_category: purchaseRequest.target_warehouse_category || null,
+        received_notes: purchaseRequest.received_notes || null,
+        received_at: purchaseRequest.received_at ? new Date(purchaseRequest.received_at) : null,
+        pr_number: purchaseRequest.pr_number || null,
+      });
+      setItemSearchInput(purchaseRequest.products?.nama_barang || "");
+      setActiveTab("basic_info");
+    }
+  }, [isOpen, purchaseRequest, form]);
 
   const watchedQuantity = form.watch("quantity");
   const watchedUnitPrice = form.watch("unit_price");
   const watchedProductId = form.watch("product_id");
   const watchedStatus = form.watch("status");
-  const [productSearchInput, setProductSearchInput] = useState(initialData.products?.nama_barang || "");
 
   useEffect(() => {
     form.setValue("total_price", watchedQuantity * watchedUnitPrice);
@@ -192,7 +220,8 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
     enabled: isOpen,
   });
 
-  const handleProductSelect = (product: Product | undefined) => {
+  const handleProductSelect = (product_id: string | undefined) => {
+    const product = products?.find(p => p.id === product_id);
     if (product) {
       form.setValue("product_id", product.id);
       form.setValue("item_name", product.nama_barang);
@@ -200,7 +229,7 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
       form.setValue("unit_price", product.harga_beli);
       form.setValue("suggested_selling_price", product.harga_jual);
       form.setValue("satuan", product.satuan);
-      setProductSearchInput(product.nama_barang);
+      setItemSearchInput(product.nama_barang);
       form.clearErrors(["item_name", "item_code", "unit_price", "suggested_selling_price", "satuan"]);
     } else {
       form.setValue("product_id", null);
@@ -209,7 +238,7 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
       form.setValue("unit_price", 0);
       form.setValue("suggested_selling_price", 0);
       form.setValue("satuan", null);
-      setProductSearchInput("");
+      setItemSearchInput("");
     }
   };
 
@@ -220,13 +249,13 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
         throw new Error("Pengguna tidak terautentikasi.");
       }
 
-      const isClosingAction = values.status === PurchaseRequestStatus.CLOSED && initialData.status !== PurchaseRequestStatus.CLOSED;
+      const isClosingAction = values.status === PurchaseRequestStatus.CLOSED && purchaseRequest.status !== PurchaseRequestStatus.CLOSED;
 
       if (isClosingAction) {
         // Call the Edge Function to close the PR and update stock
         const { data, error } = await supabase.functions.invoke('close-purchase-request', {
           body: JSON.stringify({
-            request_id: initialData.id,
+            request_id: purchaseRequest.id,
             received_quantity: values.received_quantity,
             returned_quantity: values.returned_quantity,
             damaged_quantity: values.damaged_quantity,
@@ -260,13 +289,14 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
           target_warehouse_category: values.target_warehouse_category || null,
           received_notes: values.received_notes?.trim() || null,
           received_at: values.received_at ? format(values.received_at, "yyyy-MM-dd") : null,
+          pr_number: values.pr_number?.trim() || null,
           updated_at: new Date().toISOString(),
         };
 
         const { error } = await supabase
           .from("purchase_requests")
           .update(dataToUpdate)
-          .eq("id", initialData.id);
+          .eq("id", purchaseRequest.id);
 
         if (error) throw error;
       }
@@ -320,12 +350,12 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-4 py-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="basic">Informasi Dasar</TabsTrigger>
+                <TabsTrigger value="basic_info">Informasi Dasar</TabsTrigger>
                 <TabsTrigger value="details">Detail Item & Supplier</TabsTrigger>
                 <TabsTrigger value="status">Status & Penerimaan</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="basic" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <TabsContent value="basic_info" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
                   name="pr_number"
@@ -349,9 +379,9 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
                         <StockItemCombobox
                           products={products || []}
                           selectedProductId={field.value || undefined}
-                          onSelectProduct={(productId) => handleProductSelect(products?.find(p => p.id === productId))}
-                          inputValue={productSearchInput}
-                          onInputValueChange={setProductSearchInput}
+                          onSelectProduct={handleProductSelect}
+                          inputValue={itemSearchInput}
+                          onInputValueChange={setItemSearchInput}
                           disabled={loadingProducts}
                           loading={loadingProducts}
                           showInventory={false} // Do not show inventory in purchase request product selection

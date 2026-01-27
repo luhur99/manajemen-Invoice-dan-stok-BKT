@@ -22,6 +22,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import ViewCustomerDetailsDialog from "@/components/ViewCustomerDetailsDialog";
 
+interface ViewCustomerDetailsDialogProps { // Moved interface here
+  isOpen: boolean;
+  onClose: () => void;
+  customer: CustomerWithDetails | null;
+}
+
 const CustomerManagementPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [isAddFormOpen, setIsAddFormOpen] = useState(false);
@@ -193,7 +199,7 @@ const CustomerManagementPage: React.FC = () => {
         <ViewCustomerDetailsDialog
           customer={selectedCustomer}
           isOpen={isViewDetailsOpen}
-          onOpenChange={setIsViewDetailsOpen}
+          onClose={() => setIsViewDetailsOpen(false)} // Changed onOpenChange to onClose
         />
       )}
 

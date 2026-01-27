@@ -14,7 +14,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { showSuccess, showError } from "@/utils/toast";
@@ -25,12 +24,12 @@ import { useSession } from "@/components/SessionContextProvider";
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
-  kode_barang: z.string().min(1, "Kode Barang wajib diisi"),
-  nama_barang: z.string().min(1, "Nama Barang wajib diisi"),
-  satuan: z.string().optional(),
+  kode_barang: z.string().min(1, "Kode Barang wajib diisi").trim(),
+  nama_barang: z.string().min(1, "Nama Barang wajib diisi").trim(),
+  satuan: z.string().optional().nullable().trim(),
   harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
-  safe_stock_limit: z.coerce.number().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
+  safe_stock_limit: z.coerce.number().int().min(0, "Batas Stok Aman tidak boleh negatif").default(0),
   supplier_id: z.string().uuid().optional().nullable(),
 });
 

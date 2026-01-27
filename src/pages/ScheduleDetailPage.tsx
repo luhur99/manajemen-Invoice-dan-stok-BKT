@@ -8,17 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
+import { Schedule, ScheduleStatus, ScheduleType, ProductCategory } from "@/types/data"; // Import enums
 
 const ScheduleDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  const { data: schedule, isLoading, error } = useQuery({
+  const { data: schedule, isLoading, error } = useQuery<Schedule, Error>({
     queryKey: ["schedule", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("schedules").select("*").eq("id", id).single();
       if (error) throw error;
-      return data;
+      return data as Schedule;
     },
     enabled: !!id,
   });
@@ -27,8 +28,17 @@ const ScheduleDetailPage = () => {
   if (error) return <div className="container mx-auto p-4">Error: {error.message}</div>;
   if (!schedule) return <div className="container mx-auto p-4">Schedule not found.</div>;
 
-  const formatStatus = (status: string) => {
+  const formatStatus = (status: ScheduleStatus) => {
     return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const formatType = (type: ScheduleType) => {
+    return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  const formatProductCategory = (category: ProductCategory | null) => {
+    if (!category) return '-';
+    return category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
   return (
@@ -73,11 +83,11 @@ const ScheduleDetailPage = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Type</p>
-              <p className="text-lg font-semibold">{formatStatus(schedule.type)}</p>
+              <p className="text-lg font-semibold">{formatType(schedule.type)}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Product Category</p>
-              <p className="text-lg font-semibold">{schedule.product_category || '-'}</p>
+              <p className="text-lg font-semibold">{formatProductCategory(schedule.product_category)}</p>
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500">Status</p>

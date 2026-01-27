@@ -13,7 +13,7 @@ import ViewSchedulingRequestDetailsDialog from "@/components/ViewSchedulingReque
 import CancelRequestDialog from "@/components/CancelRequestDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician, ScheduleProductCategory, CustomerTypeEnum } from "@/types/data"; // Import ScheduleProductCategory
+import { SchedulingRequestWithDetails, SchedulingRequestStatus, SchedulingRequestType, Technician, ProductCategory, CustomerTypeEnum } from "@/types/data"; // Import ProductCategory
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
 import TechnicianCombobox from "@/components/TechnicianCombobox";
@@ -57,7 +57,7 @@ const getTypeDisplay = (type: SchedulingRequestType) => {
   return type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
-const getProductCategoryDisplay = (category: ScheduleProductCategory | null | undefined) => {
+const getProductCategoryDisplay = (category: ProductCategory | null | undefined) => {
   if (!category) return "-";
   return category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };

@@ -7,7 +7,7 @@ import { format, startOfMonth, endOfMonth, isSameDay, parseISO, startOfDay } fro
 import { id } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { showError } from "@/utils/toast";
-import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician, ScheduleProductCategory } from "@/types/data"; // Import Technician and ScheduleProductCategory
+import { Schedule, WarehouseCategory as WarehouseCategoryType, Technician, ProductCategory } from "@/types/data"; // Import Technician and ProductCategory
 import { Loader2, CalendarDays, User, Clock, MapPin, Info, AlertTriangle, Package } from "lucide-react"; // Added Package
 import { useQuery } from "@tanstack/react-query"; // Import useQuery
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Import Alert components

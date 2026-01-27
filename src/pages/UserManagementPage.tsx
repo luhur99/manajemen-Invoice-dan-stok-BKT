@@ -59,10 +59,13 @@ const UserManagementPage = () => {
         created_at: user.created_at,
         last_sign_in_at: user.last_sign_in_at,
         profiles: {
+          id: user.id, // Ensure id is present for profile
           first_name: user.first_name,
           last_name: user.last_name,
           role: user.role,
           phone_number: user.phone_number,
+          avatar_url: user.avatar_url,
+          updated_at: user.updated_at,
         },
       })) as UserWithProfile[];
 

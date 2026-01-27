@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, Technician, ScheduleProductCategory } from "@/types/data";
+import { SchedulingRequest, SchedulingRequestType, SchedulingRequestStatus, Invoice, Customer, Technician, ProductCategory, CustomerTypeEnum } from "@/types/data";
 import { useSession } from "@/components/SessionContextProvider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import CustomerCombobox from "./CustomerCombobox";
@@ -41,22 +41,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const formSchema = z.object({
   sr_number: z.string().optional().nullable(),
   customer_id: z.string().uuid().optional().nullable(),
-  customer_name: z.string().min(1, "Nama pelanggan wajib diisi."),
-  company_name: z.string().optional().nullable(),
+  customer_name: z.string().min(1, "Nama pelanggan wajib diisi.").trim(),
+  company_name: z.string().optional().nullable().trim(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
-  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(),
-  vehicle_details: z.string().optional().nullable(),
-  full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
-  landmark: z.string().optional().nullable(),
+  product_category: z.nativeEnum(ProductCategory).optional().nullable(),
+  vehicle_details: z.string().optional().nullable().trim(),
+  full_address: z.string().min(1, "Alamat lengkap wajib diisi.").trim(),
+  landmark: z.string().optional().nullable().trim(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
-  requested_time: z.string().optional().nullable(),
-  contact_person: z.string().min(1, "Nama kontak person wajib diisi."),
-  phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  payment_method: z.string().optional().nullable(),
+  requested_time: z.string().optional().nullable().trim(),
+  contact_person: z.string().min(1, "Nama kontak person wajib diisi.").trim(),
+  phone_number: z.string().min(1, "Nomor telepon wajib diisi.").trim(),
+  payment_method: z.string().optional().nullable().trim(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
-  notes: z.string().optional().nullable(),
+  notes: z.string().optional().nullable().trim(),
   invoice_id: z.string().uuid().optional().nullable(),
-  technician_name: z.string().optional().nullable(),
+  technician_name: z.string().optional().nullable().trim(),
 }).superRefine((data, ctx) => {
   if (['rescheduled', 'rejected', 'cancelled'].includes(data.status) && (!data.notes || data.notes.trim() === '')) {
     ctx.addIssue({
@@ -326,7 +326,6 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
       showSuccess(initialData ? "Permintaan jadwal berhasil diperbarui!" : "Permintaan jadwal berhasil ditambahkan!");
       onSuccess();
       onOpenChange(false);
-      form.reset();
       queryClient.invalidateQueries({ queryKey: ["schedulingRequests"] });
     },
     onError: (err: any) => {
@@ -471,7 +470,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(ScheduleProductCategory).map((category) => (
+                          {Object.values(ProductCategory).map((category) => (
                             <SelectItem key={category} value={category}>
                               {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                             </SelectItem>

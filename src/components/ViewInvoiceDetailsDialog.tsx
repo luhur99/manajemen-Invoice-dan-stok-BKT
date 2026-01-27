@@ -15,7 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Printer } from "lucide-react";
-import Link from "next/link";
+import { Link } from "react-router-dom"; // Changed from next/link
+import { cn } from "@/lib/utils"; // Added cn import
 
 interface ViewInvoiceDetailsDialogProps {
   invoice: InvoiceWithDetails;
@@ -142,7 +143,7 @@ const ViewInvoiceDetailsDialog: React.FC<ViewInvoiceDetailsDialogProps> = ({
           )}
         </div>
         <div className="flex justify-end gap-2">
-          <Link href={`/print-invoice/${invoice.id}`} passHref>
+          <Link to={`/print/invoice/${invoice.id}`} target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="flex items-center">
               <Printer className="mr-2 h-4 w-4" /> Cetak Invoice
             </Button>

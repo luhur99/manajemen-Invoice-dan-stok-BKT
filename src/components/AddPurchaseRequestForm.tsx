@@ -27,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory } from "@/types/data";
+import { Product, PurchaseRequestStatus, Supplier, WarehouseCategory as WarehouseCategoryType, WarehouseInventory, StockEventType } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
@@ -64,19 +64,19 @@ const generatePrNumber = async (): Promise<string> => {
 
 const formSchema = z.object({
   pr_number: z.string().optional().nullable(), // Added pr_number to schema
-  product_id: z.string().min(1, "Produk harus dipilih."),
-  item_name: z.string().min(1, "Nama item harus diisi."),
-  item_code: z.string().min(1, "Kode item harus diisi."),
-  satuan: z.string().optional(),
+  product_id: z.string().uuid().min(1, "Produk harus dipilih."),
+  item_name: z.string().min(1, "Nama item harus diisi.").trim(),
+  item_code: z.string().min(1, "Kode item harus diisi.").trim(),
+  satuan: z.string().optional().nullable().trim(),
   quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
   unit_price: z.number().min(0, "Harga satuan tidak boleh negatif."),
   suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
   total_price: z.number().min(0, "Total harga tidak boleh negatif."),
-  supplier_id: z.string().min(1, "Supplier harus dipilih."),
+  supplier_id: z.string().uuid().min(1, "Supplier harus dipilih."),
   target_warehouse_category: z.string({
     required_error: "Kategori gudang tujuan harus dipilih.",
   }).min(1, "Kategori gudang tujuan harus dipilih."),
-  notes: z.string().optional(),
+  notes: z.string().optional().nullable().trim(),
 });
 
 interface AddPurchaseRequestFormProps {

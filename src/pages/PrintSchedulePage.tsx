@@ -85,7 +85,7 @@ const PrintSchedulePage = () => {
 
   return (
     <div className="min-h-screen bg-white p-8 text-black print:p-0">
-      {/* Print Controls */}
+      {/* Print Controls - Hidden when printing */}
       <div className="mb-8 flex justify-end print:hidden">
         <Button onClick={() => window.print()}>
           <Printer className="mr-2 h-4 w-4" /> Cetak Dokumen

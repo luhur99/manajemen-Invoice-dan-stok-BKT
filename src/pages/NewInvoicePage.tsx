@@ -24,14 +24,17 @@ const NewInvoicePage = () => {
   const location = useLocation();
   const initialSchedule = location.state?.initialSchedule ? (location.state as { initialSchedule: ScheduleWithDetails }).initialSchedule : null;
 
-  const { data: completedSchedules = [], isLoading: isLoadingSchedules, error: schedulesError } = useQuery({
+  const { data: completedSchedules = [], isLoading: isLoadingSchedules, error: schedulesError } = useQuery<
+    { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[],
+    Error
+  >({
     queryKey: ["completedSchedulesForNewInvoicePage"],
     queryFn: async () => {
       console.log("Fetching completed schedules for NewInvoicePage...");
       
       const { data, error } = await supabase
         .from("schedules")
-        .select("id, do_number, customer_name, schedule_date, status, type, phone_number, courier_service, customer_id, customers(company_name, customer_type)")
+        .select(`id, do_number, customer_name, schedule_date, status, type, phone_number, courier_service, customer_id, customers(company_name, customer_type)`)
         .eq("status", "completed")
         .not("do_number", "is", null)
         .order("schedule_date", { ascending: false })
@@ -69,7 +72,7 @@ const NewInvoicePage = () => {
             <AddInvoiceForm
               onSuccess={() => navigate("/invoices")}
               initialSchedule={initialSchedule}
-              completedSchedules={completedSchedules as any[]}
+              completedSchedules={completedSchedules}
               isLoadingSchedules={isLoadingSchedules}
               schedulesError={schedulesError}
             />

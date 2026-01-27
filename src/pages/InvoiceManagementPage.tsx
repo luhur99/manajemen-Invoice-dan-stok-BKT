@@ -22,9 +22,9 @@ import { Badge } from "@/components/ui/badge";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
 import EditInvoiceForm from "@/components/EditInvoiceForm";
 import ViewInvoiceDetailsDialog from "@/components/ViewInvoiceDetailsDialog";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker"; // Corrected import
 import { DateRange } from "react-day-picker";
-import Link from "next/link";
+import { Link } from "react-router-dom"; // Changed from next/link
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { showError, showSuccess } from "@/utils/toast";
 
@@ -130,7 +130,7 @@ const InvoiceManagementPage: React.FC = () => {
         `)
         .eq("status", "completed"); // Only fetch completed schedules
       if (error) throw error;
-      return data;
+      return data as { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[];
     },
   });
 
@@ -213,7 +213,7 @@ const InvoiceManagementPage: React.FC = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+        <DateRangePicker date={dateRange} onDateChange={setDateRange} />
         <Select value={filterPaymentStatus} onValueChange={(value: InvoicePaymentStatus | "all") => setFilterPaymentStatus(value)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Filter Status Pembayaran" />
@@ -304,7 +304,7 @@ const InvoiceManagementPage: React.FC = () => {
                         <Edit className="mr-2 h-4 w-4" /> Edit
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <Link href={`/print-invoice/${invoice.id}`} passHref>
+                      <Link to={`/print/invoice/${invoice.id}`} target="_blank" rel="noopener noreferrer">
                         <DropdownMenuItem>
                           <Printer className="mr-2 h-4 w-4" /> Cetak Invoice
                         </DropdownMenuItem>

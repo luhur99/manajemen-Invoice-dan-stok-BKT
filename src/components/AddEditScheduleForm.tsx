@@ -31,7 +31,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { showError, showSuccess } from "@/utils/toast";
-import { Schedule, ScheduleType, ScheduleStatus, Technician, ScheduleProductCategory, Customer } from "@/types/data";
+import { Schedule, ScheduleType, ScheduleStatus, Technician, ProductCategory, Customer } from "@/types/data";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import TechnicianCombobox from "./TechnicianCombobox";
@@ -40,18 +40,18 @@ import { useSession } from "@/components/SessionContextProvider";
 
 const formSchema = z.object({
   customer_id: z.string().uuid().optional().nullable(),
-  customer_name: z.string().min(1, "Nama pelanggan harus diisi."),
-  address: z.string().optional().nullable(),
-  phone_number: z.string().optional().nullable(),
+  customer_name: z.string().min(1, "Nama pelanggan harus diisi.").trim(),
+  address: z.string().optional().nullable().trim(),
+  phone_number: z.string().optional().nullable().trim(),
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
-  schedule_time: z.string().optional().nullable(),
+  schedule_time: z.string().optional().nullable().trim(),
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
-  product_category: z.nativeEnum(ScheduleProductCategory).optional().nullable(),
-  technician_name: z.string().optional().nullable(),
-  invoice_id: z.string().optional().nullable(),
+  product_category: z.nativeEnum(ProductCategory).optional().nullable(),
+  technician_name: z.string().optional().nullable().trim(),
+  invoice_id: z.string().uuid().optional().nullable(),
   status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
-  notes: z.string().optional().nullable(),
-  courier_service: z.string().optional().nullable(),
+  notes: z.string().optional().nullable().trim(),
+  courier_service: z.string().optional().nullable().trim(),
 });
 
 interface AddEditScheduleFormProps {
@@ -372,7 +372,7 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(ScheduleProductCategory).map((category) => (
+                          {Object.values(ProductCategory).map((category) => (
                             <SelectItem key={category} value={category}>
                               {category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                             </SelectItem>
