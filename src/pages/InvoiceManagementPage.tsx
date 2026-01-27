@@ -22,7 +22,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum } from "@/types/data"; // Added ScheduleType, CustomerTypeEnum
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum } from "@/types/data";
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddInvoiceForm from "@/components/AddInvoiceForm";
@@ -250,15 +250,19 @@ const InvoiceManagementPage = () => {
               <PlusCircle className="mr-2 h-4 w-4" /> Tambah Invoice
             </Button>
           </DialogTrigger>
-          {/* AddInvoiceForm is now rendered directly inside DialogContent */}
-          <AddInvoiceForm
-            isOpen={isAddFormOpen}
-            onOpenChange={setIsAddFormOpen}
-            onSuccess={() => setIsAddFormOpen(false)}
-            completedSchedules={completedSchedules as any[]} // Pass fetched data
-            isLoadingSchedules={isLoadingSchedules}
-            schedulesError={schedulesError}
-          />
+          <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Buat Invoice Baru</DialogTitle>
+              <DialogDescription>Isi detail invoice baru di sini. Nomor Invoice akan dibuat otomatis.</DialogDescription>
+            </DialogHeader>
+            <AddInvoiceForm
+              onSuccess={() => setIsAddFormOpen(false)}
+              initialSchedule={null}
+              completedSchedules={completedSchedules as any[]}
+              isLoadingSchedules={isLoadingSchedules}
+              schedulesError={schedulesError}
+            />
+          </DialogContent>
         </Dialog>
       </div>
 
