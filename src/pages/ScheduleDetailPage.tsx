@@ -1,192 +1,101 @@
 "use client";
 
-import React from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { ScheduleWithDetails } from "@/types/data";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ArrowLeft } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowLeft, Share2, Printer } from "lucide-react";
-import { showError } from "@/utils/toast";
-import { format, parseISO } from "date-fns";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { supabase } from "@/integrations/supabase/client";
 
 const ScheduleDetailPage = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const navigate = useNavigate();
 
-  const { data: schedule, isLoading, error } = useQuery<ScheduleWithDetails, Error>({
+  const { data: schedule, isLoading, error } = useQuery({
     queryKey: ["schedule", id],
     queryFn: async () => {
-      if (!id) throw new Error("Schedule ID is missing.");
-      const { data, error } = await supabase
-        .from("schedules")
-        .select(`
-          id,
-          user_id,
-          schedule_date,
-          schedule_time,
-          type,
-          customer_name,
-          address,
-          technician_name,
-          invoice_id,
-          status,
-          notes,
-          created_at,
-          phone_number,
-          courier_service,
-          document_url,
-          scheduling_request_id,
-          do_number,
-          updated_at,
-          product_category,
-          customer_id,
-          customers (customer_name, company_name, phone_number, address, customer_type),
-          invoices (invoice_number),
-          scheduling_requests (sr_number)
-        `)
-        .eq("id", id)
-        .single();
-
-      if (error) {
-        showError("Gagal memuat detail jadwal.");
-        throw error;
-      }
-      if (!data) {
-        throw new Error("Jadwal tidak ditemukan.");
-      }
-      
-      // Explicitly handle joined data which might be an array or single object
-      const customerData = Array.isArray(data.customers) ? data.customers[0] : data.customers;
-      const invoiceData = Array.isArray(data.invoices) ? data.invoices[0] : data.invoices;
-      const schedulingRequestData = Array.isArray(data.scheduling_requests) ? data.scheduling_requests[0] : data.scheduling_requests;
-
-      const formattedData: ScheduleWithDetails = {
-        ...data,
-        customers: customerData || null,
-        invoices: invoiceData || null,
-        sr_number: schedulingRequestData?.sr_number || null,
-        payment_method: null, // Schedule table doesn't have payment_method directly, handled by invoice usually
-      };
-      
-      return formattedData;
+      const { data, error } = await supabase.from("schedules").select("*").eq("id", id).single();
+      if (error) throw error;
+      return data;
     },
     enabled: !!id,
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  if (isLoading) return <div className="container mx-auto p-4">Loading schedule details...</div>;
+  if (error) return <div className="container mx-auto p-4">Error: {error.message}</div>;
+  if (!schedule) return <div className="container mx-auto p-4">Schedule not found.</div>;
 
-  if (error) {
-    return (
-      <Card className="w-full max-w-2xl mx-auto mt-8">
-        <CardHeader>
-          <CardTitle>Error</CardTitle>
-          <CardDescription>Gagal memuat detail jadwal.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-red-500">{error.message}</p>
-          <Button onClick={() => navigate(-1)} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!schedule) {
-    return (
-      <Card className="w-full max-w-2xl mx-auto mt-8">
-        <CardHeader>
-          <CardTitle>Jadwal Tidak Ditemukan</CardTitle>
-          <CardDescription>Jadwal dengan ID ini tidak ada.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => navigate(-1)} className="mt-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const scheduleUrl = `${window.location.origin}/schedules/${schedule.id}`;
-  const whatsappText = encodeURIComponent(`Detail Jadwal:\nDO Number: ${schedule.do_number || '-'}\nPelanggan: ${schedule.customer_name}\nTanggal: ${format(new Date(schedule.schedule_date), 'dd-MM-yyyy')}\nWaktu: ${schedule.schedule_time || '-'}\nTeknisi: ${schedule.technician_name || '-'}\nAlamat: ${schedule.address || '-'}\n\nLihat selengkapnya di: ${scheduleUrl}`);
+  const formatStatus = (status: string) => {
+    return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
 
   return (
-    <div className="space-y-6 p-4">
-      <div className="flex items-center justify-between">
-        <Button onClick={() => navigate(-1)} variant="outline">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
-        </Button>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            onClick={() => window.open(`https://wa.me/?text=${whatsappText}`, '_blank')}
-          >
-            <Share2 className="mr-2 h-4 w-4" /> Bagikan via WhatsApp
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => window.open(`/print/schedule/${schedule.id}`, '_blank')}
-          >
-            <Printer className="mr-2 h-4 w-4" /> Cetak
-          </Button>
-        </div>
-      </div>
-
-      <Card className="w-full max-w-4xl mx-auto">
+    <div className="container mx-auto p-4">
+      <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back
+      </Button>
+      <Card>
         <CardHeader>
-          <CardTitle>Detail Jadwal: {schedule.do_number || 'N/A'}</CardTitle>
-          <CardDescription>Informasi lengkap mengenai jadwal ini.</CardDescription>
+          <CardTitle>Schedule Details: {schedule.do_number}</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Informasi Umum</h3>
-            <p><strong>DO Number:</strong> {schedule.do_number || '-'}</p>
-            <p><strong>Tipe:</strong> {schedule.type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
-            <p><strong>Kategori Produk:</strong> {schedule.product_category ? schedule.product_category.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : '-'}</p>
-            <p><strong>Tanggal Jadwal:</strong> {format(new Date(schedule.schedule_date), "dd MMMM yyyy")}</p>
-            <p><strong>Waktu Jadwal:</strong> {schedule.schedule_time || '-'}</p>
-            <p><strong>Status:</strong> {schedule.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
-            <p><strong>Teknisi:</strong> {schedule.technician_name || '-'}</p>
-            <p><strong>Layanan Kurir:</strong> {schedule.courier_service || '-'}</p>
-            <p><strong>Invoice Terkait:</strong> {schedule.invoices?.invoice_number ? <Link to={`/invoices/${schedule.invoice_id}`} className="text-blue-600 hover:underline">{schedule.invoices.invoice_number}</Link> : '-'}</p>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold mb-2">Detail Pelanggan</h3>
-            <p><strong>Nama Pelanggan:</strong> {schedule.customers?.customer_name || schedule.customer_name}</p>
-            <p><strong>Perusahaan:</strong> {schedule.customers?.company_name || '-'}</p>
-            <p><strong>Tipe Pelanggan:</strong> {schedule.customers?.customer_type ? schedule.customers.customer_type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : '-'}</p>
-            <p><strong>Nomor Telepon:</strong> {schedule.customers?.phone_number || schedule.phone_number || '-'}</p>
-            <p><strong>Alamat:</strong> {schedule.customers?.address || schedule.address || '-'}</p>
-          </div>
-          <div className="md:col-span-2">
-            <Separator className="my-4" />
-            <h3 className="text-lg font-semibold mb-2">Catatan</h3>
-            <p className="whitespace-pre-wrap">{schedule.notes || 'Tidak ada catatan.'}</p>
-          </div>
-          <div className="md:col-span-2">
-            <Separator className="my-4" />
-            <h3 className="text-lg font-semibold mb-2">Dokumen</h3>
-            {schedule.document_url ? (
-              <a href={schedule.document_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                Lihat Dokumen
-              </a>
-            ) : (
-              <p>Tidak ada dokumen terlampir.</p>
-            )}
-          </div>
-          <div className="md:col-span-2 text-sm text-muted-foreground mt-4">
-            <p>Dibuat pada: {format(parseISO(schedule.created_at), 'dd MMMM yyyy HH:mm')}</p>
-            <p>Terakhir diperbarui: {format(parseISO(schedule.updated_at), 'dd MMMM yyyy HH:mm')}</p>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Customer Name</p>
+              <p className="text-lg font-semibold">{schedule.customer_name}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Company Name</p>
+              <p className="text-lg font-semibold">{schedule.company_name || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Address</p>
+              <p className="text-lg font-semibold">{schedule.address}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Phone Number</p>
+              <p className="text-lg font-semibold">{schedule.phone_number || '-'}</p>
+            </div>
+            <Separator className="md:col-span-2 my-2" />
+            <div>
+              <p className="text-sm font-medium text-gray-500">Schedule Date</p>
+              <p className="text-lg font-semibold">{schedule.schedule_date}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Schedule Time</p>
+              <p className="text-lg font-semibold">{schedule.schedule_time || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Technician</p>
+              <p className="text-lg font-semibold">{schedule.technician_name || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Type</p>
+              <p className="text-lg font-semibold">{formatStatus(schedule.type)}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Product Category</p>
+              <p className="text-lg font-semibold">{schedule.product_category || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Status</p>
+              <p className="text-lg font-semibold">{formatStatus(schedule.status)}</p>
+            </div>
+            <Separator className="md:col-span-2 my-2" />
+            <div>
+              <p className="text-sm font-medium text-gray-500">Notes</p>
+              <p className="text-lg font-semibold">{schedule.notes || '-'}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Created At</p>
+              <p className="text-lg font-semibold">{new Date(schedule.created_at).toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-gray-500">Last Updated</p>
+              <p className="text-lg font-semibold">{new Date(schedule.updated_at).toLocaleString()}</p>
+            </div>
           </div>
         </CardContent>
       </Card>

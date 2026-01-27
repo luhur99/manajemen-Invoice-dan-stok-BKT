@@ -94,6 +94,10 @@ const ScheduleManagementPage = () => {
     }
   };
 
+  const handleCreateInvoice = (scheduleId: string) => {
+    navigate("/invoices/new", { state: { scheduleId } });
+  };
+
   const handleDelete = (id) => {
     setScheduleToDelete(id);
     setIsDeleteDialogOpen(true);
@@ -171,10 +175,15 @@ const ScheduleManagementPage = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => navigate(`/schedules/${schedule.id}`)}>View Details</DropdownMenuItem> {/* New View button */}
+                      <DropdownMenuItem onClick={() => navigate(`/schedules/${schedule.id}`)}>View Details</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => navigate(`/schedules/${schedule.id}/edit`)}>Edit</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDelete(schedule.id)}>Delete</DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      {schedule.status === 'completed' && (
+                        <DropdownMenuItem onClick={() => handleCreateInvoice(schedule.id)}>
+                          Create Invoice
+                        </DropdownMenuItem>
+                      )}
                       {schedule.status !== 'completed' && schedule.status !== 'cancelled' && (
                         <>
                           <DropdownMenuItem onClick={() => handleStatusChange(schedule.id, 'completed')}>
