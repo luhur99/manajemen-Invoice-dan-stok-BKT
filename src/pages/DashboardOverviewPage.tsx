@@ -69,12 +69,10 @@ const DashboardOverviewPage = () => {
     refetch: refetchDashboardData 
   } = useQuery<DashboardOverviewData, Error>({ // Specify the type for data and error
     queryKey: ["dashboardOverview"],
-    queryFn: async ({ signal }) => { // Destructure signal from queryFn context
+    queryFn: async () => { // Removed { signal } from here
       try {
-        // Pass the signal to the invoke call
-        const { data, error } = await supabase.functions.invoke('get-dashboard-overview', {
-          signal: signal, // Pass the AbortSignal here
-        });
+        // Removed signal: signal from the invoke call
+        const { data, error } = await supabase.functions.invoke('get-dashboard-overview', {});
         if (error) {
           throw error;
         }
@@ -83,13 +81,7 @@ const DashboardOverviewPage = () => {
         }
         return data as DashboardOverviewData; // Assert the type of the returned data
       } catch (err: any) {
-        if (err.name === 'AbortError') {
-          // This is an expected error when the query is cancelled.
-          // React Query handles this, but we can explicitly log it if needed.
-          console.warn('Dashboard overview fetch aborted:', err.message);
-          throw err; // Re-throw so React Query can handle it
-        }
-        // For other errors, show a toast. This logic is now outside useQuery options.
+        // The AbortError check is no longer needed here if we don't pass the signal
         showError(`Gagal memuat dashboard: ${err.message}`);
         throw err; // Re-throw other errors
       }
