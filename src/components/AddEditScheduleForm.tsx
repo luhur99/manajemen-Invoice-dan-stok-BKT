@@ -41,17 +41,17 @@ import { useSession } from "@/components/SessionContextProvider";
 const formSchema = z.object({
   customer_id: z.string().uuid().optional().nullable(),
   customer_name: z.string().min(1, "Nama pelanggan harus diisi.").trim(),
-  address: z.string().optional().nullable().trim(),
-  phone_number: z.string().optional().nullable().trim(),
+  address: z.string().trim().optional().nullable(),
+  phone_number: z.string().trim().optional().nullable(),
   schedule_date: z.date({ required_error: "Tanggal jadwal harus diisi." }),
-  schedule_time: z.string().optional().nullable().trim(),
+  schedule_time: z.string().trim().optional().nullable(),
   type: z.nativeEnum(ScheduleType, { required_error: "Tipe jadwal harus diisi." }),
   product_category: z.nativeEnum(ProductCategory).optional().nullable(),
-  technician_name: z.string().optional().nullable().trim(),
+  technician_name: z.string().trim().optional().nullable(),
   invoice_id: z.string().uuid().optional().nullable(),
   status: z.nativeEnum(ScheduleStatus, { required_error: "Status jadwal harus diisi." }),
-  notes: z.string().optional().nullable().trim(),
-  courier_service: z.string().optional().nullable().trim(),
+  notes: z.string().trim().optional().nullable(),
+  courier_service: z.string().trim().optional().nullable(),
 });
 
 interface AddEditScheduleFormProps {
@@ -201,17 +201,17 @@ const AddEditScheduleForm: React.FC<AddEditScheduleFormProps> = ({ isOpen, onOpe
         user_id: userId,
         customer_id: values.customer_id || null,
         customer_name: values.customer_name.trim(),
-        address: values.address?.trim() || null,
-        phone_number: values.phone_number?.trim() || null,
-        schedule_date: format(values.schedule_date, "yyyy-MM-dd"),
-        schedule_time: values.schedule_time?.trim() || null,
+        address: (values.address as string)?.trim() || null,
+        phone_number: (values.phone_number as string)?.trim() || null,
+        schedule_date: format(values.schedule_date as Date, "yyyy-MM-dd"),
+        schedule_time: (values.schedule_time as string)?.trim() || null,
         type: values.type,
         product_category: values.product_category || null,
-        technician_name: values.technician_name?.trim() || null,
+        technician_name: (values.technician_name as string)?.trim() || null,
         invoice_id: values.invoice_id || null,
         status: values.status,
-        notes: values.notes?.trim() || null,
-        courier_service: values.courier_service?.trim() || null,
+        notes: (values.notes as string)?.trim() || null,
+        courier_service: (values.courier_service as string)?.trim() || null,
       };
 
       if (initialData) {

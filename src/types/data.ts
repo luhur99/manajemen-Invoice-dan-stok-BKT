@@ -264,6 +264,7 @@ export type Schedule = {
   sr_number: string | null; // Added sr_number
   invoices?: Invoice; // Added invoices for joined data
   company_name: string | null; // Added company_name
+  payment_method: string | null; // Added payment_method
 };
 
 export type ScheduleWithDetails = Schedule & {

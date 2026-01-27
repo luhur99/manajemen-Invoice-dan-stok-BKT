@@ -114,17 +114,7 @@ const InvoiceManagementPage: React.FC = () => {
       const { data, error } = await supabase
         .from("schedules")
         .select(`
-          id,
-          do_number,
-          customer_name,
-          schedule_date,
-          status,
-          type,
-          phone_number,
-          courier_service,
-          customer_id,
-          company_name,
-          payment_method,
+          *,
           customers (
             company_name,
             customer_type

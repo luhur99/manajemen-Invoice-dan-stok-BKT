@@ -42,30 +42,30 @@ const formSchema = z.object({
   sr_number: z.string().optional().nullable(),
   customer_id: z.string().uuid().optional().nullable(),
   customer_name: z.string().min(1, "Nama pelanggan wajib diisi.").trim(),
-  company_name: z.string().optional().nullable().trim(),
+  company_name: z.string().trim().optional().nullable(),
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
   product_category: z.nativeEnum(ProductCategory).optional().nullable(),
-  vehicle_details: z.string().optional().nullable().trim(),
+  vehicle_details: z.string().trim().optional().nullable(),
   full_address: z.string().min(1, "Alamat lengkap wajib diisi.").trim(),
-  landmark: z.string().optional().nullable().trim(),
+  landmark: z.string().trim().optional().nullable(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
-  requested_time: z.string().optional().nullable().trim(),
+  requested_time: z.string().trim().optional().nullable(),
   contact_person: z.string().min(1, "Nama kontak person wajib diisi.").trim(),
   phone_number: z.string().min(1, "Nomor telepon wajib diisi.").trim(),
-  payment_method: z.string().optional().nullable().trim(),
+  payment_method: z.string().trim().optional().nullable(),
   status: z.nativeEnum(SchedulingRequestStatus).default(SchedulingRequestStatus.PENDING),
-  notes: z.string().optional().nullable().trim(),
+  notes: z.string().trim().optional().nullable(),
   invoice_id: z.string().uuid().optional().nullable(),
-  technician_name: z.string().optional().nullable().trim(),
+  technician_name: z.string().trim().optional().nullable(),
 }).superRefine((data, ctx) => {
-  if (['rescheduled', 'rejected', 'cancelled'].includes(data.status) && (!data.notes || data.notes.trim() === '')) {
+  if (['rescheduled', 'rejected', 'cancelled'].includes(data.status as string) && (!data.notes || (data.notes as string).trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Alasan (catatan) wajib diisi untuk status ini.",
       path: ['notes'],
     });
   }
-  if (data.status === 'approved' && (!data.technician_name || data.technician_name.trim() === '')) {
+  if (data.status === 'approved' && (!data.technician_name || (data.technician_name as string).trim() === '')) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Nama teknisi wajib diisi saat menyetujui permintaan.",
@@ -283,24 +283,24 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
 
       const dataToSubmit = {
         user_id: userId,
-        sr_number: values.sr_number?.trim() || null,
+        sr_number: (values.sr_number as string)?.trim() || null,
         customer_id: values.customer_id || null,
         customer_name: values.customer_name.trim(),
-        company_name: values.company_name?.trim() || null,
+        company_name: (values.company_name as string)?.trim() || null,
         type: values.type,
         product_category: values.product_category || null,
-        vehicle_details: values.vehicle_details?.trim() || null,
+        vehicle_details: (values.vehicle_details as string)?.trim() || null,
         full_address: values.full_address.trim(),
-        landmark: values.landmark?.trim() || null,
-        requested_date: format(values.requested_date, "yyyy-MM-dd"),
-        requested_time: values.requested_time?.trim() || null,
+        landmark: (values.landmark as string)?.trim() || null,
+        requested_date: format(values.requested_date as Date, "yyyy-MM-dd"),
+        requested_time: (values.requested_time as string)?.trim() || null,
         contact_person: values.contact_person.trim(),
         phone_number: values.phone_number.trim(),
-        payment_method: values.payment_method?.trim() || null,
+        payment_method: (values.payment_method as string)?.trim() || null,
         status: initialData ? values.status : SchedulingRequestStatus.PENDING,
-        notes: values.notes?.trim() || null,
+        notes: (values.notes as string)?.trim() || null,
         invoice_id: (watchedRequestType === SchedulingRequestType.SERVICE_UNBILL) ? values.invoice_id : null,
-        technician_name: values.technician_name?.trim() || null,
+        technician_name: (values.technician_name as string)?.trim() || null,
       };
 
       if (initialData) {
@@ -715,7 +715,8 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                     )}
                   />
                 )}
-                <FormField
+                {/* This is a duplicate notes field, keeping the one above for conditional rendering */}
+                {/* <FormField
                   control={form.control}
                   name="notes"
                   render={({ field }) => (
@@ -727,7 +728,7 @@ const AddEditSchedulingRequestForm: React.FC<AddEditSchedulingRequestFormProps> 
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
               </TabsContent>
             </Tabs>
             <DialogFooter className="md:col-span-2">
