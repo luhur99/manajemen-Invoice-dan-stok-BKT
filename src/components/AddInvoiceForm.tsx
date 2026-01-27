@@ -62,23 +62,29 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
   const { session } = useSession();
   const queryClient = useQueryClient();
 
-  // Fetch top 5 completed DOs from schedules table
-  const { data: completedSchedules, isLoading: isLoadingSchedules } = useQuery({
+  // Fetch completed DOs from schedules table
+  const { data: completedSchedules, isLoading: isLoadingSchedules, error: schedulesError } = useQuery({
     queryKey: ["completedSchedules"],
     queryFn: async () => {
+      console.log("Fetching completed schedules...");
+      
       const { data, error } = await supabase
         .from("schedules")
-        .select("id, do_number, customer_name, company_name, schedule_date, notes, courier_service, status") // Menambahkan 'status' untuk debugging
-        .eq("status", "completed") // Filter berdasarkan status 'completed'
+        .select("id, do_number, customer_name, schedule_date, status")
+        .eq("status", "completed")
+        .not("do_number", "is", null)
         .order("schedule_date", { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (error) {
-        console.error("Error fetching schedules:", error); // Log error
+        console.error("Error fetching schedules:", error);
         throw error;
       }
-      console.log("Fetched schedules (for debugging):", data); // Log data yang diambil
-      return data;
+      
+      console.log("Fetched schedules data:", data);
+      console.log("Number of schedules found:", data?.length || 0);
+      
+      return data || [];
     },
     enabled: isOpen,
   });
@@ -106,17 +112,15 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
 
   // Effect to prepopulate form fields when a DO number is selected
   React.useEffect(() => {
-    if (form.watch("do_number") && completedSchedules) {
-      const selectedDoNumber = form.watch("do_number");
+    const doNumber = form.watch("do_number");
+    if (doNumber && completedSchedules) {
       const selectedSchedule = completedSchedules.find(
-        (schedule) => schedule.do_number === selectedDoNumber
+        (schedule) => schedule.do_number === doNumber
       );
 
       if (selectedSchedule) {
+        console.log("Selected schedule:", selectedSchedule);
         form.setValue("customer_name", selectedSchedule.customer_name || "");
-        form.setValue("company_name", selectedSchedule.company_name || "");
-        form.setValue("notes", selectedSchedule.notes || "");
-        form.setValue("courier_service", selectedSchedule.courier_service || "");
         form.setValue("invoice_date", new Date(selectedSchedule.schedule_date));
       }
     }
@@ -184,7 +188,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
-            {/* Field: DO Number (remains a Select, now limited and prepopulates) */}
+            {/* Field: DO Number */}
             <FormField
               control={form.control}
               name="do_number"
@@ -200,26 +204,28 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
                     <SelectContent>
                       {isLoadingSchedules ? (
                         <SelectItem value="loading" disabled>Memuat DO...</SelectItem>
+                      ) : schedulesError ? (
+                        <SelectItem value="error" disabled>Error memuat data</SelectItem>
+                      ) : !completedSchedules || completedSchedules.length === 0 ? (
+                        <SelectItem value="no-dos" disabled>Tidak ada DO yang selesai</SelectItem>
                       ) : (
-                        completedSchedules?.length === 0 ? (
-                          <SelectItem value="no-dos" disabled>Tidak ada DO yang selesai</SelectItem>
-                        ) : (
-                          completedSchedules?.map((schedule) => (
-                            <SelectItem key={schedule.id} value={schedule.do_number || ""}>
-                              {schedule.do_number} - {schedule.customer_name} ({format(new Date(schedule.schedule_date), "PPP")})
-                            </SelectItem>
-                          ))
-                        )
+                        completedSchedules.map((schedule) => (
+                          <SelectItem key={schedule.id} value={schedule.do_number || ""}>
+                            {schedule.do_number} - {schedule.customer_name} ({format(new Date(schedule.schedule_date), "dd/MM/yyyy")})
+                          </SelectItem>
+                        ))
                       )}
                     </SelectContent>
                   </Select>
-                  <FormDescription>Pilih DO yang sudah selesai untuk mengisi beberapa detail secara otomatis.</FormDescription>
+                  <FormDescription>
+                    Pilih DO yang sudah selesai untuk mengisi beberapa detail secara otomatis.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            {/* Field: Invoice Number (now a regular Input, will be auto-generated by DB) */}
+            {/* Field: Invoice Number */}
             <FormField
               control={form.control}
               name="invoice_number"
