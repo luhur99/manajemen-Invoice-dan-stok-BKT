@@ -138,6 +138,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         defaultNotes = `DO Number: ${initialSchedule.do_number}`;
       }
 
+      const defaultItems = [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }];
+
       form.reset({
         invoice_date: new Date(),
         due_date: undefined,
@@ -151,16 +153,23 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         notes: defaultNotes,
         courier_service: initialSchedule?.courier_service || undefined,
         invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
-        items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+        items: defaultItems, // Use the defaultItems here
       });
-      setItemSearchInputs(fields.map(item => item.item_name || ""));
+      setItemSearchInputs(defaultItems.map(item => item.item_name || "")); // Initialize based on defaultItems
+      form.clearErrors(); // Clear any previous form errors
       setActiveTab("basic_info");
     }
-  }, [isOpen, initialSchedule, form, fields]);
+  }, [isOpen, initialSchedule, form]); // Removed `fields` from dependency array
 
+  // Separate useEffect to keep itemSearchInputs in sync with actual form fields
   React.useEffect(() => {
-    setItemSearchInputs(fields.map(item => item.item_name || ""));
-  }, [fields]);
+    // Only update if the number of fields changes or if item_name in fields changes
+    const currentItemNames = fields.map(item => item.item_name || "");
+    if (JSON.stringify(itemSearchInputs) !== JSON.stringify(currentItemNames)) {
+      setItemSearchInputs(currentItemNames);
+    }
+  }, [fields, itemSearchInputs]); // Keep itemSearchInputs as dependency to prevent infinite loop
+
 
   const calculateTotalAmount = React.useCallback(() => {
     const total = fields.reduce((sum, item) => sum + item.subtotal, 0);
