@@ -37,13 +37,7 @@ const CustomerManagementPage: React.FC = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("customers")
-        .select(`
-          *,
-          profiles (
-            first_name,
-            last_name
-          )
-        `);
+        .select(`*`); // Removed the comment here
       if (error) throw error;
       return data as CustomerWithDetails[];
     },
