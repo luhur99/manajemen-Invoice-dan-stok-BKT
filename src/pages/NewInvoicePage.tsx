@@ -24,8 +24,10 @@ const NewInvoicePage = () => {
   const location = useLocation();
   const initialSchedule = location.state?.initialSchedule ? (location.state as { initialSchedule: ScheduleWithDetails }).initialSchedule : null;
 
+  const [isAddFormOpen, setIsAddFormOpen] = React.useState(true); // State to control the form dialog
+
   const { data: completedSchedules = [], isLoading: isLoadingSchedules, error: schedulesError } = useQuery<
-    { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[],
+    ScheduleWithDetails[], // Use ScheduleWithDetails type
     Error
   >({
     queryKey: ["completedSchedulesForNewInvoicePage"],
@@ -34,7 +36,23 @@ const NewInvoicePage = () => {
       
       const { data, error } = await supabase
         .from("schedules")
-        .select(`id, do_number, customer_name, schedule_date, status, type, phone_number, courier_service, customer_id, customers(company_name, customer_type)`)
+        .select(`
+          id,
+          do_number,
+          customer_name,
+          schedule_date,
+          status,
+          type,
+          phone_number,
+          courier_service,
+          customer_id,
+          company_name,
+          payment_method,
+          customers (
+            company_name,
+            customer_type
+          )
+        `)
         .eq("status", "completed")
         .not("do_number", "is", null)
         .order("schedule_date", { ascending: false })
@@ -47,7 +65,10 @@ const NewInvoicePage = () => {
       
       console.log("Fetched schedules data in NewInvoicePage:", data);
       
-      return data || [];
+      return data.map(s => ({
+        ...s,
+        customers: Array.isArray(s.customers) ? s.customers[0] : s.customers, // Ensure customers is an object or null
+      })) as ScheduleWithDetails[];
     },
   });
 
@@ -70,6 +91,8 @@ const NewInvoicePage = () => {
             <div className="text-red-500">Error memuat jadwal: {schedulesError.message}</div>
           ) : (
             <AddInvoiceForm
+              isOpen={isAddFormOpen}
+              onOpenChange={setIsAddFormOpen}
               onSuccess={() => navigate("/invoices")}
               initialSchedule={initialSchedule}
               completedSchedules={completedSchedules}

@@ -45,27 +45,27 @@ const formSchema = z.object({
   unit_price: z.number().min(0, "Harga Satuan tidak boleh negatif."),
   suggested_selling_price: z.number().min(0, "Harga Jual yang Disarankan tidak boleh negatif."),
   total_price: z.number().min(0, "Total Harga tidak boleh negatif."),
-  satuan: z.string().optional().nullable().trim(),
+  satuan: z.string().trim().optional().nullable(), // Corrected Zod order
   supplier_id: z.string().uuid().optional().nullable(),
-  notes: z.string().optional().nullable().trim(),
+  notes: z.string().trim().optional().nullable(), // Corrected Zod order
   status: z.nativeEnum(PurchaseRequestStatus, { required_error: "Status wajib diisi." }),
   document_url: z.string().optional().nullable(),
-  received_quantity: z.number().int().min(0, "Kuantitas diterima tidak boleh negatif.").optional().nullable().default(0),
-  returned_quantity: z.number().int().min(0, "Kuantitas dikembalikan tidak boleh negatif.").optional().nullable().default(0),
-  damaged_quantity: z.number().int().min(0, "Kuantitas rusak tidak boleh negatif.").optional().nullable().default(0),
+  received_quantity: z.coerce.number().int().min(0, "Kuantitas diterima tidak boleh negatif.").optional().nullable().default(0), // Use coerce.number
+  returned_quantity: z.coerce.number().int().min(0, "Kuantitas dikembalikan tidak boleh negatif.").optional().nullable().default(0), // Use coerce.number
+  damaged_quantity: z.coerce.number().int().min(0, "Kuantitas rusak tidak boleh negatif.").optional().nullable().default(0), // Use coerce.number
   target_warehouse_category: z.string().optional().nullable(),
-  received_notes: z.string().optional().nullable().trim(),
+  received_notes: z.string().trim().optional().nullable(), // Corrected Zod order
   received_at: z.date().optional().nullable(),
-  pr_number: z.string().optional().nullable(),
+  pr_number: z.string().trim().optional().nullable(), // Corrected Zod order
 }).superRefine((data, ctx) => {
-  if (data.status === PurchaseRequestStatus.WAITING_FOR_RECEIVED && (data.received_quantity === null || data.received_quantity <= 0)) {
+  if (data.status === PurchaseRequestStatus.WAITING_FOR_RECEIVED && (data.received_quantity === null || (data.received_quantity as number) <= 0)) { // Cast to number
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Kuantitas diterima harus lebih dari 0 saat status 'waiting for received'.",
       path: ["received_quantity"],
     });
   }
-  if (data.status === PurchaseRequestStatus.CLOSED && (data.received_quantity === null || data.received_quantity <= 0)) {
+  if (data.status === PurchaseRequestStatus.CLOSED && (data.received_quantity === null || (data.received_quantity as number) <= 0)) { // Cast to number
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: "Kuantitas diterima harus lebih dari 0 saat status 'closed'.",
@@ -271,25 +271,25 @@ const EditPurchaseRequestForm: React.FC<EditPurchaseRequestFormProps> = ({
       } else {
         // For any other updates (including status changes to non-CLOSED states, or other field edits)
         const dataToUpdate = {
-          item_name: values.item_name.trim(),
-          item_code: values.item_code.trim(),
+          item_name: (values.item_name as string).trim(),
+          item_code: (values.item_code as string).trim(),
           product_id: values.product_id || null,
           quantity: values.quantity,
           unit_price: values.unit_price,
           suggested_selling_price: values.suggested_selling_price,
           total_price: values.total_price,
-          satuan: values.satuan?.trim() || null,
+          satuan: (values.satuan as string)?.trim() || null,
           supplier_id: values.supplier_id || null,
-          notes: values.notes?.trim() || null,
+          notes: (values.notes as string)?.trim() || null,
           status: values.status,
           document_url: values.document_url || null,
           received_quantity: values.received_quantity || 0,
           returned_quantity: values.returned_quantity || 0,
           damaged_quantity: values.damaged_quantity || 0,
           target_warehouse_category: values.target_warehouse_category || null,
-          received_notes: values.received_notes?.trim() || null,
-          received_at: values.received_at ? format(values.received_at, "yyyy-MM-dd") : null,
-          pr_number: values.pr_number?.trim() || null,
+          received_notes: (values.received_notes as string)?.trim() || null,
+          received_at: values.received_at ? format(values.received_at as Date, "yyyy-MM-dd") : null,
+          pr_number: (values.pr_number as string)?.trim() || null,
           updated_at: new Date().toISOString(),
         };
 

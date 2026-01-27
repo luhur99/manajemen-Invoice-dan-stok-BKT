@@ -21,12 +21,20 @@ import { Loader2 } from "lucide-react";
 import { Product, Supplier } from "@/types/data";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/components/SessionContextProvider";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"; // Added Dialog imports
 
 // Schema validasi menggunakan Zod
 const formSchema = z.object({
   kode_barang: z.string().min(1, "Kode Barang wajib diisi").trim(),
   nama_barang: z.string().min(1, "Nama Barang wajib diisi").trim(),
-  satuan: z.string().optional().nullable().trim(),
+  satuan: z.string().trim().optional().nullable(), // Corrected Zod order
   harga_beli: z.coerce.number().min(0, "Harga Beli tidak boleh negatif"),
   harga_jual: z.coerce.number().min(0, "Harga Jual tidak boleh negatif"),
   safe_stock_limit: z.coerce.number().int().min(0, "Batas Stok Aman tidak boleh negatif").default(0),

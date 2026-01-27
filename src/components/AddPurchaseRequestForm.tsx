@@ -63,11 +63,11 @@ const generatePrNumber = async (): Promise<string> => {
 };
 
 const formSchema = z.object({
-  pr_number: z.string().optional().nullable(), // Added pr_number to schema
+  pr_number: z.string().trim().optional().nullable(), // Added pr_number to schema, corrected Zod order
   product_id: z.string().uuid().min(1, "Produk harus dipilih."),
   item_name: z.string().min(1, "Nama item harus diisi.").trim(),
   item_code: z.string().min(1, "Kode item harus diisi.").trim(),
-  satuan: z.string().optional().nullable().trim(),
+  satuan: z.string().trim().optional().nullable(), // Corrected Zod order
   quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
   unit_price: z.number().min(0, "Harga satuan tidak boleh negatif."),
   suggested_selling_price: z.number().min(0, "Harga jual yang disarankan tidak boleh negatif."),
@@ -76,7 +76,7 @@ const formSchema = z.object({
   target_warehouse_category: z.string({
     required_error: "Kategori gudang tujuan harus dipilih.",
   }).min(1, "Kategori gudang tujuan harus dipilih."),
-  notes: z.string().optional().nullable().trim(),
+  notes: z.string().trim().optional().nullable(), // Corrected Zod order
 });
 
 interface AddPurchaseRequestFormProps {

@@ -77,9 +77,11 @@ const formSchema = z.object({
 interface AddInvoiceFormProps {
   onSuccess: () => void;
   initialSchedule?: ScheduleWithDetails | null;
-  completedSchedules: { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[];
+  completedSchedules: ScheduleWithDetails[]; // Corrected type
   isLoadingSchedules: boolean;
   schedulesError: Error | null;
+  isOpen: boolean; // Added isOpen prop
+  onOpenChange: (open: boolean) => void; // Added onOpenChange prop
 }
 
 const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
@@ -88,6 +90,8 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
   completedSchedules,
   isLoadingSchedules,
   schedulesError,
+  isOpen, // Destructure isOpen
+  onOpenChange, // Destructure onOpenChange
 }) => {
   const queryClient = useQueryClient();
   const { session } = useSession();
@@ -144,26 +148,28 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
   const watchedInvoiceType = form.watch("type");
 
   useEffect(() => {
-    form.reset({
-      invoice_date: new Date(),
-      due_date: undefined,
-      customer_name: initialSchedule?.customer_name || "",
-      company_name: initialSchedule?.customers?.company_name || null,
-      total_amount: 0,
-      payment_status: InvoicePaymentStatus.PENDING,
-      type: initialSchedule?.type === ScheduleType.KIRIM ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
-      customer_type: initialSchedule?.customers?.customer_type || null,
-      payment_method: initialSchedule?.payment_method || null, // This was the problematic line
-      notes: initialSchedule?.do_number ? `DO Number: ${initialSchedule.do_number}` : null,
-      courier_service: initialSchedule?.courier_service || null,
-      invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
-      items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
-      do_number: initialSchedule?.do_number || null,
-    });
-    setItemSearchInputs([""]);
-    form.clearErrors();
-    setActiveTab("basic_info");
-  }, [initialSchedule, form]);
+    if (isOpen) { // Only reset if the dialog is open
+      form.reset({
+        invoice_date: new Date(),
+        due_date: undefined,
+        customer_name: initialSchedule?.customer_name || "",
+        company_name: initialSchedule?.customers?.company_name || null,
+        total_amount: 0,
+        payment_status: InvoicePaymentStatus.PENDING,
+        type: initialSchedule?.type === ScheduleType.KIRIM ? InvoiceType.KIRIM_BARANG : InvoiceType.INSTALASI,
+        customer_type: initialSchedule?.customers?.customer_type || null,
+        payment_method: initialSchedule?.payment_method || null, // Access directly from ScheduleWithDetails
+        notes: initialSchedule?.do_number ? `DO Number: ${initialSchedule.do_number}` : null,
+        courier_service: initialSchedule?.courier_service || null,
+        invoice_status: InvoiceDocumentStatus.WAITING_DOCUMENT_INV,
+        items: [{ product_id: "", item_name: "", quantity: 1, unit_price: 0, subtotal: 0 }],
+        do_number: initialSchedule?.do_number || null,
+      });
+      setItemSearchInputs([""]);
+      form.clearErrors();
+      setActiveTab("basic_info");
+    }
+  }, [initialSchedule, form, isOpen]); // Added isOpen to dependencies
 
 
   React.useEffect(() => {
@@ -177,7 +183,7 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
         console.log("Selected schedule for prepopulation:", selectedSchedule);
         form.setValue("customer_name", selectedSchedule.customer_name || "");
         form.setValue("invoice_date", new Date(selectedSchedule.schedule_date));
-        form.setValue("company_name", (selectedSchedule.customers as any)?.company_name || null);
+        form.setValue("company_name", selectedSchedule.customers?.company_name || null);
         
         let invoiceType: InvoiceType | null = null;
         if (selectedSchedule.type === ScheduleType.KIRIM) {
@@ -189,8 +195,9 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({
         }
         form.setValue("type", invoiceType);
 
-        form.setValue("customer_type", (selectedSchedule.customers as any)?.customer_type || null);
+        form.setValue("customer_type", selectedSchedule.customers?.customer_type || null);
         form.setValue("courier_service", selectedSchedule.courier_service || null);
+        form.setValue("payment_method", selectedSchedule.payment_method || null); // Set payment_method
       }
     }
   }, [form.watch("do_number"), completedSchedules, form]);

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isWithinInterval, startOfDay, endOfDay, parseISO } from "date-fns";
-import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum } from "@/types/data"; // Use InvoiceWithDetails
+import { InvoiceWithDetails, InvoicePaymentStatus, InvoiceDocumentStatus, ScheduleType, CustomerTypeEnum, ScheduleWithDetails } from "@/types/data"; // Use InvoiceWithDetails
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, Printer, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -106,7 +106,7 @@ const InvoiceManagementPage: React.FC = () => {
   });
 
   const { data: completedSchedules, isLoading: isLoadingSchedules, error: schedulesError } = useQuery<
-    { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[],
+    ScheduleWithDetails[], // Use ScheduleWithDetails type
     Error
   >({
     queryKey: ["completedSchedulesForInvoice"],
@@ -123,6 +123,8 @@ const InvoiceManagementPage: React.FC = () => {
           phone_number,
           courier_service,
           customer_id,
+          company_name,
+          payment_method,
           customers (
             company_name,
             customer_type
@@ -130,7 +132,10 @@ const InvoiceManagementPage: React.FC = () => {
         `)
         .eq("status", "completed"); // Only fetch completed schedules
       if (error) throw error;
-      return data as { id: string; do_number: string | null; customer_name: string | null; schedule_date: string; status: string; type: ScheduleType; phone_number: string | null; courier_service: string | null; customer_id: string | null; customers: { company_name: string | null; customer_type: CustomerTypeEnum | null } | null }[];
+      return data.map(s => ({
+        ...s,
+        customers: Array.isArray(s.customers) ? s.customers[0] : s.customers, // Ensure customers is an object or null
+      })) as ScheduleWithDetails[];
     },
   });
 

@@ -22,7 +22,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { format, parseISO, startOfDay, endOfDay, isWithinInterval } from "date-fns";
-import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategoryEnum, Supplier, StockEventType, PurchaseRequestWithDetails } from "@/types/data";
+import { PurchaseRequest, PurchaseRequestStatus, Product, WarehouseCategory, Supplier, StockEventType, PurchaseRequestWithDetails } from "@/types/data"; // Updated imports
 import { Edit, Trash2, PlusCircle, Search, Loader2, Eye, UploadCloud } from "lucide-react";
 import { showError, showSuccess } from "@/utils/toast";
 import AddPurchaseRequestForm from "@/components/AddPurchaseRequestForm";
@@ -322,7 +322,7 @@ const PurchaseRequestPage = () => {
               isOpen={isEditFormOpen}
               onOpenChange={setIsEditFormOpen}
               onSuccess={() => setIsEditFormOpen(false)}
-              initialData={selectedPurchaseRequest}
+              purchaseRequest={selectedPurchaseRequest} // Corrected prop name
             />
             <ViewPurchaseRequestDetailsDialog
               isOpen={isViewDetailsOpen}
