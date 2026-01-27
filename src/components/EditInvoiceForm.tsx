@@ -40,6 +40,7 @@ import {
   InvoiceType,
   CustomerTypeEnum,
   WarehouseInventory,
+  InvoiceDocumentStatus,
 } from "@/types/data";
 import StockItemCombobox from "./StockItemCombobox";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -59,16 +60,18 @@ const formSchema = z.object({
   payment_method: z.string().optional(),
   notes: z.string().optional(),
   courier_service: z.string().optional(),
+  invoice_status: z.nativeEnum(InvoiceDocumentStatus),
+  document_url: z.string().optional().nullable(),
   items: z.array(
     z.object({
       id: z.string().optional(),
       product_id: z.string().min(1, "Produk harus dipilih."),
       item_name: z.string().min(1, "Nama Item harus diisi."),
-      item_code: z.string().optional(),
+      item_code: z.string().optional().nullable(),
       quantity: z.number().int().positive("Kuantitas harus lebih dari 0."),
       unit_price: z.number().min(0, "Harga Satuan tidak boleh negatif."),
       subtotal: z.number().min(0, "Subtotal tidak boleh negatif."),
-      unit_type: z.string().optional(),
+      unit_type: z.string().optional().nullable(),
     })
   ).min(1, "Setidaknya satu item harus ditambahkan."),
 });
@@ -101,6 +104,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       notes: invoice.notes || "",
       courier_service: invoice.courier_service || "",
       total_amount: invoice.total_amount,
+      invoice_status: invoice.invoice_status as InvoiceDocumentStatus,
+      document_url: invoice.document_url || "",
       items: [],
     },
   });
@@ -114,7 +119,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
 
   // Fetch product metadata (without inventories for invoice items)
   const { data: products, isLoading: loadingProducts } = useQuery<Product[], Error>({
-    queryKey: ["productsMetadata"], // Changed query key
+    queryKey: ["productsMetadata"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
@@ -130,6 +135,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           supplier_id,
           created_at
         `);
+
       if (error) {
         showError("Gagal memuat daftar produk.");
         throw error;
@@ -191,6 +197,29 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
     }
   }, [isOpen, invoiceItems, form]);
 
+  useEffect(() => {
+    if (isOpen && invoice) {
+      form.reset({
+        invoice_number: invoice.invoice_number,
+        invoice_date: new Date(invoice.invoice_date),
+        due_date: invoice.due_date ? new Date(invoice.due_date) : undefined,
+        customer_name: invoice.customer_name,
+        company_name: invoice.company_name || "",
+        payment_status: invoice.payment_status as InvoicePaymentStatus,
+        type: invoice.type as InvoiceType | undefined,
+        customer_type: invoice.customer_type as CustomerTypeEnum | undefined,
+        payment_method: invoice.payment_method || "",
+        notes: invoice.notes || "",
+        courier_service: invoice.courier_service || "",
+        total_amount: invoice.total_amount,
+        invoice_status: invoice.invoice_status as InvoiceDocumentStatus,
+        document_url: invoice.document_url || "",
+        items: initialItems,
+      });
+      setItemSearchInputs(initialItems.map(item => item.item_name || ""));
+    }
+  }, [isOpen, invoice, form, initialItems]);
+
   React.useEffect(() => {
     setItemSearchInputs(fields.map(item => item.item_name || ""));
   }, [fields]);
@@ -227,9 +256,9 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
         ...fields[index],
         product_id: "",
         item_name: "",
-        item_code: "",
+        item_code: null,
         unit_price: 0,
-        unit_type: "",
+        unit_type: null,
         subtotal: 0,
       });
       setItemSearchInputs(prev => {
@@ -280,6 +309,8 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
           payment_method: values.payment_method,
           notes: values.notes,
           courier_service: values.courier_service,
+          invoice_status: values.invoice_status,
+          document_url: values.document_url,
           updated_at: new Date().toISOString(),
         })
         .eq("id", invoice.id);
@@ -329,6 +360,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
       onOpenChange(false);
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice", invoice.id] });
+      queryClient.invalidateQueries({ queryKey: ["invoiceItems", invoice.id] });
       onSuccess();
     },
     onError: (err: any) => {
@@ -532,7 +564,7 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                         <SelectContent>
                           {Object.values(InvoiceType).map((type) => (
                             <SelectItem key={type} value={type}>
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
+                              {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -619,32 +651,50 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                       </FormItem>
                     </div>
                     <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Kuantitas</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleQuantityChange(index, parseInt(e.target.value, 10))}
-                            min="1"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.quantity`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Kuantitas</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                value={field.value} // FIX 1: Use field.value
+                                onChange={(e) => {
+                                  field.onChange(e.target.value === "" ? "" : parseInt(e.target.value, 10)); // Update RHF state
+                                  handleQuantityChange(index, parseInt(e.target.value, 10)); // Call custom logic
+                                }}
+                                min="1"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                     <div className="md:col-span-1">
-                      <FormItem>
-                        <FormLabel>Harga Satuan</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) => handleUnitPriceChange(index, parseFloat(e.target.value))}
-                            min="0"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
+                      <FormField
+                        control={form.control}
+                        name={`items.${index}.unit_price`}
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Harga Satuan</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                value={field.value} // FIX 2: Use field.value
+                                onChange={(e) => {
+                                  field.onChange(e.target.value === "" ? "" : parseFloat(e.target.value)); // Update RHF state
+                                  handleUnitPriceChange(index, parseFloat(e.target.value)); // Call custom logic
+                                }}
+                                min="0"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                     <div className="md:col-span-1">
                       <FormItem>
@@ -701,14 +751,51 @@ const EditInvoiceForm: React.FC<EditInvoiceFormProps> = ({ invoice, isOpen, onOp
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name="document_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>URL Dokumen (Opsional)</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ""} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="invoice_status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status Dokumen Invoice</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Pilih status dokumen invoice" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(InvoiceDocumentStatus).map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </TabsContent>
             </Tabs>
             <DialogFooter>
-              <Button type="submit" disabled={updateInvoiceMutation.isPending}>
+              <Button type="submit" className="w-full" disabled={updateInvoiceMutation.isPending}>
                 {updateInvoiceMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Simpan Invoice"
+                  "Simpan Perubahan"
                 )}
               </Button>
             </DialogFooter>
