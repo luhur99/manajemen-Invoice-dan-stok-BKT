@@ -68,17 +68,19 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
     queryFn: async () => {
       const { data, error } = await supabase
         .from("schedules")
-        .select("id, do_number, customer_name, company_name, schedule_date, notes, courier_service")
-        .eq("status", "completed")
-        .order("schedule_date", { ascending: false }) // Order by date descending
-        .limit(5); // Limit to top 5
+        .select("id, do_number, customer_name, company_name, schedule_date, notes, courier_service, status") // Menambahkan 'status' untuk debugging
+        .eq("status", "completed") // Filter berdasarkan status 'completed'
+        .order("schedule_date", { ascending: false })
+        .limit(5);
 
       if (error) {
+        console.error("Error fetching schedules:", error); // Log error
         throw error;
       }
+      console.log("Fetched schedules (for debugging):", data); // Log data yang diambil
       return data;
     },
-    enabled: isOpen, // Only fetch when dialog is open
+    enabled: isOpen,
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -116,7 +118,6 @@ const AddInvoiceForm: React.FC<AddInvoiceFormProps> = ({ isOpen, onOpenChange, o
         form.setValue("notes", selectedSchedule.notes || "");
         form.setValue("courier_service", selectedSchedule.courier_service || "");
         form.setValue("invoice_date", new Date(selectedSchedule.schedule_date));
-        // total_amount is not directly available in schedules, so it remains manual or derived later
       }
     }
   }, [form.watch("do_number"), completedSchedules, form]);
