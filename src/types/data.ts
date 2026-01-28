@@ -69,9 +69,8 @@ export enum TechnicianType {
 }
 
 export enum ProductCategory {
-  JAWARA_TRACKER = "jawara_tracker",
-  POWERDASH = "powerdash",
-  LAINNYA = "lainnya",
+  GPS_TRACKER = "gps_tracker",
+  DASHCAM = "dashcam",
 }
 
 export enum PaymentMethod { // New enum for payment methods
