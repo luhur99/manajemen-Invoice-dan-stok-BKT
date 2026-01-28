@@ -25,50 +25,58 @@ import {
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProductCategory, SchedulingRequestType } from "@/types/data"; // Import ProductCategory enum
 
 const formSchema = z.object({
-  type: z.enum(["installation", "maintenance", "survey", "delivery"]),
-  full_address: z.string().min(1, "Full address is required"),
-  landmark: z.string().optional(),
-  requested_date: z.date({ required_error: "Requested date is required" }),
-  requested_time: z.string().optional(),
-  contact_person: z.string().min(1, "Contact person is required"),
-  phone_number: z.string().min(1, "Phone number is required"),
-  payment_method: z.string().optional(),
-  notes: z.string().optional(),
-  customer_id: z.string().optional(),
-  customer_name: z.string().optional(),
-  company_name: z.string().optional(),
-  vehicle_details: z.string().optional(),
-  product_category: z.enum(["Jawara Tracker", "Powerdash", "Lainnya"], {
-    required_error: "Product category is required",
+  type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
+  product_category: z.nativeEnum(ProductCategory, {
+    required_error: "Kategori produk wajib dipilih.",
   }),
+  full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
+  landmark: z.string().optional().nullable(),
+  requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
+  requested_time: z.string().optional().nullable(),
+  contact_person: z.string().min(1, "Nama kontak wajib diisi."),
+  phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
+  payment_method: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  customer_id: z.string().optional().nullable(),
+  customer_name: z.string().optional().nullable(),
+  company_name: z.string().optional().nullable(),
+  vehicle_details: z.string().optional().nullable(),
 });
 
-export function AddEditSchedulingRequestForm({ request, onClose }) {
+interface AddEditSchedulingRequestFormProps {
+  request?: any; // Use 'any' for now as the type is complex and not fully defined here
+  onClose: () => void;
+}
+
+export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedulingRequestFormProps) {
   const isEdit = !!request;
+  const [activeTab, setActiveTab] = useState("basic_info");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      type: request?.type || "installation",
+      type: request?.type || SchedulingRequestType.INSTALLATION,
+      product_category: request?.product_category || undefined,
       full_address: request?.full_address || "",
-      landmark: request?.landmark || "",
-      requested_date: request?.requested_date ? new Date(request.requested_date) : undefined,
-      requested_time: request?.requested_time || "",
+      landmark: request?.landmark || null,
+      requested_date: request?.requested_date ? new Date(request.requested_date) : new Date(),
+      requested_time: request?.requested_time || null,
       contact_person: request?.contact_person || "",
       phone_number: request?.phone_number || "",
-      payment_method: request?.payment_method || "",
-      notes: request?.notes || "",
-      customer_id: request?.customer_id || "",
-      customer_name: request?.customer_name || "",
-      company_name: request?.company_name || "",
-      vehicle_details: request?.vehicle_details || "",
-      product_category: request?.product_category || undefined,
+      payment_method: request?.payment_method || null,
+      notes: request?.notes || null,
+      customer_id: request?.customer_id || null,
+      customer_name: request?.customer_name || null,
+      company_name: request?.company_name || null,
+      vehicle_details: request?.vehicle_details || null,
     },
   });
 
@@ -76,27 +84,45 @@ export function AddEditSchedulingRequestForm({ request, onClose }) {
     if (request) {
       form.reset({
         type: request.type,
+        product_category: request.product_category,
         full_address: request.full_address,
-        landmark: request.landmark,
+        landmark: request.landmark || null,
         requested_date: new Date(request.requested_date),
-        requested_time: request.requested_time,
+        requested_time: request.requested_time || null,
         contact_person: request.contact_person,
         phone_number: request.phone_number,
-        payment_method: request.payment_method,
-        notes: request.notes,
-        customer_id: request.customer_id,
-        customer_name: request.customer_name,
-        company_name: request.company_name,
-        vehicle_details: request.vehicle_details,
-        product_category: request.product_category,
+        payment_method: request.payment_method || null,
+        notes: request.notes || null,
+        customer_id: request.customer_id || null,
+        customer_name: request.customer_name || null,
+        company_name: request.company_name || null,
+        vehicle_details: request.vehicle_details || null,
+      });
+    } else {
+      form.reset({
+        type: SchedulingRequestType.INSTALLATION,
+        product_category: undefined,
+        full_address: "",
+        landmark: null,
+        requested_date: new Date(),
+        requested_time: null,
+        contact_person: "",
+        phone_number: "",
+        payment_method: null,
+        notes: null,
+        customer_id: null,
+        customer_name: null,
+        company_name: null,
+        vehicle_details: null,
       });
     }
+    setActiveTab("basic_info"); // Reset to first tab on open/edit
   }, [request, form]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const user = await supabase.auth.getUser();
     if (!user.data.user) {
-      toast.error("You must be logged in to create or update a scheduling request.");
+      toast.error("Anda harus login untuk membuat atau memperbarui permintaan jadwal.");
       return;
     }
 
@@ -104,20 +130,29 @@ export function AddEditSchedulingRequestForm({ request, onClose }) {
       ...values,
       user_id: user.data.user.id,
       requested_date: format(values.requested_date, "yyyy-MM-dd"),
+      // Ensure nullable fields are explicitly null if empty string
+      landmark: values.landmark || null,
+      requested_time: values.requested_time || null,
+      payment_method: values.payment_method || null,
+      notes: values.notes || null,
+      customer_id: values.customer_id || null,
+      customer_name: values.customer_name || null,
+      company_name: values.company_name || null,
+      vehicle_details: values.vehicle_details || null,
     };
 
     if (isEdit) {
       const { error } = await supabase
         .from("scheduling_requests")
-        .update(payload)
+        .update({ ...payload, updated_at: new Date().toISOString() })
         .eq("id", request.id);
 
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Scheduling request updated successfully!");
+        toast.success("Permintaan jadwal berhasil diperbarui!");
         onClose();
-        window.location.reload(); // Use window.location.reload() for a full page refresh
+        window.location.reload();
       }
     } else {
       const { error } = await supabase
@@ -127,9 +162,9 @@ export function AddEditSchedulingRequestForm({ request, onClose }) {
       if (error) {
         toast.error(error.message);
       } else {
-        toast.success("Scheduling request created successfully!");
+        toast.success("Permintaan jadwal berhasil dibuat!");
         onClose();
-        window.location.reload(); // Use window.location.reload() for a full page refresh
+        window.location.reload();
       }
     }
   }
@@ -137,222 +172,241 @@ export function AddEditSchedulingRequestForm({ request, onClose }) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-        <FormField
-          control={form.control}
-          name="type"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Type</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select request type" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="installation">Installation</SelectItem>
-                  <SelectItem value="maintenance">Maintenance</SelectItem>
-                  <SelectItem value="survey">Survey</SelectItem>
-                  <SelectItem value="delivery">Delivery</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="product_category"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Product Category</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Pilih kategori produk" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Jawara Tracker">Jawara Tracker</SelectItem>
-                  <SelectItem value="Powerdash">Powerdash</SelectItem>
-                  <SelectItem value="Lainnya">Lainnya</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="full_address"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Full Address</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter full address" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="landmark"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Landmark</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter nearby landmark" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="requested_date"
-          render={({ field }) => (
-            <FormItem className="flex flex-col">
-              <FormLabel>Requested Date</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="basic_info">Informasi Dasar</TabsTrigger>
+            <TabsTrigger value="customer_details">Detail Pelanggan</TabsTrigger>
+            <TabsTrigger value="additional_details">Detail Tambahan</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="basic_info" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipe Permintaan</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih tipe permintaan" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(SchedulingRequestType).map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="product_category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kategori Produk</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih kategori produk" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(ProductCategory).map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="requested_date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Tanggal Permintaan</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, "PPP")
+                          ) : (
+                            <span>Pilih tanggal</span>
+                          )}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) => date < new Date("1900-01-01")}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="requested_time"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Waktu Permintaan (Opsional)</FormLabel>
                   <FormControl>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !field.value && "text-muted-foreground"
-                      )}
-                    >
-                      {field.value ? (
-                        format(field.value, "PPP")
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
+                    <Input type="time" placeholder="e.g., 09:00 - 17:00" {...field} value={field.value || ""} />
                   </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={field.value}
-                    onSelect={field.onChange}
-                    disabled={(date) => date < new Date("1900-01-01")}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="requested_time"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Requested Time</FormLabel>
-              <FormControl>
-                <Input type="time" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="contact_person"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Contact Person</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter contact person's name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="phone_number"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Phone Number</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter phone number" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="payment_method"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Payment Method</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter payment method" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="customer_name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Customer Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter customer name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="company_name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Company Name</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter company name" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="vehicle_details"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Vehicle Details</FormLabel>
-              <FormControl>
-                <Input placeholder="Enter vehicle details" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notes</FormLabel>
-              <FormControl>
-                <Textarea placeholder="Add any notes here" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full">
-          {isEdit ? "Update Request" : "Create Request"}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </TabsContent>
+
+          <TabsContent value="customer_details" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="customer_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama Pelanggan</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan nama pelanggan" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="company_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan nama perusahaan" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="contact_person"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Kontak Person</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan nama kontak person" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone_number"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nomor Telepon</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan nomor telepon" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="full_address"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Alamat Lengkap</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Masukkan alamat lengkap" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="landmark"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Landmark (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan landmark terdekat" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </TabsContent>
+
+          <TabsContent value="additional_details" className="mt-4 space-y-4">
+            <FormField
+              control={form.control}
+              name="vehicle_details"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Detail Kendaraan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan detail kendaraan" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="payment_method"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Masukkan metode pembayaran" {...field} value={field.value || ""} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Catatan (Opsional)</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Tambahkan catatan di sini" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </TabsContent>
+        </Tabs>
+        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+          {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEdit ? "Perbarui Permintaan" : "Buat Permintaan")}
         </Button>
       </form>
     </Form>

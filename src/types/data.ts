@@ -69,9 +69,9 @@ export enum TechnicianType {
 }
 
 export enum ProductCategory {
-  GPS = "GPS",
-  CCTV = "CCTV",
-  LAINNYA = "Lainnya",
+  JAWARA_TRACKER = "Jawara Tracker", // Updated
+  POWERDASH = "Powerdash",         // Updated
+  LAINNYA = "Lainnya",             // Updated
 }
 
 export enum StockEventType {
