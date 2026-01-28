@@ -69,9 +69,9 @@ export enum TechnicianType {
 }
 
 export enum ProductCategory {
-  JAWARA_TRACKER = "Jawara Tracker",
-  POWERDASH = "Powerdash",
-  LAINNYA = "Lainnya",
+  JAWARA_TRACKER = "jawara_tracker",
+  POWERDASH = "powerdash",
+  LAINNYA = "lainnya",
 }
 
 export enum PaymentMethod { // New enum for payment methods
@@ -106,6 +106,11 @@ export enum WarehouseCategoryEnum { // Defined for explicit usage in StockHistor
   GUDANG_RETUR = "gudang_retur",
   SIAP_JUAL = "siap_jual",
 }
+
+// Helper function to format enum values for display
+export const formatEnumForDisplay = (enumValue: string) => {
+  return enumValue.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+};
 
 export type Profile = {
   id: string;

@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProductCategory, SchedulingRequestType, PaymentMethod, Customer } from "@/types/data"; // Import Customer type
+import { ProductCategory, SchedulingRequestType, PaymentMethod, Customer, formatEnumForDisplay } from "@/types/data"; // Import formatEnumForDisplay
 
 const formSchema = z.object({
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
@@ -300,7 +300,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                     <SelectContent>
                       {Object.values(ProductCategory).map((category) => (
                         <SelectItem key={category} value={category}>
-                          {category}
+                          {formatEnumForDisplay(category)}
                         </SelectItem>
                       ))}
                     </SelectContent>
