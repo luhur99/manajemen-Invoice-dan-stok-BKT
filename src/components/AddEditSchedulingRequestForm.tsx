@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -30,25 +30,57 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProductCategory, SchedulingRequestType, PaymentMethod } from "@/types/data"; // Import PaymentMethod enum
+import { ProductCategory, SchedulingRequestType, PaymentMethod, Customer } from "@/types/data"; // Import Customer type
 
 const formSchema = z.object({
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
   product_category: z.nativeEnum(ProductCategory, {
     required_error: "Kategori produk wajib dipilih.",
   }),
-  full_address: z.string().min(1, "Alamat lengkap wajib diisi."),
+  full_address: z.string().optional().nullable(), // Made optional, validated conditionally
   landmark: z.string().optional().nullable(),
   requested_date: z.date({ required_error: "Tanggal permintaan wajib diisi." }),
   requested_time: z.string().optional().nullable(),
-  contact_person: z.string().min(1, "Nama kontak wajib diisi."),
-  phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  payment_method: z.nativeEnum(PaymentMethod, { required_error: "Metode pembayaran wajib dipilih." }), // Changed to enum
+  contact_person: z.string().optional().nullable(), // Made optional, validated conditionally
+  phone_number: z.string().optional().nullable(), // Made optional, validated conditionally
+  payment_method: z.nativeEnum(PaymentMethod, { required_error: "Metode pembayaran wajib dipilih." }),
   notes: z.string().optional().nullable(),
-  customer_id: z.string().optional().nullable(),
-  customer_name: z.string().optional().nullable(),
+  customer_id: z.string().optional().nullable(), // Now optional, can be null for manual input
+  customer_name: z.string().optional().nullable(), // Made optional, validated conditionally
   company_name: z.string().optional().nullable(),
   vehicle_details: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+  // Conditional validation if no customer_id is selected
+  if (!data.customer_id) {
+    if (!data.customer_name || data.customer_name.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Nama pelanggan wajib diisi jika tidak memilih dari daftar.",
+        path: ["customer_name"],
+      });
+    }
+    if (!data.contact_person || data.contact_person.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Nama kontak wajib diisi jika tidak memilih dari daftar.",
+        path: ["contact_person"],
+      });
+    }
+    if (!data.phone_number || data.phone_number.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Nomor telepon wajib diisi jika tidak memilih dari daftar.",
+        path: ["phone_number"],
+      });
+    }
+    if (!data.full_address || data.full_address.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Alamat lengkap wajib diisi jika tidak memilih dari daftar.",
+        path: ["full_address"],
+      });
+    }
+  }
 });
 
 interface AddEditSchedulingRequestFormProps {
@@ -59,6 +91,9 @@ interface AddEditSchedulingRequestFormProps {
 export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedulingRequestFormProps) {
   const isEdit = !!request;
   const [activeTab, setActiveTab] = useState("basic_info");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(request?.customer_id || null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -71,7 +106,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
       requested_time: request?.requested_time || null,
       contact_person: request?.contact_person || "",
       phone_number: request?.phone_number || "",
-      payment_method: request?.payment_method || undefined, // Set to undefined for initial selection
+      payment_method: request?.payment_method || undefined,
       notes: request?.notes || null,
       customer_id: request?.customer_id || null,
       customer_name: request?.customer_name || null,
@@ -79,6 +114,23 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
       vehicle_details: request?.vehicle_details || null,
     },
   });
+
+  const fetchCustomers = useCallback(async () => {
+    setIsLoadingCustomers(true);
+    const { data, error } = await supabase
+      .from("customers")
+      .select("id, customer_name, company_name, address, phone_number");
+    if (error) {
+      toast.error("Gagal memuat daftar pelanggan: " + error.message);
+    } else {
+      setCustomers(data as Customer[]);
+    }
+    setIsLoadingCustomers(false);
+  }, []);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   useEffect(() => {
     if (request) {
@@ -91,13 +143,14 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
         requested_time: request.requested_time || null,
         contact_person: request.contact_person,
         phone_number: request.phone_number,
-        payment_method: request.payment_method || undefined, // Set to undefined for initial selection
+        payment_method: request.payment_method || undefined,
         notes: request.notes || null,
         customer_id: request.customer_id || null,
         customer_name: request.customer_name || null,
         company_name: request.company_name || null,
         vehicle_details: request.vehicle_details || null,
       });
+      setSelectedCustomerId(request.customer_id || null);
     } else {
       form.reset({
         type: SchedulingRequestType.INSTALLATION,
@@ -108,16 +161,39 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
         requested_time: null,
         contact_person: "",
         phone_number: "",
-        payment_method: undefined, // Set to undefined for initial selection
+        payment_method: undefined,
         notes: null,
         customer_id: null,
         customer_name: null,
         company_name: null,
         vehicle_details: null,
       });
+      setSelectedCustomerId(null);
     }
     setActiveTab("basic_info"); // Reset to first tab on open/edit
   }, [request, form]);
+
+  useEffect(() => {
+    if (selectedCustomerId && customers.length > 0) {
+      const customer = customers.find((c) => c.id === selectedCustomerId);
+      if (customer) {
+        form.setValue("customer_name", customer.customer_name);
+        form.setValue("company_name", customer.company_name);
+        form.setValue("contact_person", customer.customer_name); // Assuming contact person is customer name
+        form.setValue("phone_number", customer.phone_number);
+        form.setValue("full_address", customer.address);
+        // Landmark is not in customer table, so leave as is or clear if desired
+      }
+    } else if (selectedCustomerId === null && !isEdit) {
+      // Clear fields if "Manual Input" is selected for new requests
+      form.setValue("customer_name", "");
+      form.setValue("company_name", "");
+      form.setValue("contact_person", "");
+      form.setValue("phone_number", "");
+      form.setValue("full_address", "");
+      form.setValue("landmark", "");
+    }
+  }, [selectedCustomerId, customers, form, isEdit]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     const user = await supabase.auth.getUser();
@@ -138,6 +214,9 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
       customer_name: values.customer_name || null,
       company_name: values.company_name || null,
       vehicle_details: values.vehicle_details || null,
+      full_address: values.full_address || null,
+      contact_person: values.contact_person || null,
+      phone_number: values.phone_number || null,
     };
 
     if (isEdit) {
@@ -167,6 +246,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
       }
     }
   }
+
+  const isCustomerSelected = selectedCustomerId !== null;
 
   return (
     <Form {...form}>
@@ -284,12 +365,49 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
           <TabsContent value="customer_details" className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
               control={form.control}
+              name="customer_id"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Pilih Pelanggan</FormLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      field.onChange(value === "manual" ? null : value);
+                      setSelectedCustomerId(value === "manual" ? null : value);
+                    }}
+                    value={selectedCustomerId || "manual"}
+                    disabled={isLoadingCustomers}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih pelanggan atau input manual" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="manual">Input Manual</SelectItem>
+                      {customers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.customer_name} {customer.company_name ? `(${customer.company_name})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="customer_name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Nama Pelanggan</FormLabel>
                   <FormControl>
-                    <Input placeholder="Masukkan nama pelanggan" {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Masukkan nama pelanggan"
+                      {...field}
+                      value={field.value || ""}
+                      disabled={isCustomerSelected}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -302,7 +420,12 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                 <FormItem>
                   <FormLabel>Nama Perusahaan (Opsional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Masukkan nama perusahaan" {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Masukkan nama perusahaan"
+                      {...field}
+                      value={field.value || ""}
+                      disabled={isCustomerSelected}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -315,7 +438,12 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                 <FormItem>
                   <FormLabel>Kontak Person</FormLabel>
                   <FormControl>
-                    <Input placeholder="Masukkan nama kontak person" {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Masukkan nama kontak person"
+                      {...field}
+                      value={field.value || ""}
+                      disabled={isCustomerSelected}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -328,7 +456,12 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                 <FormItem>
                   <FormLabel>Nomor Telepon</FormLabel>
                   <FormControl>
-                    <Input placeholder="Masukkan nomor telepon" {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Masukkan nomor telepon"
+                      {...field}
+                      value={field.value || ""}
+                      disabled={isCustomerSelected}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -341,7 +474,11 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                 <FormItem className="md:col-span-2">
                   <FormLabel>Alamat Lengkap</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Masukkan alamat lengkap" {...field} />
+                    <Textarea
+                      placeholder="Masukkan alamat lengkap"
+                      {...field}
+                      disabled={isCustomerSelected}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -354,7 +491,12 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                 <FormItem className="md:col-span-2">
                   <FormLabel>Landmark (Opsional)</FormLabel>
                   <FormControl>
-                    <Input placeholder="Masukkan landmark terdekat" {...field} value={field.value || ""} />
+                    <Input
+                      placeholder="Masukkan landmark terdekat"
+                      {...field}
+                      value={field.value || ""}
+                      disabled={isCustomerSelected}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
