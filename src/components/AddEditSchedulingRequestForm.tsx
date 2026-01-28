@@ -247,7 +247,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
     }
   }
 
-  const isCustomerSelected = selectedCustomerId !== null;
+  // Removed isCustomerSelected as it's no longer used for disabling fields
+  // const isCustomerSelected = selectedCustomerId !== null;
 
   return (
     <Form {...form}>
@@ -406,7 +407,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nama pelanggan"
                       {...field}
                       value={field.value || ""}
-                      disabled={isCustomerSelected}
+                      // Removed disabled={isCustomerSelected}
                     />
                   </FormControl>
                   <FormMessage />
@@ -424,7 +425,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nama perusahaan"
                       {...field}
                       value={field.value || ""}
-                      disabled={isCustomerSelected}
+                      // Removed disabled={isCustomerSelected}
                     />
                   </FormControl>
                   <FormMessage />
@@ -442,7 +443,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nama kontak person"
                       {...field}
                       value={field.value || ""}
-                      disabled={isCustomerSelected}
+                      // Removed disabled={isCustomerSelected}
                     />
                   </FormControl>
                   <FormMessage />
@@ -460,7 +461,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nomor telepon"
                       {...field}
                       value={field.value || ""}
-                      disabled={isCustomerSelected}
+                      // Removed disabled={isCustomerSelected}
                     />
                   </FormControl>
                   <FormMessage />
@@ -477,7 +478,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                     <Textarea
                       placeholder="Masukkan alamat lengkap"
                       {...field}
-                      disabled={isCustomerSelected}
+                      // Removed disabled={isCustomerSelected}
                     />
                   </FormControl>
                   <FormMessage />
@@ -495,7 +496,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan landmark terdekat"
                       {...field}
                       value={field.value || ""}
-                      disabled={isCustomerSelected}
+                      // Removed disabled={isCustomerSelected}
                     />
                   </FormControl>
                   <FormMessage />
