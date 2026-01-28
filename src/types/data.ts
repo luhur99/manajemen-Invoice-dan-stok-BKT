@@ -69,9 +69,17 @@ export enum TechnicianType {
 }
 
 export enum ProductCategory {
-  JAWARA_TRACKER = "Jawara Tracker", // Updated
-  POWERDASH = "Powerdash",         // Updated
-  LAINNYA = "Lainnya",             // Updated
+  JAWARA_TRACKER = "Jawara Tracker",
+  POWERDASH = "Powerdash",
+  LAINNYA = "Lainnya",
+}
+
+export enum PaymentMethod { // New enum for payment methods
+  CASH = "Cash",
+  TRANSFER = "Transfer",
+  DP = "DP",
+  PAYMENT_GATEWAY = "Payment Gateway",
+  LAINNYA = "Lainnya",
 }
 
 export enum StockEventType {
@@ -218,7 +226,7 @@ export type SchedulingRequest = {
   requested_date: string;
   requested_time: string | null;
   contact_person: string;
-  payment_method: string | null;
+  payment_method: PaymentMethod | null; // Changed to PaymentMethod enum
   status: SchedulingRequestStatus;
   notes: string | null;
   created_at: string | null;
@@ -264,7 +272,7 @@ export type Schedule = {
   sr_number: string | null; // Added sr_number
   invoices?: Invoice; // Added invoices for joined data
   company_name: string | null; // Added company_name
-  payment_method: string | null; // Added payment_method
+  payment_method: PaymentMethod | null; // Changed to PaymentMethod enum
 };
 
 export type ScheduleWithDetails = Schedule & {
@@ -299,7 +307,7 @@ export type Invoice = {
   payment_status: InvoicePaymentStatus;
   type: InvoiceType | null;
   customer_type: CustomerTypeEnum | null;
-  payment_method: string | null;
+  payment_method: PaymentMethod | null; // Changed to PaymentMethod enum
   notes: string | null;
   document_url: string | null;
   courier_service: string | null;

@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProductCategory, SchedulingRequestType } from "@/types/data"; // Import ProductCategory enum
+import { ProductCategory, SchedulingRequestType, PaymentMethod } from "@/types/data"; // Import PaymentMethod enum
 
 const formSchema = z.object({
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
@@ -43,7 +43,7 @@ const formSchema = z.object({
   requested_time: z.string().optional().nullable(),
   contact_person: z.string().min(1, "Nama kontak wajib diisi."),
   phone_number: z.string().min(1, "Nomor telepon wajib diisi."),
-  payment_method: z.string().optional().nullable(),
+  payment_method: z.nativeEnum(PaymentMethod, { required_error: "Metode pembayaran wajib dipilih." }), // Changed to enum
   notes: z.string().optional().nullable(),
   customer_id: z.string().optional().nullable(),
   customer_name: z.string().optional().nullable(),
@@ -71,7 +71,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
       requested_time: request?.requested_time || null,
       contact_person: request?.contact_person || "",
       phone_number: request?.phone_number || "",
-      payment_method: request?.payment_method || null,
+      payment_method: request?.payment_method || undefined, // Set to undefined for initial selection
       notes: request?.notes || null,
       customer_id: request?.customer_id || null,
       customer_name: request?.customer_name || null,
@@ -91,7 +91,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
         requested_time: request.requested_time || null,
         contact_person: request.contact_person,
         phone_number: request.phone_number,
-        payment_method: request.payment_method || null,
+        payment_method: request.payment_method || undefined, // Set to undefined for initial selection
         notes: request.notes || null,
         customer_id: request.customer_id || null,
         customer_name: request.customer_name || null,
@@ -108,7 +108,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
         requested_time: null,
         contact_person: "",
         phone_number: "",
-        payment_method: null,
+        payment_method: undefined, // Set to undefined for initial selection
         notes: null,
         customer_id: null,
         customer_name: null,
@@ -133,7 +133,6 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
       // Ensure nullable fields are explicitly null if empty string
       landmark: values.landmark || null,
       requested_time: values.requested_time || null,
-      payment_method: values.payment_method || null,
       notes: values.notes || null,
       customer_id: values.customer_id || null,
       customer_name: values.customer_name || null,
@@ -382,10 +381,21 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
               name="payment_method"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Metode Pembayaran (Opsional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Masukkan metode pembayaran" {...field} value={field.value || ""} />
-                  </FormControl>
+                  <FormLabel>Metode Pembayaran</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih metode pembayaran" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {Object.values(PaymentMethod).map((method) => (
+                        <SelectItem key={method} value={method}>
+                          {method}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
