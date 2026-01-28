@@ -28,9 +28,11 @@ import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { showError, showSuccess } from "@/utils/toast"; // Using custom toast utility
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProductCategory, SchedulingRequestType, PaymentMethod, Customer, formatEnumForDisplay } from "@/types/data"; // Import formatEnumForDisplay
+import { ProductCategory, SchedulingRequestType, PaymentMethod, Customer, formatEnumForDisplay } from "@/types/data";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // Import useQuery, useMutation, useQueryClient
+import { useSession } from "@/components/SessionContextProvider";
 
 const formSchema = z.object({
   type: z.nativeEnum(SchedulingRequestType, { required_error: "Tipe permintaan wajib dipilih." }),
@@ -90,9 +92,9 @@ interface AddEditSchedulingRequestFormProps {
 
 export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedulingRequestFormProps) {
   const isEdit = !!request;
+  const { session } = useSession();
+  const queryClient = useQueryClient(); // Initialize queryClient
   const [activeTab, setActiveTab] = useState("basic_info");
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(request?.customer_id || null);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -115,22 +117,18 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
     },
   });
 
-  const fetchCustomers = useCallback(async () => {
-    setIsLoadingCustomers(true);
-    const { data, error } = await supabase
-      .from("customers")
-      .select("id, customer_name, company_name, address, phone_number");
-    if (error) {
-      toast.error("Gagal memuat daftar pelanggan: " + error.message);
-    } else {
-      setCustomers(data as Customer[]);
-    }
-    setIsLoadingCustomers(false);
-  }, []);
-
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+  const { data: customers, isLoading: isLoadingCustomers, error: customersError } = useQuery<Customer[], Error>({
+    queryKey: ["customers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, customer_name, company_name, address, phone_number");
+      if (error) {
+        throw error;
+      }
+      return data as Customer[];
+    },
+  });
 
   useEffect(() => {
     if (request) {
@@ -174,7 +172,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
   }, [request, form]);
 
   useEffect(() => {
-    if (selectedCustomerId && customers.length > 0) {
+    if (selectedCustomerId && customers && customers.length > 0) {
       const customer = customers.find((c) => c.id === selectedCustomerId);
       if (customer) {
         form.setValue("customer_name", customer.customer_name);
@@ -195,60 +193,74 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
     }
   }, [selectedCustomerId, customers, form, isEdit]);
 
+  const saveRequestMutation = useMutation({
+    mutationFn: async (values: z.infer<typeof formSchema>) => {
+      if (!session?.user?.id) {
+        throw new Error("Anda harus login untuk membuat atau memperbarui permintaan jadwal.");
+      }
+
+      const payload = {
+        ...values,
+        user_id: session.user.id,
+        requested_date: format(values.requested_date, "yyyy-MM-dd"),
+        // Ensure nullable fields are explicitly null if empty string
+        full_address: values.full_address || null,
+        landmark: values.landmark || null,
+        requested_time: values.requested_time || null,
+        contact_person: values.contact_person || null,
+        phone_number: values.phone_number || null,
+        notes: values.notes || null,
+        customer_id: values.customer_id || null,
+        customer_name: values.customer_name || null,
+        company_name: values.company_name || null,
+        vehicle_details: values.vehicle_details || null,
+      };
+
+      if (isEdit) {
+        const { error } = await supabase
+          .from("scheduling_requests")
+          .update({ ...payload, updated_at: new Date().toISOString() })
+          .eq("id", request.id);
+
+        if (error) {
+          throw error;
+        }
+      } else {
+        const { error } = await supabase
+          .from("scheduling_requests")
+          .insert(payload);
+
+        if (error) {
+          throw error;
+        }
+      }
+    },
+    onSuccess: () => {
+      showSuccess(isEdit ? "Permintaan jadwal berhasil diperbarui!" : "Permintaan jadwal berhasil dibuat!");
+      onClose();
+      queryClient.invalidateQueries({ queryKey: ["schedulingRequests"] }); // Invalidate to refetch the list
+    },
+    onError: (error: any) => {
+      showError(`Gagal ${isEdit ? "memperbarui" : "membuat"} permintaan jadwal: ${error.message}`);
+      console.error("Error saving scheduling request:", error);
+    },
+  });
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const user = await supabase.auth.getUser();
-    if (!user.data.user) {
-      toast.error("Anda harus login untuk membuat atau memperbarui permintaan jadwal.");
-      return;
-    }
-
-    const payload = {
-      ...values,
-      user_id: user.data.user.id,
-      requested_date: format(values.requested_date, "yyyy-MM-dd"),
-      // Ensure nullable fields are explicitly null if empty string
-      landmark: values.landmark || null,
-      requested_time: values.requested_time || null,
-      notes: values.notes || null,
-      customer_id: values.customer_id || null,
-      customer_name: values.customer_name || null,
-      company_name: values.company_name || null,
-      vehicle_details: values.vehicle_details || null,
-      full_address: values.full_address || null,
-      contact_person: values.contact_person || null,
-      phone_number: values.phone_number || null,
-    };
-
-    if (isEdit) {
-      const { error } = await supabase
-        .from("scheduling_requests")
-        .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq("id", request.id);
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Permintaan jadwal berhasil diperbarui!");
-        onClose();
-        window.location.reload();
-      }
-    } else {
-      const { error } = await supabase
-        .from("scheduling_requests")
-        .insert(payload);
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        toast.success("Permintaan jadwal berhasil dibuat!");
-        onClose();
-        window.location.reload();
-      }
-    }
+    saveRequestMutation.mutate(values);
   }
 
-  // Removed isCustomerSelected as it's no longer used for disabling fields
-  // const isCustomerSelected = selectedCustomerId !== null;
+  if (isLoadingCustomers) {
+    return (
+      <div className="flex justify-center items-center h-32">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (customersError) {
+    return <div className="text-red-500">Error loading customers: {customersError.message}</div>;
+  }
 
   return (
     <Form {...form}>
@@ -385,7 +397,7 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="manual">Input Manual</SelectItem>
-                      {customers.map((customer) => (
+                      {customers?.map((customer) => (
                         <SelectItem key={customer.id} value={customer.id}>
                           {customer.customer_name} {customer.company_name ? `(${customer.company_name})` : ''}
                         </SelectItem>
@@ -407,7 +419,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nama pelanggan"
                       {...field}
                       value={field.value || ""}
-                      // Removed disabled={isCustomerSelected}
+                      disabled={!!selectedCustomerId} // Disable if customer is selected
+                      className={cn({ "bg-gray-100": !!selectedCustomerId })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -425,7 +438,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nama perusahaan"
                       {...field}
                       value={field.value || ""}
-                      // Removed disabled={isCustomerSelected}
+                      disabled={!!selectedCustomerId} // Disable if customer is selected
+                      className={cn({ "bg-gray-100": !!selectedCustomerId })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -443,7 +457,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nama kontak person"
                       {...field}
                       value={field.value || ""}
-                      // Removed disabled={isCustomerSelected}
+                      disabled={!!selectedCustomerId} // Disable if customer is selected
+                      className={cn({ "bg-gray-100": !!selectedCustomerId })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -461,7 +476,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan nomor telepon"
                       {...field}
                       value={field.value || ""}
-                      // Removed disabled={isCustomerSelected}
+                      disabled={!!selectedCustomerId} // Disable if customer is selected
+                      className={cn({ "bg-gray-100": !!selectedCustomerId })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -478,7 +494,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                     <Textarea
                       placeholder="Masukkan alamat lengkap"
                       {...field}
-                      // Removed disabled={isCustomerSelected}
+                      disabled={!!selectedCustomerId} // Disable if customer is selected
+                      className={cn({ "bg-gray-100": !!selectedCustomerId })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -496,7 +513,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
                       placeholder="Masukkan landmark terdekat"
                       {...field}
                       value={field.value || ""}
-                      // Removed disabled={isCustomerSelected}
+                      disabled={!!selectedCustomerId} // Disable if customer is selected
+                      className={cn({ "bg-gray-100": !!selectedCustomerId })}
                     />
                   </FormControl>
                   <FormMessage />
@@ -558,8 +576,8 @@ export function AddEditSchedulingRequestForm({ request, onClose }: AddEditSchedu
             />
           </TabsContent>
         </Tabs>
-        <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEdit ? "Perbarui Permintaan" : "Buat Permintaan")}
+        <Button type="submit" className="w-full" disabled={saveRequestMutation.isPending}>
+          {saveRequestMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEdit ? "Perbarui Permintaan" : "Buat Permintaan")}
         </Button>
       </form>
     </Form>
